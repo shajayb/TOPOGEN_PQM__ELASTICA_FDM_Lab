@@ -37,30 +37,10 @@ export function mountTab6Io() {
     if (!pane) return;
     pane.innerHTML = `
         <div class="bg-gray-900/90 border border-gray-700 rounded p-2.5 space-y-2">
-            <div class="flex items-center justify-between">
-                <label class="block text-[10.5px] font-semibold uppercase tracking-wider text-pink-400">Foundry &amp; CAD Exports</label>
-                <span class="text-[8.5px] font-mono text-emerald-400">Multi-Layer .3dm</span>
-            </div>
-            <p class="goldilocks-guide-prose text-[9.5px] text-gray-400 leading-snug">
-                Exports all active pipeline stages organized into dedicated Rhino <span class="text-gray-200 font-semibold">.3dm</span> layers, plus neutral Foundry JSON, Quad OBJ, and Laser-Bed Unrolled SVG sheets.
-            </p>
-            <div class="grid grid-cols-3 gap-1">
-                <button id="btn-export-quad-obj" class="cad-btn cyan text-[9px] py-1" title="Export watertight all-quad PQ mesh (.obj)">Quad .OBJ</button>
-                <button id="btn-export-foundry-json" class="cad-btn accent text-[9px] py-1" title="Export Foundry Topology JSON with geometry &amp; fabrication blocks">Foundry .JSON</button>
-                <button id="btn-export-unrolled-svg" class="cad-btn text-[9px] py-1" title="Export 2D unrolled PQ strip patterns on laser bed sheets (.svg + .unrolled.json)">Unroll .SVG</button>
-            </div>
-            <button id="btn-export-graph-both" class="cad-btn on w-full py-1 text-[9.5px]" title="Export welded centerline graph as both .3dm and documented .json">Export Welded Graph (.3dm + .json)</button>
-            <div class="grid grid-cols-3 gap-1">
-                <button id="btn-export-graph-3dm" class="cad-btn text-[9px] py-1" title="Export welded graph as Rhino .3dm">Graph .3dm</button>
-                <button id="btn-export-graph-json" class="cad-btn text-[9px] py-1" title="Export welded graph as documented .json">Graph .json</button>
-                <button id="btn-export" class="cad-btn primary text-[9px] py-1" title="Export all elements in layers: 1. Tiles, 2. Generated Topology (Tiles &amp; Network), 3. Post-FDM Topology, 4. PQ Mesh &amp; Unrolls (.3dm)">Scene .3dm</button>
-            </div>
-            <div class="bg-gray-950/80 border border-gray-800 rounded p-2 space-y-1 text-[8.5px] font-mono text-gray-300">
-                <div class="text-[8px] uppercase tracking-wider text-cyan-400 font-semibold">Rhino .3dm Export Layers (Scene .3dm)</div>
-                <div>• <span class="text-pink-300">01_Tiles</span> — Enabled module catalog tiles &amp; graphs</div>
-                <div>• <span class="text-amber-300">02_Generated_Topology_Tiles</span> &amp; <span class="text-red-300">_Network</span> — Voxel meshes &amp; pre-FDM welded graph</div>
-                <div>• <span class="text-cyan-300">03_Post_FDM_Topology</span> — Form-found network &amp; fixed anchors</div>
-                <div>• <span class="text-emerald-300">04_PQ_Mesh</span> &amp; <span class="text-purple-300">05_Unrolls_Laser_Sheets</span> — Solidified PQ quads &amp; 2D laser sheets</div>
+            <label class="block text-[10.5px] font-semibold uppercase tracking-wider text-pink-400">Foundry &amp; CAD Exports</label>
+            <div class="grid grid-cols-2 gap-1.5">
+                <button id="btn-export" class="cad-btn primary py-1.5 text-[9.5px]" title="Export all active pipeline layers in one multi-layer Rhino .3dm file">Export All (.3dm)</button>
+                <button id="btn-export-parts" class="cad-btn py-1.5 text-[9.5px]" title="Export individual files: Quad .obj, Foundry .json, Unroll .svg, Welded Graph .3dm &amp; .json">Export Parts (Files)</button>
             </div>
         </div>
     `;
@@ -634,19 +614,17 @@ export function initTab6Io() {
     actions.clearUserImportedMeshes = clearUserImportedMeshes;
 
     const bind = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', fn); };
-    bind('btn-export-quad-obj', () => exportQuadOBJFromUI());
-    bind('btn-export-foundry-json', () => exportFoundryTopologyJSONFromUI());
-    bind('btn-export-unrolled-svg', () => exportUnrolledSVGFromUI());
-    bind('btn-export-graph-3dm', () => exportWeldedGraph3dm());
-    bind('btn-export-graph-json', () => exportWeldedGraphJSON());
-    bind('btn-export-graph-both', () => {
-        const stamp = Date.now();
-        exportWeldedGraph3dm(stamp);
-        setTimeout(() => exportWeldedGraphJSON(stamp), 120);
-    });
     bind('btn-export', () => {
         const bytes = buildExportBytes();
         downloadBlob(new Blob([bytes], { type: 'application/octet-stream' }), `WFC_QuadMesh_${Date.now()}.3dm`);
+    });
+    bind('btn-export-parts', () => {
+        const stamp = Date.now();
+        exportQuadOBJFromUI();
+        setTimeout(() => exportFoundryTopologyJSONFromUI(), 100);
+        setTimeout(() => exportUnrolledSVGFromUI(), 200);
+        setTimeout(() => exportWeldedGraph3dm(stamp), 300);
+        setTimeout(() => exportWeldedGraphJSON(stamp), 400);
     });
 
     // Footer quick-export strip

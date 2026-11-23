@@ -87,52 +87,52 @@
                     <button id="btn-compact-burst" class="cad-btn py-1.5 px-2 text-[10px]" title="Step 50 iterations">⚡×50</button>
                 </div>
 
-                <!-- 3. PQ MESH: Solidify All-Quad & 3D Unroll + Compact Tube Radius -->
-                <div class="space-y-1">
-                    <div class="flex space-x-1">
-                        <button id="btn-compact-pqm" class="cad-btn accent flex-1 py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Solidify active network into watertight all-quad PQ tubular mesh">
-                            <span>3. PQ Mesh · Solidify</span>
-                            <span id="compact-pqm-badge" class="font-mono text-[9px] text-pink-300 bg-pink-950/50 border border-pink-500/30 rounded px-1.5 py-0.5">Build</span>
+                <!-- 3. PQ MESH: Solidify All-Quad & 3D Unroll + Inline Tube Radius -->
+                <div class="flex space-x-1 items-stretch">
+                    <div class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1 rounded border border-gray-700 bg-white">
+                        <button id="btn-compact-pqm" class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-100 hover:text-cyan-400 shrink-0 cursor-pointer" title="Solidify active network into watertight all-quad PQ tubular mesh">
+                            <span>3. PQ Mesh</span>
+                            <span id="compact-pqm-badge" class="font-mono text-[8.5px] bg-pink-950/50 border border-pink-500/30 rounded px-1 py-0.5">Build</span>
                         </button>
-                        <button id="btn-compact-unroll" class="cad-btn py-1.5 px-2 text-[9px]" title="Toggle 3D Unrolled PQ Strips grid">Unroll</button>
+                        <div class="flex-1 min-w-0 flex items-center gap-1 pl-1 border-l border-gray-700">
+                            <span class="font-mono font-semibold text-[9.5px] text-gray-300 shrink-0" title="Tube outer radius (m)">R</span>
+                            <input id="rng-compact-tube-radius" type="range" min="0.040" max="0.200" step="0.001" value="0.060" class="flex-1 min-w-[44px] h-1.5 cursor-pointer" title="Tube outer radius (m)">
+                            <span id="val-compact-tube-radius" class="font-mono text-[8.5px] text-gray-300 w-9 text-right shrink-0">0.060m</span>
+                        </div>
                     </div>
-                    <div class="flex items-center space-x-2 px-2 py-1 rounded bg-gray-900/60 border border-gray-700 text-[10px]">
-                        <span class="font-mono font-semibold text-pink-400 shrink-0" title="Tube outer radius (m)">R</span>
-                        <input id="rng-compact-tube-radius" type="range" min="0.040" max="0.200" step="0.001" value="0.060" class="flex-1 h-1.5 accent-pink-500 cursor-pointer" title="Tube outer radius (m)">
-                        <span id="val-compact-tube-radius" class="font-mono text-[9px] text-gray-200 w-11 text-right shrink-0">0.060m</span>
-                    </div>
+                    <button id="btn-compact-unroll" class="cad-btn py-1.5 px-2 text-[9px] shrink-0" title="Toggle 3D Unrolled PQ Strips grid">Unroll</button>
                 </div>
 
-                <!-- 4. FDM: Form-Finding -->
-                <div class="flex space-x-1">
-                    <button id="btn-compact-fdm" class="cad-btn cyan flex-1 py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Run Force Density Method (FDM) funicular form-finding on active network">
-                        <span>4. FDM · Form-Find</span>
-                        <span id="compact-fdm-badge" class="font-mono text-[9px] text-cyan-300 bg-cyan-950/50 border border-cyan-500/30 rounded px-1.5 py-0.5">Off</span>
-                    </button>
-                    <button id="btn-compact-fdm-reset" class="cad-btn py-1.5 px-2 text-[9px]" title="Reset FDM back to undeformed host topology">↺</button>
-                </div>
-
-                <!-- 5. ELASTICA: A* V1-V1 Rods & Unroll -->
+                <!-- 4. ELASTICA: A* V1-V1 Rods & Unroll -->
                 <div class="flex space-x-1">
                     <button id="btn-compact-elastica" class="cad-btn accent flex-1 py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Trace A* V1→V1 paths, optimize elastica curves & build 3D rods">
-                        <span>Elastica · Rods</span>
+                        <span>4. Elastica · Rods</span>
                         <span id="compact-elastica-badge" class="font-mono text-[9px] text-pink-300 bg-pink-950/50 border border-pink-500/30 rounded px-1.5 py-0.5">Build</span>
                     </button>
                     <button id="btn-compact-elastica-unroll" class="cad-btn py-1.5 px-2 text-[9px]" title="Toggle 3D Unrolled Elastica Rods">Unroll</button>
                 </div>
 
-                <!-- 5. FEA: 3D Structural Check -->
+                <!-- 5. FDM: Form-Finding -->
                 <div class="flex space-x-1">
-                    <button id="btn-compact-fea" class="cad-btn primary flex-1 py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Run 3D Euler-Bernoulli Space-Frame FEA check">
-                        <span>5. FEA · Analyze</span>
-                        <span id="compact-fea-badge" class="font-mono text-[9px] bg-black/25 border border-black/20 rounded px-1.5 py-0.5">Ready</span>
+                    <button id="btn-compact-fdm" class="cad-btn cyan flex-1 py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Run Force Density Method (FDM) funicular form-finding on active network">
+                        <span>5. FDM · Form-Find</span>
+                        <span id="compact-fdm-badge" class="font-mono text-[9px] text-cyan-300 bg-cyan-950/50 border border-cyan-500/30 rounded px-1.5 py-0.5">Off</span>
+                    </button>
+                    <button id="btn-compact-fdm-reset" class="cad-btn py-1.5 px-2 text-[9px]" title="Reset FDM back to undeformed host topology">↺</button>
+                </div>
+
+                <!-- 6. FEA: 3D Structural Check -->
+                <div class="flex space-x-1">
+                    <button id="btn-compact-fea" class="cad-btn flex-1 py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Run 3D Euler-Bernoulli Space-Frame FEA check">
+                        <span>6. FEA · Analyze</span>
+                        <span id="compact-fea-badge" class="font-mono text-[9px] text-gray-300 bg-gray-900/60 border border-gray-700 rounded px-1.5 py-0.5">Ready</span>
                     </button>
                     <button id="btn-compact-fea-anim" class="cad-btn py-1.5 px-2 text-[9px]" title="Animate FEA Deflection">▶</button>
                 </div>
 
-                <!-- 6. I/O: Composite Multi-Layer Rhino .3dm Export -->
+                <!-- 7. I/O: Composite Multi-Layer Rhino .3dm Export -->
                 <button id="btn-compact-export-3dm" class="cad-btn accent w-full py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Export composite multi-layer Rhino .3dm (01_Tiles, 02_Generated_Topology, 03_Post_FDM_Topology, 04_PQ_Mesh, 05_Unrolls_Laser_Sheets)">
-                    <span>6. I/O · Export Composite .3dm</span>
+                    <span>7. I/O · Export Composite .3dm</span>
                     <span id="compact-graph-badge" class="font-mono text-[9px] text-pink-200 bg-pink-950/60 border border-pink-500/35 rounded px-1.5 py-0.5">0V · 0E</span>
                 </button>
             </div>
@@ -166,14 +166,6 @@
                 <div id="tab-fdm"      class="tab-pane hidden p-3 space-y-2.5"></div>
                 <div id="tab-fea"      class="tab-pane hidden p-3 space-y-2.5"></div>
                 <div id="tab-io"       class="tab-pane hidden p-3 space-y-2.5"></div>
-            </div>
-
-            <!-- Slim 1-Line Quick-Export Strip -->
-            <div id="sec-export" class="px-2.5 py-1.5 border-t border-gray-800 bg-gray-950/90 flex-none flex items-center space-x-1">
-                <button id="btn-footer-quad-obj" class="cad-btn cyan flex-1 text-[8.5px] py-0.5" title="Export PQ Quad .OBJ">Quad .OBJ</button>
-                <button id="btn-footer-foundry-json" class="cad-btn accent flex-1 text-[8.5px] py-0.5" title="Export Foundry Topology .JSON">.JSON</button>
-                <button id="btn-footer-unroll-svg" class="cad-btn flex-1 text-[8.5px] py-0.5" title="Export Unrolled PQ Strips .SVG">Unroll .SVG</button>
-                <button id="btn-footer-graph-3dm" class="cad-btn flex-1 text-[8.5px] py-0.5" title="Export Welded Graph .3dm">Graph .3dm</button>
             </div>
         </div>
 

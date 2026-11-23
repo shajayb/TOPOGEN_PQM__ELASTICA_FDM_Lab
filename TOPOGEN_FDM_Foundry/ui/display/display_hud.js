@@ -82,12 +82,12 @@ export function applyOutlinerVisibility() {
 
     if (activeTabId === 'tab-fea' && hasFea) {
         viewport.tilePreviewGroup.visible = false;
-        viewport.meshGroup.visible = false;
-        viewport.graphGroup.visible = false;
-        viewport.voxelGroup.visible = false;
+        viewport.meshGroup.visible = groupVis.meshes && showQuadMeshes;
+        viewport.graphGroup.visible = groupVis.graph && showCenterlineGraph;
+        viewport.voxelGroup.visible = groupVis.voxels && (showInactiveVoxels || showSuperposition);
         viewport.fdmGroup.visible = false;
-        viewport.tubeGroup.visible = false;
-        viewport.unroll3DGroup.visible = false;
+        viewport.tubeGroup.visible = !!lastSolidData && tubeShowOn && showQuadMeshes;
+        viewport.unroll3DGroup.visible = !!lastSolidData && unrollShowOn;
         if (viewport.elasticaGroup) viewport.elasticaGroup.visible = false;
         if (viewport.elasticaUnroll3DGroup) viewport.elasticaUnroll3DGroup.visible = false;
         viewport.feaGroup.visible = true;
@@ -567,6 +567,7 @@ export function initDisplayHud() {
         if (actions.draw) actions.draw();
         if (appState.lastFDMResult && actions.renderFDMNetwork) actions.renderFDMNetwork(appState.lastFDMResult);
         if (appState.lastElasticaData && actions.renderElastica3D) actions.renderElastica3D();
+        if (appState.lastFEAResult && actions.renderFEAResults3D) actions.renderFEAResults3D();
     };
     const rngDispNodeSize = $('rng-disp-node-size');
     if (rngDispNodeSize) {

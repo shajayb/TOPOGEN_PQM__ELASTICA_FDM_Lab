@@ -363,16 +363,17 @@ body {
     accent-color: var(--accent-primary) !important;
 }
 
-/* Primary Execute CTAs (Solid Cobalt #2563eb) */
+/* Primary Execute CTAs & Active/Pressed States -> Consistent Light Grey (#e2e8f0) */
 .floating-sidebar button[class*="bg-pink-600"],
 .floating-sidebar button[class*="bg-cyan-600"] {
-    background-color: var(--accent-primary) !important;
-    border-color: var(--accent-primary) !important;
-    color: #ffffff !important;
+    background-color: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
 }
 .floating-sidebar button[class*="bg-pink-600"]:hover,
 .floating-sidebar button[class*="bg-cyan-600"]:hover {
-    background-color: var(--accent-primary-hover) !important;
+    background-color: #cbd5e1 !important;
+    border-color: #64748b !important;
 }
 
 /* Light Drafting-Paper 2D Unroll Canvases */
@@ -424,13 +425,20 @@ body {
     cursor: default;
 }
 
+.cad-btn:active:not(:disabled) {
+    background: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+
 .cad-btn.primary {
-    background: #0f172a;
-    border-color: #0f172a;
-    color: #ffffff !important;
+    background: #e2e8f0;
+    border-color: #94a3b8;
+    color: #0f172a !important;
 }
 .cad-btn.primary:hover:not(:disabled) {
-    background: #1e293b;
+    background: #cbd5e1;
+    border-color: #64748b;
 }
 
 .cad-btn.accent {
@@ -456,19 +464,19 @@ body {
 }
 
 .cad-btn.seg-on {
-    background: #0f172a !important;
-    border-color: #0f172a !important;
-    color: #ffffff !important;
+    background: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
 }
 
 .cad-btn.on {
-    background: #0f172a !important;
-    border-color: #0f172a !important;
-    color: #ffffff !important;
+    background: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
 }
 
 .cad-btn.on * {
-    color: #ffffff !important;
+    color: #0f172a !important;
 }
 
 /* Outliner tree */

@@ -22,6 +22,8 @@ import {
     viewport,
     sharedMaterials,
     clearGroup,
+    makeFatMaterial,
+    makeFatLineSegments,
     recomputeModelBox,
     drawOverlay
 } from '../display/viewport_scene.js';
@@ -274,9 +276,15 @@ export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appS
         ghostPos[o] = pu[0]; ghostPos[o + 1] = pu[1]; ghostPos[o + 2] = pu[2];
         ghostPos[o + 3] = pv[0]; ghostPos[o + 4] = pv[1]; ghostPos[o + 5] = pv[2];
     }
-    const gGeo = new THREE.BufferGeometry();
-    gGeo.setAttribute('position', new THREE.BufferAttribute(ghostPos, 3));
-    viewport.feaGroup.add(new THREE.LineSegments(gGeo, assets.ghost));
+    const ghostLines = makeFatLineSegments(
+        ghostPos,
+        makeFatMaterial(0x94a3b8, appState.edgeDisplayWidthPx || 1.5, {
+            disposeOnClear: true,
+            transparent: true,
+            opacity: 0.45
+        })
+    );
+    viewport.feaGroup.add(ghostLines);
 
     const defVerts = verts.map((p, idx) => {
         const d = disps[idx] || [0, 0, 0];
@@ -387,13 +395,14 @@ export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appS
 
     const anchorSet = new Set(feaSrc.anchors || []);
     const nHostNodes = feaSrc.hostNodeCount !== undefined ? feaSrc.hostNodeCount : defVerts.length;
-    const jRad = rVis * 1.18;
+    const nodeMult = appState.nodeDisplayScale || 1.0;
+    const jRad = rVis * 1.18 * nodeMult;
     const maxDispRef = Math.max(1e-8, lastFEAResult.maxDispM || 1e-4);
     for (let i = 0; i < nHostNodes; i++) {
         if (anchorSet.has(i)) {
             const cone = new THREE.Mesh(assets.unitCone, sharedMaterials.anchorSphere);
-            cone.scale.setScalar(rVis);
-            cone.position.set(defVerts[i].x, defVerts[i].y, defVerts[i].z - rVis * 1.5);
+            cone.scale.setScalar(rVis * nodeMult);
+            cone.position.set(defVerts[i].x, defVerts[i].y, defVerts[i].z - rVis * nodeMult * 1.5);
             viewport.feaGroup.add(cone);
         } else {
             const dMag = Math.hypot(disps[i][0], disps[i][1], disps[i][2]);
@@ -702,4 +711,5 @@ export function initTab5Fea() {
             if (appState.lastFEAResult && !appState.feaState.animate) renderFEAResults3D(computeEffectiveExaggeration(appState.feaState.exaggeration));
         });
     }
+    actions.renderFEAResults3D = renderFEAResults3D;
 }

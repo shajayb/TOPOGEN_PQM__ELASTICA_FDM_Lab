@@ -142,9 +142,8 @@ export function mountTabElastica() {
                     <span id="elastica-unroll-3d-state" class="font-mono text-[9px] opacity-90">OFF</span>
                 </button>
                 <div class="flex items-center justify-between text-[8.5px] font-mono text-gray-400">
-                    <span id="elastica-unroll-label" class="text-cyan-400 truncate">2D Unrolled Rod Preview (click to cycle)</span>
+                    <span id="elastica-unroll-label" class="text-cyan-400 truncate">2D Unrolled Rod Preview</span>
                 </div>
-                <canvas id="elastica-unroll-canvas" width="308" height="82" class="w-full bg-gray-950 border border-gray-800 rounded cursor-pointer" title="Click to cycle through unrolled elastica rods"></canvas>
             </div>
 
             <div id="elastica-readout" class="bg-gray-950/80 border border-gray-800 rounded px-1.5 py-1 text-[9px] text-gray-300 leading-snug">
