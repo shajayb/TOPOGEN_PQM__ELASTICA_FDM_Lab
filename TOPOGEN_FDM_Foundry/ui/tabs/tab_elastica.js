@@ -19,6 +19,7 @@ import {
 } from '../state/workbench_state.js';
 import {
     viewport,
+    sharedMaterials,
     clearGroup,
     recomputeModelBox
 } from '../display/viewport_scene.js';
@@ -43,67 +44,68 @@ export function mountTabElastica() {
                 </select>
             </div>
 
+            <!-- Interactive Source & Sink Node Selection (3D Click, Valency, Ctrl+Click Deselect) -->
+            <div class="bg-gray-950/85 border border-gray-800 rounded p-1.5 space-y-1 font-sans">
+                <div class="flex items-center justify-between">
+                    <span class="text-[8.5px] uppercase tracking-wider text-emerald-400 font-semibold">Source &amp; Sink Vertices</span>
+                    <span id="elastica-ss-badge" class="text-[8.5px] font-mono text-gray-400">Auto V1</span>
+                </div>
+                <div class="grid grid-cols-2 gap-1">
+                    <button type="button" id="btn-elastica-pick-source" class="cad-btn seg-on text-[8.5px] py-0.5" title="Clicking 3D nodes or Valency buttons adds to Source vertices">Pick: Source (Green)</button>
+                    <button type="button" id="btn-elastica-pick-sink" class="cad-btn text-[8.5px] py-0.5" title="Clicking 3D nodes or Valency buttons adds to Sink vertices">Pick: Sink (Red)</button>
+                </div>
+                <div class="text-[8.5px] text-gray-400 leading-tight">
+                    Click 3D node = Add · <span class="text-rose-300 font-mono">Ctrl+Click</span> = De-select
+                </div>
+                <div class="flex items-center justify-between gap-1 pt-0.5">
+                    <span class="text-[8px] text-gray-400 flex-shrink-0">Valency:</span>
+                    <div class="grid grid-cols-5 gap-0.5 flex-1">
+                        <button type="button" data-el-valency="1" class="el-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Select valency-1 nodes (Ctrl+Click to de-select)">v=1</button>
+                        <button type="button" data-el-valency="2" class="el-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Select valency-2 nodes (Ctrl+Click to de-select)">v=2</button>
+                        <button type="button" data-el-valency="3" class="el-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Select valency-3 nodes (Ctrl+Click to de-select)">v=3</button>
+                        <button type="button" data-el-valency="4" class="el-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Select valency-4 nodes (Ctrl+Click to de-select)">v=4</button>
+                        <button type="button" data-el-valency="5+" class="el-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Select valency >= 5 nodes (Ctrl+Click to de-select)">v≥5</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-1 pt-0.5">
+                    <button type="button" id="btn-el-top-sources" class="cad-btn text-[8px] py-0.5" title="Set highest-Z nodes as Sources">↑ Top → Src</button>
+                    <button type="button" id="btn-el-ground-sinks" class="cad-btn text-[8px] py-0.5" title="Set lowest-Z ground nodes as Sinks">⏚ Gnd → Sink</button>
+                    <button type="button" id="btn-el-clear-ss" class="cad-btn text-[8px] py-0.5" title="Clear custom Source/Sink selection (revert to V1 Pairs)">✕ Clear S/T</button>
+                </div>
+                <div id="elastica-ss-list" class="text-[8px] font-mono text-gray-400 truncate">Src: Auto · Sink: Auto</div>
+            </div>
+
             <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-16 text-gray-400 flex-shrink-0">Smooth</span>
+                <span class="w-16 text-gray-400 flex-shrink-0">Solver</span>
                 <select id="sel-elastica-smooth-mode" class="min-w-0 flex-1 bg-gray-950 border border-gray-700 rounded px-1.5 py-0.5 text-[9.5px] text-gray-200">
-                    <option value="catmull_clark_1d">Catmull-Clark 1D (B-Spline)</option>
-                    <option value="catmull_rom">Catmull-Rom Spline</option>
-                    <option value="elastica">Elastica Biharmonic</option>
+                    <option value="der_inextensible">Discrete Elastic Rod (Inextensible)</option>
+                    <option value="catmull_clark_1d">Catmull-Clark 1D + Arc-Length</option>
+                    <option value="catmull_rom">Catmull-Rom + Arc-Length</option>
                 </select>
             </div>
 
             <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-16 text-gray-400 flex-shrink-0">Subdiv (L)</span>
-                <input type="range" id="rng-elastica-subdiv" min="0" max="4" step="1" value="2" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-cyan-400">
-                <span id="val-elastica-subdiv" class="w-12 text-right text-gray-200 flex-shrink-0">2</span>
+                <span class="w-16 text-gray-400 flex-shrink-0">Smooth</span>
+                <input type="range" id="rng-elastica-subdiv" min="0" max="4" step="1" value="2" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-cyan-400" title="Maya-style Smooth Level (0..4) — press PageUp / PageDown">
+                <span id="val-elastica-subdiv" class="w-14 text-right text-gray-200 flex-shrink-0">2 (PgUp)</span>
             </div>
 
             <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-16 text-gray-400 flex-shrink-0">Samples</span>
-                <input type="range" id="rng-elastica-samples" min="2" max="16" step="1" value="8" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-cyan-400">
-                <span id="val-elastica-samples" class="w-12 text-right text-gray-200 flex-shrink-0">8</span>
-            </div>
-
-            <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-16 text-gray-400 flex-shrink-0">Opt Iters</span>
-                <input type="range" id="rng-elastica-iters" min="0" max="250" step="10" value="40" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-pink-500">
-                <span id="val-elastica-iters" class="w-12 text-right text-gray-200 flex-shrink-0">40</span>
-            </div>
-
-            <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-16 text-gray-400 flex-shrink-0">Bend Wt</span>
-                <input type="range" id="rng-elastica-bend" min="0.05" max="1.00" step="0.05" value="0.65" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-cyan-400">
-                <span id="val-elastica-bend" class="w-12 text-right text-gray-200 flex-shrink-0">0.65</span>
-            </div>
-
-            <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-16 text-gray-400 flex-shrink-0">Guide Wt</span>
-                <input type="range" id="rng-elastica-guide" min="0.00" max="0.80" step="0.02" value="0.08" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-amber-400">
-                <span id="val-elastica-guide" class="w-12 text-right text-gray-200 flex-shrink-0">0.08</span>
-            </div>
-
-            <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-16 text-gray-400 flex-shrink-0">Max Dev</span>
-                <input type="range" id="rng-elastica-dev" min="0.05" max="1.50" step="0.05" value="0.45" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-amber-400">
-                <span id="val-elastica-dev" class="w-12 text-right text-gray-200 flex-shrink-0">0.45m</span>
+                <span class="w-16 text-gray-400 flex-shrink-0">Tightness</span>
+                <input type="range" id="rng-elastica-tightness" min="0" max="100" step="5" value="50" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-amber-400" title="0% = wide sweeping arcs, 100% = tight corner bends hugging the skeleton">
+                <span id="val-elastica-tightness" class="w-14 text-right text-gray-200 flex-shrink-0">50%</span>
             </div>
 
             <div class="flex items-center space-x-2 min-w-0">
                 <span class="w-16 text-gray-400 flex-shrink-0">Rod R</span>
                 <input type="range" id="rng-elastica-radius" min="0.005" max="0.060" step="0.001" value="0.015" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-pink-500">
-                <span id="val-elastica-radius" class="w-12 text-right text-gray-200 flex-shrink-0">0.015m</span>
+                <span id="val-elastica-radius" class="w-14 text-right text-gray-200 flex-shrink-0">0.015m</span>
             </div>
 
             <div class="flex items-center space-x-2 min-w-0">
                 <span class="w-16 text-gray-400 flex-shrink-0">Rod Sides</span>
                 <input type="range" id="rng-elastica-sides" min="4" max="12" step="2" value="6" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-pink-500">
-                <span id="val-elastica-sides" class="w-12 text-right text-gray-200 flex-shrink-0">6</span>
-            </div>
-
-            <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-16 text-gray-400 flex-shrink-0">Twist (°)</span>
-                <input type="range" id="rng-elastica-twist" min="-180" max="180" step="15" value="0" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-cyan-400">
-                <span id="val-elastica-twist" class="w-12 text-right text-gray-200 flex-shrink-0">0°</span>
+                <span id="val-elastica-sides" class="w-14 text-right text-gray-200 flex-shrink-0">6</span>
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[9px] font-sans text-gray-300">
@@ -173,62 +175,64 @@ export function drawElasticaUnrollCanvas() {
 
     const hexVal = UI_LOOP_PALETTE[selIdx % UI_LOOP_PALETTE.length];
     const hexStr = '#' + hexVal.toString(16).padStart(6, '0');
+    const cutMM = (curve.totalLength * 1000).toFixed(1);
+    const rMinStr = Number.isFinite(curve.minBendRadius) ? `Rmin=${(curve.minBendRadius * 1000).toFixed(0)}mm` : 'Straight';
     if (label) {
-        label.textContent = `Rod #${selIdx + 1}/${curves.length} (V1:${curve.startNode}→V1:${curve.endNode} · L=${curve.totalLength.toFixed(2)}m) · click cycle`;
+        label.textContent = `Rod #${selIdx + 1}/${curves.length} (${curve.startNode}→${curve.endNode} · Cut=${cutMM}mm · ${rMinStr})`;
         label.style.color = hexStr;
     }
 
-    let cx = 0, cy = 0, nPts = 0;
-    u2d.quads2D.forEach(q => q.pts.forEach(p => { cx += p.x; cy += p.y; nPts++; }));
-    cx /= Math.max(nPts, 1); cy /= Math.max(nPts, 1);
-    let cxx = 0, cyy = 0, cxy = 0;
-    u2d.quads2D.forEach(q => q.pts.forEach(p => {
-        const dx = p.x - cx, dy = p.y - cy;
-        cxx += dx * dx; cyy += dy * dy; cxy += dx * dy;
-    }));
-    const ang = -0.5 * Math.atan2(2 * cxy, cxx - cyy);
-    const ca = Math.cos(ang), sa = Math.sin(ang);
+    const minX = u2d.minX, maxX = Math.max(u2d.maxX, u2d.minX + 1e-4);
+    const padX = 14;
+    const scaleX = (W - padX * 2) / (maxX - minX);
+    // Keep straight bar clearly legible vertically in the 82px preview strip
+    const barHalfH = Math.max(8, Math.min(18, (u2d.maxY - u2d.minY) * 0.5 * scaleX));
+    const cy = H * 0.44;
+    const maxK = Math.max(curve.maxCurvature || 0, 1e-4);
 
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    const rotQuads = u2d.quads2D.map(q => q.pts.map(p => {
-        const dx = p.x - cx, dy = p.y - cy;
-        const rx = dx * ca - dy * sa, ry = dx * sa + dy * ca;
-        if (rx < minX) minX = rx; if (rx > maxX) maxX = rx;
-        if (ry < minY) minY = ry; if (ry > maxY) maxY = ry;
-        return { x: rx, y: ry };
-    }));
+    u2d.quads2D.forEach((q, idx) => {
+        const x0 = padX + (q.pts[0].x - minX) * scaleX;
+        const x1 = padX + (q.pts[2].x - minX) * scaleX;
+        const kFrac = Math.min(1, (q.kappa || 0) / maxK);
+        const alphaHex = Math.round(45 + kFrac * 145).toString(16).padStart(2, '0');
 
-    const pad = 10;
-    const scale = Math.min((W - pad * 2) / Math.max(maxX - minX, 1e-4), (H - pad * 2) / Math.max(maxY - minY, 1e-4));
-    const ox = W * 0.5 - ((minX + maxX) * 0.5) * scale;
-    const oy = H * 0.5 + ((minY + maxY) * 0.5) * scale;
-
-    rotQuads.forEach((pts, idx) => {
-        const sp = pts.map(p => ({ x: ox + p.x * scale, y: oy - p.y * scale }));
-        ctx.fillStyle = hexStr + '44';
+        ctx.fillStyle = hexStr + alphaHex;
         ctx.strokeStyle = hexStr;
         ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.moveTo(sp[0].x, sp[0].y);
-        ctx.lineTo(sp[1].x, sp[1].y);
-        ctx.lineTo(sp[2].x, sp[2].y);
-        ctx.lineTo(sp[3].x, sp[3].y);
-        ctx.closePath();
+        ctx.rect(x0, cy - barHalfH, Math.max(0.5, x1 - x0), barHalfH * 2);
         ctx.fill();
         ctx.stroke();
 
-        if (idx < rotQuads.length - 1) {
+        if (idx < u2d.quads2D.length - 1) {
             ctx.save();
             ctx.strokeStyle = '#f8fafc';
-            ctx.lineWidth = 0.8;
+            ctx.lineWidth = 0.75;
             ctx.setLineDash([2, 2]);
             ctx.beginPath();
-            ctx.moveTo(sp[2].x, sp[2].y);
-            ctx.lineTo(sp[3].x, sp[3].y);
+            ctx.moveTo(x1, cy - barHalfH);
+            ctx.lineTo(x1, cy + barHalfH);
             ctx.stroke();
             ctx.restore();
         }
     });
+
+    // Draw 1:1 Cut-to-Length dimension line underneath the straight bar
+    const dimY = H - 11;
+    ctx.strokeStyle = '#94a3b8';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padX, dimY);
+    ctx.lineTo(W - padX, dimY);
+    ctx.moveTo(padX, dimY - 4);
+    ctx.lineTo(padX, dimY + 4);
+    ctx.moveTo(W - padX, dimY - 4);
+    ctx.lineTo(W - padX, dimY + 4);
+    ctx.stroke();
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Straight Stock Cut Length = ${cutMM} mm (Δparity 0.0 mm)`, W * 0.5, dimY - 3);
 }
 
 export function renderElasticaUnroll3D() {
@@ -294,7 +298,10 @@ export function renderElasticaUnroll3D() {
             color: hex, transparent: true, opacity: 0.85, side: THREE.DoubleSide
         });
         mat.userData.disposeOnClear = true;
-        viewport.elasticaUnroll3DGroup.add(new THREE.Mesh(geo, mat));
+        const uMesh = new THREE.Mesh(geo, appState.arcticOn ? sharedMaterials.arctic : mat);
+        uMesh.userData.baseMaterial = mat;
+        uMesh.visible = !appState.wireframeOn;
+        viewport.elasticaUnroll3DGroup.add(uMesh);
 
         const wireGeo = new THREE.BufferGeometry();
         wireGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePos, 3));
@@ -313,18 +320,39 @@ export function renderElastica3D() {
     const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
     if (!data) return;
 
-    // 1. Highlight valence = 1 source/sink nodes
-    if (st.showLeaves && src && src.vertices && data.leaves) {
-        const leafGeo = new THREE.SphereGeometry(0.024, 12, 10);
-        const leafMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
-        leafMat.userData.disposeOnClear = true;
-        for (const idx of data.leaves) {
-            const v = src.vertices[idx];
-            if (!v) continue;
-            const p = CORE.toV3(v);
-            const m = new THREE.Mesh(leafGeo, leafMat);
-            m.position.set(p.x, p.y, p.z);
-            viewport.elasticaGroup.add(m);
+    // 1. Highlight Source / Sink / V=1 nodes
+    if (st.showLeaves && src && src.vertices) {
+        const hasCustom = (appState.elasticaSourceSet.size > 0 || appState.elasticaSinkSet.size > 0);
+        const leafGeo = new THREE.SphereGeometry(0.026, 12, 10);
+        const srcMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+        const sinkMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
+        const bothMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 });
+        srcMat.userData.disposeOnClear = true;
+        sinkMat.userData.disposeOnClear = true;
+        bothMat.userData.disposeOnClear = true;
+
+        if (hasCustom) {
+            const allPicked = new Set([...appState.elasticaSourceSet, ...appState.elasticaSinkSet]);
+            for (const idx of allPicked) {
+                const v = src.vertices[idx];
+                if (!v) continue;
+                const inSrc = appState.elasticaSourceSet.has(idx);
+                const inSink = appState.elasticaSinkSet.has(idx);
+                const mat = (inSrc && inSink) ? bothMat : (inSrc ? srcMat : sinkMat);
+                const p = CORE.toV3(v);
+                const m = new THREE.Mesh(leafGeo, mat);
+                m.position.set(p.x, p.y, p.z);
+                viewport.elasticaGroup.add(m);
+            }
+        } else if (data.leaves) {
+            for (const idx of data.leaves) {
+                const v = src.vertices[idx];
+                if (!v) continue;
+                const p = CORE.toV3(v);
+                const m = new THREE.Mesh(leafGeo, sinkMat);
+                m.position.set(p.x, p.y, p.z);
+                viewport.elasticaGroup.add(m);
+            }
         }
     }
 
@@ -381,7 +409,10 @@ export function renderElastica3D() {
                 side: THREE.DoubleSide, transparent: true, opacity: 0.90
             });
             rMat.userData.disposeOnClear = true;
-            viewport.elasticaGroup.add(new THREE.Mesh(rGeo, rMat));
+            const rodMesh = new THREE.Mesh(rGeo, appState.arcticOn ? sharedMaterials.arctic : rMat);
+            rodMesh.userData.baseMaterial = rMat;
+            rodMesh.visible = !appState.wireframeOn;
+            viewport.elasticaGroup.add(rodMesh);
 
             const wGeo = new THREE.BufferGeometry();
             wGeo.setAttribute('position', new THREE.Float32BufferAttribute(wire, 3));
@@ -392,6 +423,69 @@ export function renderElastica3D() {
     }
 }
 
+export function updateElasticaSourceSinkUI() {
+    const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+    const nVerts = src && src.vertices ? src.vertices.length : 0;
+    const validSrc = Array.from(appState.elasticaSourceSet).filter(i => i >= 0 && i < nVerts).sort((a, b) => a - b);
+    const validSink = Array.from(appState.elasticaSinkSet).filter(i => i >= 0 && i < nVerts).sort((a, b) => a - b);
+
+    const badge = $('elastica-ss-badge');
+    if (badge) {
+        if (validSrc.length === 0 && validSink.length === 0) {
+            badge.textContent = 'Auto V1';
+            badge.className = 'text-[8.5px] font-mono text-gray-400';
+        } else {
+            badge.textContent = `Src: ${validSrc.length} · Sink: ${validSink.length}`;
+            badge.className = 'text-[8.5px] font-mono text-emerald-300';
+        }
+    }
+
+    const listEl = $('elastica-ss-list');
+    if (listEl) {
+        const fmt = (arr) => arr.length === 0 ? 'Auto(V1)' : (arr.length <= 6 ? arr.map(i => `#${i}`).join(',') : `${arr.slice(0, 5).map(i => `#${i}`).join(',')} +${arr.length - 5}`);
+        listEl.textContent = `Src: ${fmt(validSrc)} | Sink: ${fmt(validSink)}`;
+    }
+
+    const btnPickSrc = $('btn-elastica-pick-source');
+    const btnPickSink = $('btn-elastica-pick-sink');
+    const isSrc = appState.elasticaState.pickTarget !== 'sink';
+    if (btnPickSrc) btnPickSrc.classList.toggle('seg-on', isSrc);
+    if (btnPickSink) btnPickSink.classList.toggle('seg-on', !isSrc);
+}
+
+export function toggleElasticaNodesByClick(hostIndices, isCtrlDeselect = false) {
+    const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+    if (!src || !src.vertices || !Array.isArray(hostIndices)) return;
+    const targetSet = appState.elasticaState.pickTarget === 'sink' ? appState.elasticaSinkSet : appState.elasticaSourceSet;
+    for (const hIdx of hostIndices) {
+        if (hIdx < 0 || hIdx >= src.vertices.length) continue;
+        if (isCtrlDeselect) targetSet.delete(hIdx);
+        else targetSet.add(hIdx);
+    }
+    updateElasticaSourceSinkUI();
+    generateElasticaFromUI();
+}
+
+export function selectElasticaByValency(valSpec, isCtrlDeselect = false) {
+    const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+    if (!src || !src.vertices || !src.edges) return;
+    const deg = new Int32Array(src.vertices.length);
+    for (const e of src.edges) {
+        if (!e || e.length < 2) continue;
+        if (e[0] >= 0 && e[0] < deg.length) deg[e[0]]++;
+        if (e[1] >= 0 && e[1] < deg.length) deg[e[1]]++;
+    }
+    const targetSet = appState.elasticaState.pickTarget === 'sink' ? appState.elasticaSinkSet : appState.elasticaSourceSet;
+    for (let i = 0; i < deg.length; i++) {
+        const kv = deg[i];
+        if (!(valSpec === '5+' ? (kv >= 5) : (kv === parseInt(valSpec, 10)))) continue;
+        if (isCtrlDeselect) targetSet.delete(i);
+        else targetSet.add(i);
+    }
+    updateElasticaSourceSinkUI();
+    generateElasticaFromUI();
+}
+
 export function generateElasticaFromUI() {
     const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
     if (!src || !src.vertices || !src.edges || src.edges.length === 0) {
@@ -399,42 +493,63 @@ export function generateElasticaFromUI() {
         return null;
     }
 
+    const nVerts = src.vertices.length;
+    const sourceNodes = Array.from(appState.elasticaSourceSet).filter(i => i >= 0 && i < nVerts);
+    const sinkNodes = Array.from(appState.elasticaSinkSet).filter(i => i >= 0 && i < nVerts);
+    updateElasticaSourceSinkUI();
+
     const st = appState.elasticaState;
+    const smoothLvl = Math.max(0, Math.min(4, Math.round(st.smoothLevel !== undefined ? st.smoothLevel : 2)));
+    const tight = Math.max(0, Math.min(1, st.tightness !== undefined ? st.tightness : 0.50));
+    // Map intuitive Tightness (0..1) and Smooth (0..4) to non-faceted DER parameters
+    const smoothLevels = smoothLvl === 0 ? 0 : Math.min(3, smoothLvl + 1);
+    const samplesPerEdge = smoothLvl === 0 ? 4 : (8 + smoothLvl * 2);
+    const iterations = smoothLvl === 0 ? 0 : (30 + smoothLvl * 20);
+    const bendingWeight = 0.85 - tight * 0.45;
+    const guideWeight = 0.02 + tight * 0.40;
+    const maxDeviation = 0.90 - tight * 0.78;
+
     const data = CORE.generateElasticaRibbons(src.vertices, src.edges, appState.lastSolidData, {
         pairMode: st.pairMode,
+        sourceNodes,
+        sinkNodes,
         smoothMode: st.smoothMode,
-        smoothLevels: st.smoothLevels,
-        samplesPerEdge: st.samplesPerEdge,
-        iterations: st.iterations,
-        bendingWeight: st.bendingWeight,
-        guideWeight: st.guideWeight,
-        maxDeviation: st.maxDeviation,
+        inextensible: st.inextensible !== false,
+        smoothLevels,
+        samplesPerEdge,
+        iterations,
+        bendingWeight,
+        guideWeight,
+        maxDeviation,
         rodRadius: st.rodRadius,
         rodSides: st.rodSides,
-        twistDeg: st.twistDeg
+        twistDeg: 0
     });
 
     appState.lastElasticaData = data;
     if (st.selectedCurveIdx >= data.curves.length) st.selectedCurveIdx = 0;
 
-    const totalBend = data.curves.reduce((acc, c) => acc + c.bendingEnergy, 0);
+    const totalStockM = data.curves.reduce((acc, c) => acc + c.totalLength, 0);
+    const minBendR = data.curves.reduce((acc, c) => Math.min(acc, Number.isFinite(c.minBendRadius) ? c.minBendRadius : acc), Infinity);
+    const rMinTxt = Number.isFinite(minBendR) ? `${(minBendR * 1000).toFixed(0)}mm` : '∞';
     const sheetCount = data.packed ? data.packed.sheetCount : 0;
 
     const badge = $('elastica-status-badge');
     if (badge) {
         badge.textContent = data.curves.length > 0
-            ? `${data.leaves.length} V1 · ${data.curves.length} Elasticas ✓`
-            : `${data.leaves.length} V1 · Need ≥2 V1`;
+            ? `${data.curves.length} Rods · ΣL=${totalStockM.toFixed(1)}m ✓`
+            : `${data.leaves.length} V1 · Need ≥2`;
         badge.className = `text-[9px] font-mono ${data.curves.length > 0 ? 'text-emerald-400' : 'text-amber-400'}`;
     }
 
-    setTxt('elastica-readout', `V1 Nodes: ${data.leaves.length} · Curves: ${data.curves.length} · Sheets: ${sheetCount} · Σκ²ds: ${totalBend.toFixed(2)}`);
+    setTxt('elastica-readout', `Rods: ${data.curves.length} · Stock ΣL: ${totalStockM.toFixed(2)}m · Min R_bend: ${rMinTxt} · Cut Sheets: ${sheetCount}`);
 
     renderElastica3D();
     drawElasticaUnrollCanvas();
     if (st.showUnrolled3D) renderElasticaUnroll3D();
     applyOutlinerVisibility();
     recomputeModelBox();
+    if (actions.updateSimUI) actions.updateSimUI();
     return data;
 }
 
@@ -461,19 +576,67 @@ export function ensureElasticaTabReady() {
     } else if (actions.renderHostNetworkInFdmGroup) {
         actions.renderHostNetworkInFdmGroup();
     }
-    if (!appState.lastElasticaData || !appState.lastElasticaData.curves?.length) {
-        generateElasticaFromUI();
-    } else {
-        renderElastica3D();
-        drawElasticaUnrollCanvas();
-    }
+    generateElasticaFromUI();
 }
 
 export function initTabElastica() {
     actions.generateElasticaFromUI = generateElasticaFromUI;
+    actions.toggleElasticaUnroll3DFromUI = toggleElasticaUnroll3DFromUI;
     actions.ensureElasticaTabReady = ensureElasticaTabReady;
+    actions.toggleElasticaNodesByClick = toggleElasticaNodesByClick;
 
     const st = appState.elasticaState;
+
+    $('btn-elastica-pick-source')?.addEventListener('click', () => {
+        st.pickTarget = 'source';
+        updateElasticaSourceSinkUI();
+    });
+    $('btn-elastica-pick-sink')?.addEventListener('click', () => {
+        st.pickTarget = 'sink';
+        updateElasticaSourceSinkUI();
+    });
+    document.querySelectorAll('.el-valency-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            selectElasticaByValency(btn.dataset.elValency, !!(e.ctrlKey || e.metaKey));
+        });
+    });
+    $('btn-el-top-sources')?.addEventListener('click', () => {
+        const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+        if (!src || !src.vertices || src.vertices.length === 0) return;
+        let maxZ = -Infinity;
+        const zs = src.vertices.map(v => { const z = CORE.toV3(v).z; if (z > maxZ) maxZ = z; return z; });
+        appState.elasticaSourceSet.clear();
+        zs.forEach((z, i) => { if (z >= maxZ - 0.08) appState.elasticaSourceSet.add(i); });
+        updateElasticaSourceSinkUI();
+        generateElasticaFromUI();
+    });
+    $('btn-el-ground-sinks')?.addEventListener('click', () => {
+        const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+        if (!src || !src.vertices || src.vertices.length === 0) return;
+        let minZ = Infinity;
+        const zs = src.vertices.map(v => { const z = CORE.toV3(v).z; if (z < minZ) minZ = z; return z; });
+        appState.elasticaSinkSet.clear();
+        zs.forEach((z, i) => { if (z <= minZ + 0.08) appState.elasticaSinkSet.add(i); });
+        updateElasticaSourceSinkUI();
+        generateElasticaFromUI();
+    });
+    $('btn-el-clear-ss')?.addEventListener('click', () => {
+        appState.elasticaSourceSet.clear();
+        appState.elasticaSinkSet.clear();
+        appState.lastElasticaData = null;
+        clearGroup(viewport.elasticaGroup);
+        clearGroup(viewport.elasticaUnroll3DGroup);
+        viewport.elasticaUnroll3DGroup.visible = false;
+        st.showUnrolled3D = false;
+        setTxt('elastica-unroll-3d-state', 'OFF');
+        $('btn-toggle-elastica-unroll-3d')?.classList.remove('on');
+        updateElasticaSourceSinkUI();
+        drawElasticaUnrollCanvas();
+        const badge = $('elastica-status-badge');
+        if (badge) { badge.textContent = 'Cleared'; badge.className = 'text-[9px] font-mono text-gray-400'; }
+        setTxt('elastica-readout', 'Cleared — pick Sources/Sinks or click Trace');
+        if (actions.updateSimUI) actions.updateSimUI();
+    });
     let liveRaf = 0;
     const scheduleLiveUpdate = () => {
         if (liveRaf) return;
@@ -483,6 +646,25 @@ export function initTabElastica() {
         });
     };
 
+    const setSmoothLevel = (lvl) => {
+        st.smoothLevel = Math.max(0, Math.min(4, Math.round(lvl)));
+        const rng = $('rng-elastica-subdiv');
+        if (rng) rng.value = String(st.smoothLevel);
+        setTxt('val-elastica-subdiv', `${st.smoothLevel} (PgUp)`);
+        scheduleLiveUpdate();
+    };
+
+    window.addEventListener('keydown', (e) => {
+        if (appState.activeTabId !== 'tab-elastica') return;
+        if (e.key === 'PageUp') {
+            e.preventDefault();
+            setSmoothLevel((st.smoothLevel || 0) + 1);
+        } else if (e.key === 'PageDown') {
+            e.preventDefault();
+            setSmoothLevel((st.smoothLevel || 0) - 1);
+        }
+    });
+
     $('sel-elastica-pair-mode')?.addEventListener('change', e => {
         st.pairMode = e.target.value;
         scheduleLiveUpdate();
@@ -491,15 +673,10 @@ export function initTabElastica() {
         st.smoothMode = e.target.value;
         scheduleLiveUpdate();
     });
-    bindSlider('rng-elastica-subdiv', 'val-elastica-subdiv', '', v => { st.smoothLevels = Math.round(v); scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-samples', 'val-elastica-samples', '', v => { st.samplesPerEdge = Math.round(v); scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-iters', 'val-elastica-iters', '', v => { st.iterations = Math.round(v); scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-bend', 'val-elastica-bend', '', v => { st.bendingWeight = v; scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-guide', 'val-elastica-guide', '', v => { st.guideWeight = v; scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-dev', 'val-elastica-dev', 'm', v => { st.maxDeviation = v; scheduleLiveUpdate(); });
+    bindSlider('rng-elastica-subdiv', 'val-elastica-subdiv', ' (PgUp)', v => { st.smoothLevel = Math.round(v); scheduleLiveUpdate(); });
+    bindSlider('rng-elastica-tightness', 'val-elastica-tightness', '%', v => { st.tightness = v / 100; scheduleLiveUpdate(); });
     bindSlider('rng-elastica-radius', 'val-elastica-radius', 'm', v => { st.rodRadius = v; scheduleLiveUpdate(); });
     bindSlider('rng-elastica-sides', 'val-elastica-sides', '', v => { st.rodSides = Math.round(v); scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-twist', 'val-elastica-twist', '°', v => { st.twistDeg = v; scheduleLiveUpdate(); });
 
     $('chk-elastica-show-leaves')?.addEventListener('change', e => {
         st.showLeaves = e.target.checked;
@@ -539,16 +716,12 @@ export function initTabElastica() {
     $('btn-reset-elastica')?.addEventListener('click', () => {
         Object.assign(st, {
             pairMode: 'all_pairs',
-            smoothMode: 'catmull_clark_1d',
-            smoothLevels: 2,
-            samplesPerEdge: 8,
-            iterations: 40,
-            bendingWeight: 0.65,
-            guideWeight: 0.08,
-            maxDeviation: 0.45,
+            smoothMode: 'der_inextensible',
+            inextensible: true,
+            smoothLevel: 2,
+            tightness: 0.50,
             rodRadius: 0.015,
             rodSides: 6,
-            twistDeg: 0,
             showLeaves: true,
             showSkeletalPaths: false,
             showCurves: true,
@@ -559,16 +732,11 @@ export function initTabElastica() {
         });
         const setV = (id, v) => { const el = $(id); if (el) el.value = String(v); };
         setV('sel-elastica-pair-mode', 'all_pairs');
-        setV('sel-elastica-smooth-mode', 'catmull_clark_1d');
-        setV('rng-elastica-subdiv', 2); setTxt('val-elastica-subdiv', '2');
-        setV('rng-elastica-samples', 8); setTxt('val-elastica-samples', '8');
-        setV('rng-elastica-iters', 40); setTxt('val-elastica-iters', '40');
-        setV('rng-elastica-bend', 0.65); setTxt('val-elastica-bend', '0.65');
-        setV('rng-elastica-guide', 0.08); setTxt('val-elastica-guide', '0.08');
-        setV('rng-elastica-dev', 0.45); setTxt('val-elastica-dev', '0.45m');
+        setV('sel-elastica-smooth-mode', 'der_inextensible');
+        setV('rng-elastica-subdiv', 2); setTxt('val-elastica-subdiv', '2 (PgUp)');
+        setV('rng-elastica-tightness', 50); setTxt('val-elastica-tightness', '50%');
         setV('rng-elastica-radius', 0.015); setTxt('val-elastica-radius', '0.015m');
         setV('rng-elastica-sides', 6); setTxt('val-elastica-sides', '6');
-        setV('rng-elastica-twist', 0); setTxt('val-elastica-twist', '0°');
         setTxt('elastica-unroll-3d-state', 'OFF');
         $('btn-toggle-elastica-unroll-3d')?.classList.remove('on');
         clearGroup(viewport.elasticaUnroll3DGroup);

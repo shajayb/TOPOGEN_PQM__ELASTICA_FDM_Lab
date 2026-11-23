@@ -86,14 +86,14 @@ export function mountTab1Tiles() {
             </div>
         </div>
 
-        <!-- Import Coarse Mesh Modules as Graph Tiles -->
+        <!-- Import Coarse Mesh Modules or 3DM Curves as Graph Tiles -->
         <div class="bg-gray-900/90 border border-gray-700 rounded p-2.5 space-y-2">
             <div class="flex items-center justify-between">
-                <label class="block text-[10.5px] font-semibold uppercase tracking-wider text-gray-200">Coarse Mesh → Graph Tiles</label>
+                <label class="block text-[10.5px] font-semibold uppercase tracking-wider text-gray-200">Coarse Mesh / 3DM Curves → Graph Tiles</label>
                 <span id="custom-tile-badge" class="text-[10px] font-mono text-cyan-400">0 custom</span>
             </div>
             <p class="goldilocks-guide-prose text-[9.5px] text-gray-400 leading-snug">
-                Import .3dm / .obj coarse mesh module(s), Catmull-Clark subdivide <em>n</em>×, and preview subdivided surface + centerline graph.
+                Import .3dm / .obj coarse meshes or .3dm curves, Catmull-Clark subdivide <em>n</em>×, and preview surface + centerline graph.
             </p>
             <input type="file" id="mesh-module-input" accept=".3dm,.obj" multiple class="block w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10.5px] file:font-semibold file:bg-pink-600/80 file:text-white hover:file:bg-pink-500 cursor-pointer transition-colors" />
 
@@ -648,6 +648,125 @@ export function parse3dmMeshes(arrayBuffer, fallbackName = '3DM_Module') {
     return modules;
 }
 
+export function parse3dmCurvesAsGraph(arrayBuffer, fallbackName = '3DM_Curves') {
+    const rhino = appState.rhino;
+    if (!rhino) return null;
+    const doc = rhino.File3dm.fromByteArray(new Uint8Array(arrayBuffer));
+    if (!doc) return null;
+    let scale = 1.0;
+    try { scale = getUnitScale(doc.settings().modelUnitSystem); } catch (e) { scale = 1.0; }
+
+    const rawVerts = [];
+    const rawEdges = [];
+    const objects = doc.objects();
+    for (let i = 0; i < objects.count; i++) {
+        const obj = objects.get(i);
+        const geom = obj.geometry();
+        if (!geom || geom.objectType !== rhino.ObjectType.Curve) continue;
+
+        let pts = [];
+        try {
+            if (typeof geom.isLinear === 'function' && geom.isLinear()) {
+                const p0 = geom.pointAtStart;
+                const p1 = geom.pointAtEnd;
+                pts = [p0, p1];
+            } else if (typeof geom.toPolyline === 'function') {
+                const pl = geom.toPolyline(0, 0, 0.1, 0.1, 0, 0, 0, 0, true);
+                if (pl && typeof pl.count === 'number' && pl.count >= 2) {
+                    for (let k = 0; k < pl.count; k++) pts.push(pl.get(k));
+                }
+                if (pl && typeof pl.delete === 'function') pl.delete();
+            }
+        } catch (e) {}
+
+        if (pts.length < 2 && geom.domain && typeof geom.pointAt === 'function') {
+            const dom = geom.domain;
+            const steps = 16;
+            for (let k = 0; k <= steps; k++) {
+                const t = dom[0] + ((dom[1] - dom[0]) * k) / steps;
+                pts.push(geom.pointAt(t));
+            }
+        }
+
+        if (pts.length >= 2) {
+            const baseIdx = rawVerts.length;
+            for (const p of pts) rawVerts.push([p[0] * scale, p[1] * scale, p[2] * scale]);
+            for (let k = 0; k < pts.length - 1; k++) rawEdges.push([baseIdx + k, baseIdx + k + 1]);
+        }
+    }
+    doc.delete();
+    if (rawVerts.length < 2 || rawEdges.length === 0) return null;
+    return { name: fallbackName, verts: rawVerts, edges: rawEdges };
+}
+
+export function importCurveModuleFromData(name, rawVerts, rawEdges, options = {}) {
+    const chkNormVoxel = $('chk-norm-voxel');
+    const normalize = options.normalize !== undefined ? options.normalize : (chkNormVoxel ? chkNormVoxel.checked : true);
+
+    // Weld coincident curve endpoints/vertices
+    const tol = 1e-4;
+    const invTol = 1 / tol;
+    const grid = new Map();
+    const verts = [];
+    const vMap = new Int32Array(rawVerts.length);
+    for (let i = 0; i < rawVerts.length; i++) {
+        const v = rawVerts[i];
+        const key = `${Math.round(v[0] * invTol)}_${Math.round(v[1] * invTol)}_${Math.round(v[2] * invTol)}`;
+        let idx = grid.get(key);
+        if (idx === undefined) {
+            idx = verts.length;
+            grid.set(key, idx);
+            verts.push([v[0], v[1], v[2]]);
+        }
+        vMap[i] = idx;
+    }
+
+    const seen = new Set();
+    const edges = [];
+    for (const e of rawEdges) {
+        const a = vMap[e[0]], b = vMap[e[1]];
+        if (a === b) continue;
+        const u = Math.min(a, b), v = Math.max(a, b);
+        const key = `${u}_${v}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            edges.push([u, v]);
+        }
+    }
+    if (verts.length < 2 || edges.length === 0) return null;
+
+    const baseVerts = normalize ? normalizeMeshToUnitVoxel(verts) : verts;
+    const graph = { vertices: baseVerts, edges };
+    const sockets = detectTileSocketsFromGraph(graph.vertices);
+    const quads = CORE.buildQuadsFromGraph(graph);
+
+    const customIdx = appState.TILES.filter(t => t.isCustomGraph).length;
+    const pal = CUSTOM_TILE_PALETTE[customIdx % CUSTOM_TILE_PALETTE.length];
+    const cleanName = String(name || `CrvMod_${customIdx + 1}`).replace(/\.(3dm|obj)$/i, '').slice(0, 22);
+    const shortCode = (`C${customIdx + 1}` + cleanName.replace(/[^A-Za-z0-9]/g, '').slice(0, 1)).toUpperCase().slice(0, 3);
+
+    const tile = {
+        id: appState.TILES.length,
+        key: `custom_curve_${Date.now()}_${customIdx}`,
+        name: cleanName,
+        short: shortCode,
+        color: pal.color,
+        hex: pal.hex,
+        enabled: true,
+        weight: 1.5,
+        sockets,
+        quads,
+        previewQuads: [],
+        graph,
+        isCustomGraph: true,
+        ccLevel: 0
+    };
+
+    appState.TILES.push(tile);
+    if (actions.syncAdjRulesSize) actions.syncAdjRulesSize();
+    return tile;
+}
+
 function buildPreviewQuadsFromSubMesh(verts, faces) {
     const out = [];
     for (const f of faces) {
@@ -841,7 +960,19 @@ export function initTab1Tiles() {
                     const ext = file.name.toLowerCase().split('.').pop();
                     let parsedModules = [];
                     if (ext === 'obj') parsedModules = parseOBJMeshes(await file.text(), file.name);
-                    else if (ext === '3dm') parsedModules = parse3dmMeshes(await file.arrayBuffer(), file.name);
+                    else if (ext === '3dm') {
+                        const buf = await file.arrayBuffer();
+                        parsedModules = parse3dmMeshes(buf, file.name);
+                        if (parsedModules.length === 0) {
+                            const crvMod = parse3dmCurvesAsGraph(buf, file.name);
+                            if (crvMod) {
+                                const tile = importCurveModuleFromData(crvMod.name, crvMod.verts, crvMod.edges, {
+                                    normalize: chkNormVoxel ? chkNormVoxel.checked : true
+                                });
+                                if (tile) { importedCount++; lastImportedId = tile.id; }
+                            }
+                        }
+                    }
                     for (const mod of parsedModules) {
                         const tile = importMeshModuleFromData(mod.name, mod.verts, mod.faces, {
                             ccLevel: appState.ccSubdivLevel,

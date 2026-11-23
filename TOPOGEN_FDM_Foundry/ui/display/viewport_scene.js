@@ -458,8 +458,22 @@ export function setArctic(on) {
             m.material = appState.arcticOn ? sharedMaterials.arctic : m.userData.baseMaterial;
         }
     });
-    viewport.hemiLight.intensity = appState.arcticOn ? 1.35 : 0.9;
-    viewport.dirLight.intensity = appState.arcticOn ? 0.45 : 0.9;
+    if (viewport.elasticaGroup) {
+        viewport.elasticaGroup.children.forEach(m => {
+            if (m.isMesh && m.userData && m.userData.baseMaterial) {
+                m.material = appState.arcticOn ? sharedMaterials.arctic : m.userData.baseMaterial;
+            }
+        });
+    }
+    if (viewport.elasticaUnroll3DGroup) {
+        viewport.elasticaUnroll3DGroup.children.forEach(m => {
+            if (m.isMesh && m.userData && m.userData.baseMaterial) {
+                m.material = appState.arcticOn ? sharedMaterials.arctic : m.userData.baseMaterial;
+            }
+        });
+    }
+    viewport.hemiLight.intensity = appState.arcticOn ? 1.45 : 1.35;
+    viewport.dirLight.intensity = appState.arcticOn ? 0.45 : 1.15;
     const btnArctic = $('btn-arctic');
     if (btnArctic) {
         btnArctic.textContent = appState.arcticOn ? 'Arctic ✓' : 'Arctic';
@@ -961,13 +975,20 @@ export function initViewportScene() {
         );
         pickRay.setFromCamera(mouseNdc, viewport.camera);
 
-        if (appState.activeTabId === 'tab-fdm' && viewport.fdmGroup.visible && appState.fdmNodePickMeshes.length > 0) {
+        if ((appState.activeTabId === 'tab-fdm' || appState.activeTabId === 'tab-elastica') && viewport.fdmGroup.visible && appState.fdmNodePickMeshes.length > 0) {
             const nodeHits = pickRay.intersectObjects(appState.fdmNodePickMeshes, false);
             if (nodeHits.length > 0) {
                 const hostIndices = nodeHits[0].object.userData.fdmHostNodeIndices;
-                if (Array.isArray(hostIndices) && hostIndices.length > 0 && actions.toggleFdmFixedNodesByClick) {
-                    actions.toggleFdmFixedNodesByClick(hostIndices, !!(e.ctrlKey || e.metaKey));
-                    return;
+                const isCtrl = !!(e.ctrlKey || e.metaKey);
+                if (Array.isArray(hostIndices) && hostIndices.length > 0) {
+                    if (appState.activeTabId === 'tab-fdm' && actions.toggleFdmFixedNodesByClick) {
+                        actions.toggleFdmFixedNodesByClick(hostIndices, isCtrl);
+                        return;
+                    }
+                    if (appState.activeTabId === 'tab-elastica' && actions.toggleElasticaNodesByClick) {
+                        actions.toggleElasticaNodesByClick(hostIndices, isCtrl);
+                        return;
+                    }
                 }
             }
         }

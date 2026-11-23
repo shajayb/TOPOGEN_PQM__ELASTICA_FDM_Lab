@@ -148,10 +148,13 @@ export function updateSimUI() {
     setTxt('compact-graph-badge', `${gV}V · ${gE}E`);
     setTxt('btn-compact-toggle-graph', showCenterlineGraph ? 'Graph: ON' : 'Graph: OFF');
 
-    const { lastSolidData, lastFDMResult, lastFEAResult, fdmState, faceLoopState, feaState } = appState;
+    const { lastSolidData, lastFDMResult, lastFEAResult, lastElasticaData, fdmState, faceLoopState, elasticaState, feaState } = appState;
     setTxt('compact-pqm-badge', lastSolidData ? `${lastSolidData.quads.length}Q · PQ✓` : 'Build');
     const btnCompactUnroll = $('btn-compact-unroll');
     if (btnCompactUnroll) btnCompactUnroll.classList.toggle('on', !!(faceLoopState && faceLoopState.showUnrolled3D));
+    setTxt('compact-elastica-badge', (lastElasticaData && lastElasticaData.curves && lastElasticaData.curves.length) ? `${lastElasticaData.curves.length} Rods ✓` : 'Build');
+    const btnCompactElasticaUnroll = $('btn-compact-elastica-unroll');
+    if (btnCompactElasticaUnroll) btnCompactElasticaUnroll.classList.toggle('on', !!(elasticaState && elasticaState.showUnrolled3D));
     setTxt('compact-fdm-badge', (fdmState && fdmState.triggerOnHost && lastFDMResult) ? `${lastFDMResult.mode} ✓` : 'Off');
     setTxt('compact-fea-badge', lastFEAResult ? (lastFEAResult.passed ? 'PASS ✓' : 'CHECK') : 'Ready');
     const btnCompactFeaAnim = $('btn-compact-fea-anim');
@@ -318,10 +321,7 @@ export function emitFEATelemetry(res, sectionParams, mat, loadConfig, opts = {})
     setTxt('hud-fea-sfs', `SFt=${sftStr} · SFc=${sfcStr} · SFb=${sfbStr}`);
     setTxt('hud-fea-funi', `Funi ${funiPct}% · Comp ${compPct}% (${tensBars}T)`);
 
-    if (opts.expandHud || !feaState.hudAutoExpandedOnce) {
-        feaState.hudAutoExpandedOnce = true;
-        expandTelemetryHudForFEA();
-    }
+    // Update compact & status badges without auto-unfurling the Telemetry HUD
 
     const telBadge = $('fea-tel-run-badge');
     if (telBadge) {

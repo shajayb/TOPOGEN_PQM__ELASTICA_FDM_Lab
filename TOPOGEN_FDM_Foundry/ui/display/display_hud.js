@@ -12,6 +12,7 @@
 import { appState, actions, $, $$ } from '../state/workbench_state.js';
 import {
     viewport,
+    sharedMaterials,
     recomputeModelBox,
     updateBoundingBox3D,
     zoomToBox,
@@ -63,6 +64,21 @@ export function applyOutlinerVisibility() {
     const hasFea = !!lastFEAResult;
     const tubeShowOn = tubeState.show;
     const unrollShowOn = !!faceLoopState.showUnrolled3D;
+
+    if (appState.fdmNodePickMeshes && appState.fdmNodePickMeshes.length > 0) {
+        const isElastica = (activeTabId === 'tab-elastica');
+        for (const sph of appState.fdmNodePickMeshes) {
+            if (isElastica) {
+                if (sph.userData.fdmOrigScale === undefined) sph.userData.fdmOrigScale = sph.scale.x;
+                sph.material = sharedMaterials.pointSphere || sharedMaterials.freeNodeSphere;
+                sph.visible = false;
+            } else {
+                sph.visible = true;
+                if (sph.userData.fdmOrigScale !== undefined) sph.scale.setScalar(sph.userData.fdmOrigScale);
+                sph.material = sph.userData.isFixedAnchor ? sharedMaterials.anchorSphere : sharedMaterials.freeNodeSphere;
+            }
+        }
+    }
 
     if (activeTabId === 'tab-fea' && hasFea) {
         viewport.tilePreviewGroup.visible = false;
@@ -117,6 +133,8 @@ export function applyOutlinerVisibility() {
         viewport.meshGroup.visible = false;
         viewport.graphGroup.visible = false;
         viewport.feaGroup.visible = false;
+        if (viewport.elasticaGroup) viewport.elasticaGroup.visible = false;
+        if (viewport.elasticaUnroll3DGroup) viewport.elasticaUnroll3DGroup.visible = false;
         const hasSolid = !!lastSolidData;
         const showSolid = hasSolid && tubeShowOn && groupVis.meshes && showQuadMeshes;
         viewport.tubeGroup.visible = showSolid;
@@ -131,6 +149,8 @@ export function applyOutlinerVisibility() {
         viewport.fdmGroup.visible = false;
         viewport.tubeGroup.visible = false;
         viewport.unroll3DGroup.visible = false;
+        if (viewport.elasticaGroup) viewport.elasticaGroup.visible = false;
+        if (viewport.elasticaUnroll3DGroup) viewport.elasticaUnroll3DGroup.visible = false;
         viewport.feaGroup.visible = false;
     } else {
         viewport.tilePreviewGroup.visible = false;
@@ -405,6 +425,20 @@ export function initDisplayHud() {
                     m.visible = !appState.wireframeOn;
                 }
             });
+            if (viewport.elasticaGroup) {
+                viewport.elasticaGroup.children.forEach(m => {
+                    if (m.isMesh && m.userData && m.userData.baseMaterial) {
+                        m.visible = !appState.wireframeOn;
+                    }
+                });
+            }
+            if (viewport.elasticaUnroll3DGroup) {
+                viewport.elasticaUnroll3DGroup.children.forEach(m => {
+                    if (m.isMesh && m.userData && m.userData.baseMaterial) {
+                        m.visible = !appState.wireframeOn;
+                    }
+                });
+            }
             if (appState.lastSolidData && actions.renderTubularMesh) {
                 actions.renderTubularMesh(appState.lastSolidData);
             }
@@ -528,6 +562,24 @@ export function initDisplayHud() {
             if (actions.toggleUnroll3DFromUI) {
                 const on = actions.toggleUnroll3DFromUI();
                 btnCompactUnroll.classList.toggle('on', !!on);
+            }
+        });
+    }
+    const btnCompactElastica = $('btn-compact-elastica');
+    if (btnCompactElastica) {
+        btnCompactElastica.addEventListener('click', () => {
+            switchTab('tab-elastica');
+            if (actions.generateElasticaFromUI) actions.generateElasticaFromUI();
+            if (actions.updateSimUI) actions.updateSimUI();
+        });
+    }
+    const btnCompactElasticaUnroll = $('btn-compact-elastica-unroll');
+    if (btnCompactElasticaUnroll) {
+        btnCompactElasticaUnroll.addEventListener('click', () => {
+            switchTab('tab-elastica');
+            if (actions.toggleElasticaUnroll3DFromUI) {
+                const on = actions.toggleElasticaUnroll3DFromUI();
+                btnCompactElasticaUnroll.classList.toggle('on', !!on);
             }
         });
     }

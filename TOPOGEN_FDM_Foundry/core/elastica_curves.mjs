@@ -101,12 +101,21 @@ function aStarPath(startIdx, goalIdx, pts3, adj) {
  */
 export function traceSkeletalPathsAStar(vertices, edges, options = {}) {
     const leaves = findValenceOneNodes(vertices, edges);
-    if (leaves.length < 2) return { leaves, paths: [] };
-
     const pts3 = vertices.map(v => toV3(v));
     const pairMode = options.pairMode || 'all_pairs';
     const nearestK = Math.max(1, Math.round(options.nearestK || 2));
-    const maxCurves = Math.max(1, Math.round(options.maxCurves || 64));
+    const maxCurves = Math.max(1, Math.round(options.maxCurves || 256));
+
+    const customSources = Array.isArray(options.sourceNodes)
+        ? options.sourceNodes.filter(i => Number.isInteger(i) && i >= 0 && i < pts3.length)
+        : [];
+    const customSinks = Array.isArray(options.sinkNodes)
+        ? options.sinkNodes.filter(i => Number.isInteger(i) && i >= 0 && i < pts3.length)
+        : [];
+
+    if (customSources.length === 0 && customSinks.length === 0 && leaves.length < 2) {
+        return { leaves, paths: [] };
+    }
 
     const adj = Array.from({ length: pts3.length }, () => []);
     for (const e of edges) {
@@ -122,7 +131,15 @@ export function traceSkeletalPathsAStar(vertices, edges, options = {}) {
 
     // Determine source/sink pairs
     let pairs = [];
-    if (pairMode === 'top_to_bottom') {
+    if (customSources.length > 0 || customSinks.length > 0) {
+        const srcs = customSources.length > 0 ? customSources : leaves;
+        const snks = customSinks.length > 0 ? customSinks : leaves;
+        for (const s of srcs) {
+            for (const t of snks) {
+                if (s !== t) pairs.push([s, t]);
+            }
+        }
+    } else if (pairMode === 'top_to_bottom') {
         let minZ = Infinity, maxZ = -Infinity;
         for (const idx of leaves) {
             const z = pts3[idx].z;
@@ -130,8 +147,8 @@ export function traceSkeletalPathsAStar(vertices, edges, options = {}) {
             if (z > maxZ) maxZ = z;
         }
         const midZ = 0.5 * (minZ + maxZ);
-        const sources = leaves.filter(idx => pts3[idx].z >= midZ);
-        const sinks = leaves.filter(idx => pts3[idx].z < midZ);
+        const sources = leaves.filter(idx => pts3[idx].z >= midZ).sort((a, b) => pts3[b].z - pts3[a].z);
+        const sinks = leaves.filter(idx => pts3[idx].z < midZ).sort((a, b) => pts3[a].z - pts3[b].z);
         if (sources.length > 0 && sinks.length > 0) {
             for (const s of sources) {
                 for (const t of sinks) {
@@ -185,9 +202,32 @@ export function traceSkeletalPathsAStar(vertices, edges, options = {}) {
         return { leaves, paths: filtered.map((p, idx) => ({ ...p, id: idx })) };
     }
 
-    traced.sort((a, b) => a.pathLength - b.pathLength);
-    const paths = traced.slice(0, maxCurves).map((p, idx) => ({ ...p, id: idx }));
-    return { leaves, paths };
+    // Round-robin across startNodes so top/extreme sources are never starved by shorter mid-height paths
+    const bySource = new Map();
+    for (const p of traced) {
+        if (!bySource.has(p.startNode)) bySource.set(p.startNode, []);
+        bySource.get(p.startNode).push(p);
+    }
+    for (const list of bySource.values()) {
+        list.sort((a, b) => a.pathLength - b.pathLength);
+    }
+
+    const selected = [];
+    let round = 0;
+    while (selected.length < maxCurves) {
+        let addedAny = false;
+        for (const list of bySource.values()) {
+            if (round < list.length) {
+                selected.push(list[round]);
+                addedAny = true;
+                if (selected.length >= maxCurves) break;
+            }
+        }
+        if (!addedAny) break;
+        round++;
+    }
+
+    return { leaves, paths: selected.map((p, idx) => ({ ...p, id: idx })) };
 }
 
 /**
@@ -196,7 +236,7 @@ export function traceSkeletalPathsAStar(vertices, edges, options = {}) {
  * (blended by `smoothness` in [0..1]), rounding corners identically to Catmull-Clark.
  */
 export function subdivideCatmullClark1D(points, levels = 2, smoothness = 1.0) {
-    let pts = points.map(p => p.clone());
+    let pts = points.map(p => toV3(p));
     const lvls = Math.max(0, Math.min(5, Math.round(levels)));
     const w = Math.max(0, Math.min(1, smoothness));
 
@@ -295,15 +335,25 @@ function resamplePath(pathPoints, samplesPerEdge = 8) {
 /**
  * Compute discrete curvature & bending energy integral sum(kappa^2 * ds).
  */
-export function computeElasticaMetrics(pts) {
+export function computeElasticaMetrics(pts, rodRadius = 0.015) {
     if (!pts || pts.length < 3) {
-        return { totalLength: 0, bendingEnergy: 0, maxCurvature: 0, avgCurvature: 0 };
+        const len = (pts && pts.length === 2) ? pts[0].distanceTo(pts[1]) : 0;
+        return {
+            totalLength: len,
+            bendingEnergy: 0,
+            maxCurvature: 0,
+            avgCurvature: 0,
+            minBendRadius: Infinity,
+            maxBendingStrain: 0,
+            stationCurvatures: pts ? new Float64Array(pts.length) : new Float64Array(0)
+        };
     }
     let totalLength = 0;
     let bendingEnergy = 0;
     let maxCurvature = 0;
     let curvSum = 0;
     let curvCount = 0;
+    const stationCurvatures = new Float64Array(pts.length);
 
     for (let i = 0; i < pts.length - 1; i++) {
         totalLength += pts[i].distanceTo(pts[i + 1]);
@@ -317,40 +367,81 @@ export function computeElasticaMetrics(pts) {
         const ds = 0.5 * (l0 + l1);
         if (l0 < 1e-8 || l1 < 1e-8 || ds < 1e-8) continue;
 
-        const t0 = e0.clone().divideScalar(l0);
-        const t1 = e1.clone().divideScalar(l1);
-        const dot = Math.max(-1, Math.min(1, t0.dot(t1)));
-        const theta = Math.acos(dot);
-        const kappa = (2 * Math.sin(theta * 0.5)) / ds;
-        bendingEnergy += kappa * kappa * ds;
+        // Discrete Elastic Rod curvature magnitude |kappa * b|_i = 2 |e0 x e1| / (|e0||e1| + e0.e1) / ds
+        const cross = new V3().crossVectors(e0, e1).length();
+        const denom = l0 * l1 + e0.dot(e1);
+        const kappa = denom > 1e-10
+            ? (2 * cross / denom) / ds
+            : (2 / ds);
+        stationCurvatures[i] = kappa;
+        bendingEnergy += 0.5 * kappa * kappa * ds;
         if (kappa > maxCurvature) maxCurvature = kappa;
         curvSum += kappa;
         curvCount++;
     }
+    stationCurvatures[0] = stationCurvatures[1] || 0;
+    stationCurvatures[pts.length - 1] = stationCurvatures[pts.length - 2] || 0;
 
     return {
         totalLength,
         bendingEnergy,
         maxCurvature,
-        avgCurvature: curvCount > 0 ? curvSum / curvCount : 0
+        avgCurvature: curvCount > 0 ? curvSum / curvCount : 0,
+        minBendRadius: maxCurvature > 1e-6 ? (1.0 / maxCurvature) : Infinity,
+        maxBendingStrain: maxCurvature * Math.max(0.001, rodRadius),
+        stationCurvatures
     };
 }
 
 /**
- * Optimize a traced skeletal path into a smooth Euler Elastica curve.
- * Pins the valence-1 source and sink endpoints and relaxes interior points
- * to minimize bending energy (rounding sharp skeletal corners) while staying
- * guided by the skeletal path / tubular envelope.
+ * Project polyline segments onto uniform inextensible rest length `segRestLen`
+ * with pinned endpoints p[0] and p[n-1] (Position-Based Discrete Elastic Rod inextensibility).
  */
-export function optimizeElasticaCurve(pathPoints, solidData = null, options = {}) {
-    const smoothMode = options.smoothMode || 'catmull_clark_1d';
+function projectInextensibleRodSegments(pts, segRestLen, passes = 4) {
+    const n = pts.length;
+    if (n < 3 || segRestLen <= 1e-7) return;
+    for (let pass = 0; pass < passes; pass++) {
+        // Forward-backward Gauss-Seidel distance constraint projection
+        for (let i = 0; i < n - 1; i++) {
+            const j = (pass % 2 === 0) ? i : (n - 2 - i);
+            const a = pts[j];
+            const b = pts[j + 1];
+            const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+            const len = Math.hypot(dx, dy, dz);
+            if (len < 1e-9) continue;
+            const diff = (len - segRestLen) / len;
+            const wA = (j === 0) ? 0.0 : (j + 1 === n - 1 ? 1.0 : 0.5);
+            const wB = (j + 1 === n - 1) ? 0.0 : (j === 0 ? 1.0 : 0.5);
+            a.x += dx * diff * wA;
+            a.y += dy * diff * wA;
+            a.z += dz * diff * wA;
+            b.x -= dx * diff * wB;
+            b.y -= dy * diff * wB;
+            b.z -= dz * diff * wB;
+        }
+    }
+}
+
+/**
+ * Optimize a traced skeletal path into an Inextensible Discrete Elastic Rod (DER) curve
+ * (Bergou et al. 2008): minimizes discrete bending energy 1/2 sum(kappa_i^2 * ds_i)
+ * subject to pinned endpoints, skeletal guidance, and neutral-axis inextensibility
+ * so the 3D bent rod has exact 1:1 arc-length parity with its pre-bent straight cut stock.
+ */
+export function optimizeElasticaCurve(rawPathPoints, solidData = null, options = {}) {
+    const pathPoints = rawPathPoints.map(p => toV3(p));
+    const smoothMode = options.smoothMode || 'der_inextensible';
     const smoothLevels = options.smoothLevels !== undefined ? Math.round(options.smoothLevels) : 2;
     const samplesPerEdge = Math.max(2, Math.round(options.samplesPerEdge || 8));
-    const iterations = Math.max(0, Math.round(options.iterations !== undefined ? options.iterations : 40));
+    const iterations = Math.max(0, Math.round(options.iterations !== undefined ? options.iterations : 60));
     const bendingWeight = options.bendingWeight !== undefined ? options.bendingWeight : 0.65;
     const tensionWeight = options.tensionWeight !== undefined ? options.tensionWeight : 0.20;
     const guideWeight = options.guideWeight !== undefined ? options.guideWeight : 0.08;
     const maxDeviation = options.maxDeviation !== undefined ? options.maxDeviation : 0.45;
+    const rodRadius = Math.max(0.002, options.rodRadius !== undefined ? options.rodRadius : 0.015);
+    const enforceInextensible = options.inextensible !== undefined
+        ? !!options.inextensible
+        : (smoothMode === 'der_inextensible' || smoothMode === 'elastica');
 
     let pts;
     let refPoints;
@@ -361,15 +452,69 @@ export function optimizeElasticaCurve(pathPoints, solidData = null, options = {}
         pts = sampleCatmullRom(pathPoints, samplesPerEdge, bendingWeight);
         refPoints = pts.map(p => p.clone());
     } else {
+        // Initialize from mildly corner-rounded skeletal path so DER has clean initial tangents
+        const initPts = subdivideCatmullClark1D(pathPoints, Math.max(1, smoothLevels), 0.75);
         const res = resamplePath(pathPoints, samplesPerEdge);
-        pts = res.pts;
-        refPoints = res.refPoints;
+        pts = initPts.length >= 4 ? initPts : res.pts;
+        refPoints = pts.map(p => p.clone());
     }
 
     const n = pts.length;
     if (n < 3) {
-        return { points: pts, refPoints, maxDeviation: 0, ...computeElasticaMetrics(pts) };
+        return { points: pts, refPoints, maxDeviation: 0, ...computeElasticaMetrics(pts, rodRadius) };
     }
+
+    // Compute initial rest length L0 along the seeded curve (bounded >= chord length * 1.001)
+    let initLen = 0;
+    for (let i = 0; i < n - 1; i++) initLen += pts[i].distanceTo(pts[i + 1]);
+    const chordLen = pts[0].distanceTo(pts[n - 1]);
+    const restLength = Math.max(chordLen * 1.0005, initLen);
+    const segRestLen = restLength / (n - 1);
+
+    // Clamped end-tangent directions & local-plane inward normals (prevents dipping below end tangents)
+    const pStart = pathPoints[0];
+    const pEnd = pathPoints[pathPoints.length - 1];
+    const tStart = new V3().subVectors(pathPoints[1], pStart);
+    if (tStart.lengthSq() > 1e-10) tStart.normalize();
+    const tEnd = new V3().subVectors(pathPoints[pathPoints.length - 2], pEnd);
+    if (tEnd.lengthSq() > 1e-10) tEnd.normalize();
+
+    let nStart = null;
+    let nEnd = null;
+    if (pathPoints.length >= 3) {
+        const toTurnS = new V3().subVectors(pathPoints[2], pStart);
+        toTurnS.addScaledVector(tStart, -toTurnS.dot(tStart));
+        if (toTurnS.lengthSq() > 1e-10) nStart = toTurnS.normalize();
+
+        const toTurnE = new V3().subVectors(pathPoints[pathPoints.length - 3], pEnd);
+        toTurnE.addScaledVector(tEnd, -toTurnE.dot(tEnd));
+        if (toTurnE.lengthSq() > 1e-10) nEnd = toTurnE.normalize();
+    }
+
+    const enforceLocalPlaneAndTangents = () => {
+        // Clamp first & last interior stations onto the skeletal end-tangent rays (C1 socket alignment)
+        if (n >= 4) {
+            const dS = Math.max(1e-5, pts[1].distanceTo(pts[0]));
+            pts[1].copy(pts[0]).addScaledVector(tStart, dS);
+            const dE = Math.max(1e-5, pts[n - 2].distanceTo(pts[n - 1]));
+            pts[n - 2].copy(pts[n - 1]).addScaledVector(tEnd, dE);
+        }
+        // Local-plane half-space projection so curve never dips below end tangents
+        const midIdx = Math.floor(n * 0.5);
+        for (let i = 1; i < n - 1; i++) {
+            if (nStart && i <= midIdx) {
+                const dotS = (pts[i].x - pStart.x) * nStart.x + (pts[i].y - pStart.y) * nStart.y + (pts[i].z - pStart.z) * nStart.z;
+                if (dotS < 0) pts[i].addScaledVector(nStart, -dotS);
+            }
+            if (nEnd && i >= midIdx) {
+                const dotE = (pts[i].x - pEnd.x) * nEnd.x + (pts[i].y - pEnd.y) * nEnd.y + (pts[i].z - pEnd.z) * nEnd.z;
+                if (dotE < 0) pts[i].addScaledVector(nEnd, -dotE);
+            }
+        }
+    };
+
+    // Enforce on initial seed as well (covers smoothMode === 'catmull_clark_1d' / 'catmull_rom')
+    enforceLocalPlaneAndTangents();
 
     const stepSize = 0.28;
     const nextPts = pts.map(p => p.clone());
@@ -380,12 +525,12 @@ export function optimizeElasticaCurve(pathPoints, solidData = null, options = {}
             const curr = pts[i];
             const next = pts[i + 1];
 
-            // 1. Arc-length / tension smoothing
+            // 1. Arc-length equalization term
             const lapX = 0.5 * (prev.x + next.x) - curr.x;
             const lapY = 0.5 * (prev.y + next.y) - curr.y;
             const lapZ = 0.5 * (prev.z + next.z) - curr.z;
 
-            // 2. Discrete biharmonic (elastica bending energy gradient)
+            // 2. Discrete Euler-Bernoulli bending gradient (-d/dp sum kappa_i^2 ds_i)
             const pM2 = i >= 2 ? pts[i - 2] : prev;
             const pP2 = i <= n - 3 ? pts[i + 2] : next;
             const bihX = (-pM2.x + 4 * prev.x - 6 * curr.x + 4 * next.x - pP2.x) * 0.125;
@@ -402,7 +547,7 @@ export function optimizeElasticaCurve(pathPoints, solidData = null, options = {}
             let ny = curr.y + stepSize * (bendingWeight * bihY + tensionWeight * lapY + guideWeight * guideY);
             let nz = curr.z + stepSize * (bendingWeight * bihZ + tensionWeight * lapZ + guideWeight * guideZ);
 
-            // Clamp max radial deviation from skeletal centerline
+            // Clamp max radial deviation from skeletal guide
             if (maxDeviation > 1e-5) {
                 const ox = nx - ref.x, oy = ny - ref.y, oz = nz - ref.z;
                 const offLen = Math.hypot(ox, oy, oz);
@@ -417,6 +562,20 @@ export function optimizeElasticaCurve(pathPoints, solidData = null, options = {}
             nextPts[i].set(nx, ny, nz);
         }
         for (let i = 1; i < n - 1; i++) pts[i].copy(nextPts[i]);
+
+        // 4. Enforce neutral-axis inextensibility (fixed rest length & uniform segments)
+        if (enforceInextensible) {
+            projectInextensibleRodSegments(pts, segRestLen, 3);
+        }
+        enforceLocalPlaneAndTangents();
+    }
+
+    // Final arc-length equalization pass so stations are uniformly spaced along the rod
+    if (enforceInextensible && iterations > 0) {
+        let finalLen = 0;
+        for (let i = 0; i < n - 1; i++) finalLen += pts[i].distanceTo(pts[i + 1]);
+        projectInextensibleRodSegments(pts, finalLen / (n - 1), 6);
+        enforceLocalPlaneAndTangents();
     }
 
     let peakDev = 0;
@@ -429,7 +588,7 @@ export function optimizeElasticaCurve(pathPoints, solidData = null, options = {}
         points: pts,
         refPoints,
         maxDeviation: peakDev,
-        ...computeElasticaMetrics(pts)
+        ...computeElasticaMetrics(pts, rodRadius)
     };
 }
 
@@ -486,8 +645,6 @@ export function buildElasticaRodMesh(curvePoints, options = {}) {
 
     const vertices = [];
     const quads = [];
-    const stripVertices = [];
-    const stripQuads = [];
 
     for (let i = 0; i < n; i++) {
         const p = curvePoints[i];
@@ -498,164 +655,110 @@ export function buildElasticaRodMesh(curvePoints, options = {}) {
         for (let k = 0; k < nSides; k++) {
             const ang = tw + (2 * Math.PI * k) / nSides;
             const ca = Math.cos(ang), sa = Math.sin(ang);
-            vertices.push(new V3(
-                p.x + radius * (ca * f.N.x + sa * f.B.x),
-                p.y + radius * (ca * f.N.y + sa * f.B.y),
-                p.z + radius * (ca * f.N.z + sa * f.B.z)
-            ));
+        vertices.push(new V3(
+            p.x + radius * (ca * f.N.x + sa * f.B.x),
+            p.y + radius * (ca * f.N.y + sa * f.B.y),
+            p.z + radius * (ca * f.N.z + sa * f.B.z)
+        ));
         }
-
-        // Diametral reference strip for clean 2D isometric unrolling (width = 2 * radius)
-        const ct = Math.cos(tw), st = Math.sin(tw);
-        const dirX = f.N.x * ct + f.B.x * st;
-        const dirY = f.N.y * ct + f.B.y * st;
-        const dirZ = f.N.z * ct + f.B.z * st;
-        stripVertices.push(new V3(p.x - dirX * radius, p.y - dirY * radius, p.z - dirZ * radius));
-        stripVertices.push(new V3(p.x + dirX * radius, p.y + dirY * radius, p.z + dirZ * radius));
     }
 
+    const arcLengths = new Float64Array(n);
+    arcLengths[0] = 0;
     for (let i = 0; i < n - 1; i++) {
+        arcLengths[i + 1] = arcLengths[i] + curvePoints[i].distanceTo(curvePoints[i + 1]);
         const ringA = i * nSides;
         const ringB = (i + 1) * nSides;
         for (let k = 0; k < nSides; k++) {
             const kNext = (k + 1) % nSides;
             quads.push([ringA + k, ringA + kNext, ringB + kNext, ringB + k]);
         }
-        const s0 = i * 2;
-        stripQuads.push([s0, s0 + 1, s0 + 3, s0 + 2]);
     }
 
-    return { vertices, quads, frames, radius, nSides, stripVertices, stripQuads };
+    return { vertices, quads, frames, radius, nSides, centerlinePoints: curvePoints, arcLengths };
 }
 
 /**
- * Isometrically unfold an elastica quad-strip ribbon into 2D (preserving edge & diagonal lengths).
+ * Neutral-axis straight cut-to-length unrolling for an elastic rod (1:1 digital-physical parity):
+ * Because an isotropic rod's neutral axis has zero axial strain under pure bending,
+ * its pre-bent stock form is a 100% straight bar of exact length L = sum ||p_{m+1} - p_m||
+ * with station marks at cumulative arc-lengths s_0 = 0, s_1, ..., s_{n-1} = L.
  */
-export function unrollElasticaRibbon2D(rod) {
-    const vertices = rod && (rod.stripVertices || rod.vertices);
-    const quads = rod && (rod.stripQuads || rod.quads);
-    if (!rod || !vertices || !quads || quads.length === 0) {
-        return { quads2D: [], minX: 0, maxX: 1, minY: 0, maxY: 1, totalArea: 0 };
+export function unrollElasticaRibbon2D(rod, stationCurvatures = null) {
+    if (!rod || !rod.arcLengths || rod.arcLengths.length < 2) {
+        return { quads2D: [], minX: 0, maxX: 1, minY: 0, maxY: 1, totalArea: 0, cutLength: 0 };
     }
+    const { arcLengths, radius } = rod;
+    const r = Math.max(0.002, radius || 0.015);
     const quads2D = [];
-    let prevTL = null;
-    let prevTR = null;
-    let totalArea = 0;
 
-    for (let m = 0; m < quads.length; m++) {
-        const q = quads[m];
-        const pBL = toV3(vertices[q[0]]);
-        const pBR = toV3(vertices[q[1]]);
-        const pTR = toV3(vertices[q[2]]);
-        const pTL = toV3(vertices[q[3]]);
-
-        const d1 = new V3().subVectors(pTR, pBL);
-        const d2 = new V3().subVectors(pTL, pBR);
-        let normal = new V3().crossVectors(d1, d2);
-        const nLen = normal.length();
-        if (nLen > 1e-10) normal.divideScalar(nLen);
-        else normal.set(0, 0, 1);
-
-        const baseVec = new V3().subVectors(pBR, pBL);
-        const baseLen = Math.max(baseVec.length(), 1e-6);
-        const e1 = baseVec.clone().divideScalar(baseLen);
-        const e2 = new V3().crossVectors(normal, e1).normalize();
-        const toTL = new V3().subVectors(pTL, pBL);
-        if (toTL.dot(e2) < 0) e2.negate();
-        const toTR = new V3().subVectors(pTR, pBL);
-
-        const localTR = { x: toTR.dot(e1), y: toTR.dot(e2) };
-        const localTL = { x: toTL.dot(e1), y: toTL.dot(e2) };
-
-        let U_BL, U_BR, U_TR, U_TL;
-        if (m === 0 || !prevTL || !prevTR) {
-            U_BL = { x: 0, y: 0 };
-            U_BR = { x: baseLen, y: 0 };
-            U_TR = { x: localTR.x, y: localTR.y };
-            U_TL = { x: localTL.x, y: localTL.y };
-        } else {
-            U_BL = prevTL;
-            U_BR = prevTR;
-            const gVec = { x: U_BR.x - U_BL.x, y: U_BR.y - U_BL.y };
-            const gLen = Math.max(Math.hypot(gVec.x, gVec.y), 1e-6);
-            const g1 = { x: gVec.x / gLen, y: gVec.y / gLen };
-            const g2 = { x: -g1.y, y: g1.x };
-            U_TR = { x: U_BL.x + localTR.x * g1.x + localTR.y * g2.x, y: U_BL.y + localTR.x * g1.y + localTR.y * g2.y };
-            U_TL = { x: U_BL.x + localTL.x * g1.x + localTL.y * g2.x, y: U_BL.y + localTL.x * g1.y + localTL.y * g2.y };
-        }
-
-        const pts = [U_BL, U_BR, U_TR, U_TL];
-        let area = 0;
-        for (let k = 0; k < 4; k++) {
-            const a = pts[k], b = pts[(k + 1) % 4];
-            area += a.x * b.y - b.x * a.y;
-        }
-        totalArea += Math.abs(area) * 0.5;
-
-        quads2D.push({ pts });
-        prevTL = U_TL;
-        prevTR = U_TR;
+    for (let m = 0; m < arcLengths.length - 1; m++) {
+        const s0 = arcLengths[m];
+        const s1 = arcLengths[m + 1];
+        const kappa = stationCurvatures ? 0.5 * ((stationCurvatures[m] || 0) + (stationCurvatures[m + 1] || 0)) : 0;
+        // Winding [BL, BR, TR, TL] with [2]->[3] along the perpendicular station tick at x = s1
+        const pts = [
+            { x: s0, y: -r },
+            { x: s0, y:  r },
+            { x: s1, y:  r },
+            { x: s1, y: -r }
+        ];
+        quads2D.push({ pts, s0, s1, kappa });
     }
 
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const q2 of quads2D) {
-        for (const p of q2.pts) {
-            if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-            if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-        }
-    }
-    if (!Number.isFinite(minX)) return { quads2D: [], minX: 0, maxX: 1, minY: 0, maxY: 1, totalArea: 0 };
-    return { quads2D, minX, maxX, minY, maxY, totalArea };
+    const cutLength = arcLengths[arcLengths.length - 1];
+    const totalArea = cutLength * (2 * r);
+    return {
+        quads2D,
+        minX: 0,
+        maxX: cutLength,
+        minY: -r,
+        maxY: r,
+        totalArea,
+        cutLength
+    };
 }
 
 /**
- * PCA-align a 2D unrolled strip horizontally and return its rotated quads + bounding box.
- */
-function pcaAlignUnroll2D(u2d) {
-    let cx = 0, cy = 0, np = 0;
-    u2d.quads2D.forEach(q => q.pts.forEach(p => { cx += p.x; cy += p.y; np++; }));
-    cx /= Math.max(np, 1); cy /= Math.max(np, 1);
-    let cxx = 0, cyy = 0, cxy = 0;
-    u2d.quads2D.forEach(q => q.pts.forEach(p => {
-        const dx = p.x - cx, dy = p.y - cy;
-        cxx += dx * dx; cyy += dy * dy; cxy += dx * dy;
-    }));
-    const ang = -0.5 * Math.atan2(2 * cxy, cxx - cyy);
-    const ca = Math.cos(ang), sa = Math.sin(ang);
-
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    const rotQuads = u2d.quads2D.map(q => q.pts.map(p => {
-        const dx = p.x - cx, dy = p.y - cy;
-        const rx = dx * ca - dy * sa, ry = dx * sa + dy * ca;
-        if (rx < minX) minX = rx; if (rx > maxX) maxX = rx;
-        if (ry < minY) minY = ry; if (ry > maxY) maxY = ry;
-        return { x: rx, y: ry };
-    }));
-    return { rotQuads, minX, maxX, minY, maxY, w: maxX - minX, h: maxY - minY };
-}
-
-/**
- * Shelf-pack unfolded 2D ribbon strips onto laser-sheet beds.
+ * Shelf-pack straight cut-to-length rods onto horizontal cut-list stock sheets.
  */
 export function packElasticaRibbons2D(curves, options = {}) {
-    const bedW = options.bedWidthM || 0.90;
-    const bedH = options.bedHeightM || 0.60;
-    const gap = options.gapM !== undefined ? options.gapM : 0.025;
+    const gap = options.gapM !== undefined ? options.gapM : 0.030;
+    let maxRodLen = 0;
+    const items = [];
 
-    const aligned = [];
     for (let i = 0; i < curves.length; i++) {
         const c = curves[i];
-        if (!c.unrolled2D || !c.unrolled2D.quads2D || c.unrolled2D.quads2D.length === 0) continue;
-        const a = pcaAlignUnroll2D(c.unrolled2D);
-        aligned.push({ curveIdx: i, curve: c, ...a });
+        const u = c.unrolled2D;
+        if (!u || !u.quads2D || u.quads2D.length === 0) continue;
+        const w = Math.max(0, u.maxX - u.minX);
+        const h = Math.max(0.004, u.maxY - u.minY);
+        if (w > maxRodLen) maxRodLen = w;
+        const rotQuads = u.quads2D.map(q => q.pts.map(p => ({ x: p.x, y: p.y })));
+        items.push({
+            curveIdx: i,
+            curve: c,
+            rotQuads,
+            minX: u.minX,
+            maxX: u.maxX,
+            minY: u.minY,
+            maxY: u.maxY,
+            w,
+            h
+        });
     }
-    aligned.sort((a, b) => b.w - a.w);
+
+    // Sort longest cut-to-length stock bars first (standard workshop cut-list order)
+    items.sort((a, b) => b.w - a.w);
+
+    const bedW = Math.max(options.bedWidthM || 2.40, maxRodLen + gap * 2);
+    const bedH = options.bedHeightM || 1.20;
 
     const placements = [];
     let sheetIdx = 0;
     let curX = gap, curY = gap, rowH = 0;
 
-    for (const item of aligned) {
+    for (const item of items) {
         if (curX + item.w + gap > bedW && curX > gap) {
             curX = gap;
             curY += rowH + gap;
@@ -674,6 +777,10 @@ export function packElasticaRibbons2D(curves, options = {}) {
             oy: curY - item.minY,
             w: item.w,
             h: item.h,
+            cutLength: item.curve.totalLength,
+            minBendRadius: item.curve.minBendRadius,
+            startNode: item.curve.startNode,
+            endNode: item.curve.endNode,
             rotQuads: item.rotQuads
         });
         curX += item.w + gap;
@@ -684,8 +791,9 @@ export function packElasticaRibbons2D(curves, options = {}) {
 }
 
 /**
- * End-to-end generator: trace A* paths between valence-1 sources & sinks on the
- * skeletal network, optimize into elastica curves, build RMF quad ribbons, and unroll + pack.
+ * End-to-end generator: trace A* paths between sources & sinks on the skeletal network,
+ * optimize into inextensible Discrete Elastic Rods (DER), build 3D tubular rods,
+ * and unroll to straight cut-to-length stock bars with 1:1 digital-physical length parity.
  */
 export function generateElasticaRibbons(vertices, edges, solidData = null, options = {}) {
     const { leaves, paths } = traceSkeletalPathsAStar(vertices, edges, options);
@@ -695,7 +803,7 @@ export function generateElasticaRibbons(vertices, edges, solidData = null, optio
         const path = paths[i];
         const opt = optimizeElasticaCurve(path.points, solidData, options);
         const rod = buildElasticaRodMesh(opt.points, options);
-        const unrolled2D = unrollElasticaRibbon2D(rod);
+        const unrolled2D = unrollElasticaRibbon2D(rod, opt.stationCurvatures);
         curves.push({
             id: i,
             startNode: path.startNode,
@@ -706,9 +814,13 @@ export function generateElasticaRibbons(vertices, edges, solidData = null, optio
             points: opt.points,
             refPoints: opt.refPoints,
             totalLength: opt.totalLength,
+            cutLength: unrolled2D.cutLength,
+            lengthParityErrorM: Math.abs(opt.totalLength - unrolled2D.cutLength),
             bendingEnergy: opt.bendingEnergy,
             maxCurvature: opt.maxCurvature,
             avgCurvature: opt.avgCurvature,
+            minBendRadius: opt.minBendRadius,
+            maxBendingStrain: opt.maxBendingStrain,
             maxDeviation: opt.maxDeviation,
             rod,
             unrolled2D
@@ -720,12 +832,12 @@ export function generateElasticaRibbons(vertices, edges, solidData = null, optio
 }
 
 /**
- * Export packed & unfolded 2D elastica ribbon strips as a clean vector SVG cut sheet.
+ * Export straight cut-to-length elastica rod schedule & station ticks as a vector SVG cut sheet.
  */
 export function buildElasticaRibbonsSVG(curves, options = {}) {
     const packed = packElasticaRibbons2D(curves, options);
-    const scalePx = 300;
-    const sheetGapPx = 24;
+    const scalePx = 250;
+    const sheetGapPx = 28;
     const sheetWPx = packed.bedW * scalePx;
     const sheetHPx = packed.bedH * scalePx;
 
@@ -733,16 +845,19 @@ export function buildElasticaRibbonsSVG(curves, options = {}) {
     for (let s = 0; s < packed.sheetCount; s++) {
         const sy = s * (sheetHPx + sheetGapPx);
         groups.push(`<rect x="0" y="${sy.toFixed(1)}" width="${sheetWPx.toFixed(1)}" height="${sheetHPx.toFixed(1)}" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 4"/>`);
-        groups.push(`<text x="8" y="${(sy + 14).toFixed(1)}" font-family="monospace" font-size="11" fill="#475569">Sheet ${s + 1} (${packed.bedW}m × ${packed.bedH}m)</text>`);
+        groups.push(`<text x="8" y="${(sy + 14).toFixed(1)}" font-family="monospace" font-size="11" fill="#475569">Cut-List Sheet ${s + 1} (${packed.bedW.toFixed(2)}m × ${packed.bedH.toFixed(2)}m)</text>`);
     }
 
     for (const pl of packed.placements) {
         const sy = pl.sheetIdx * (sheetHPx + sheetGapPx);
         const pathsSvg = pl.rotQuads.map(pts => {
             const d = pts.map((p, k) => `${k === 0 ? 'M' : 'L'} ${((pl.ox + p.x) * scalePx).toFixed(2)} ${(sy + (pl.oy + p.y) * scalePx).toFixed(2)}`).join(' ') + ' Z';
-            return `<path d="${d}" fill="rgba(56,189,248,0.14)" stroke="#0ea5e9" stroke-width="1"/>`;
+            return `<path d="${d}" fill="rgba(56,189,248,0.16)" stroke="#0ea5e9" stroke-width="0.9"/>`;
         }).join('\n    ');
-        groups.push(`<g id="elastica-strip-${pl.curveIdx + 1}">\n    ${pathsSvg}\n  </g>`);
+        const labelX = (pl.ox * scalePx + 4).toFixed(1);
+        const labelY = (sy + pl.oy * scalePx + 3).toFixed(1);
+        const rMinTxt = Number.isFinite(pl.minBendRadius) ? `Rmin=${(pl.minBendRadius * 1000).toFixed(0)}mm` : 'Straight';
+        groups.push(`<g id="elastica-rod-${pl.curveIdx + 1}">\n    ${pathsSvg}\n    <text x="${labelX}" y="${labelY}" font-family="monospace" font-size="8.5" fill="#0f172a">#${pl.curveIdx + 1} (${pl.startNode}->${pl.endNode}) Cut=${(pl.cutLength * 1000).toFixed(1)}mm | ${rMinTxt}</text>\n  </g>`);
     }
 
     const totalH = Math.max(120, packed.sheetCount * (sheetHPx + sheetGapPx));

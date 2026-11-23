@@ -548,7 +548,7 @@ export function initTab5Fea() {
     });
 
     const btnRunFea = $('btn-run-fea');
-    if (btnRunFea) btnRunFea.addEventListener('click', () => runSpaceFrameFEAFromUI({ expandHud: true }));
+    if (btnRunFea) btnRunFea.addEventListener('click', () => runSpaceFrameFEAFromUI({ expandHud: false }));
     const btnHudToggle = $('btn-fea-hud-toggle');
     if (btnHudToggle) btnHudToggle.addEventListener('click', () => expandTelemetryHudForFEA());
 
