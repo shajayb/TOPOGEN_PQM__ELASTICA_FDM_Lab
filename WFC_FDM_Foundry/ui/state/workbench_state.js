@@ -235,7 +235,7 @@ export const appState = {
         historyLog: []
     },
 
-    // Elastica Curves & Unrolled Ribbons Tab
+    // Elastica Curves & Unrolled Rods Tab
     lastElasticaData: null,
     elasticaState: {
         pairMode: 'all_pairs',
@@ -246,12 +246,13 @@ export const appState = {
         bendingWeight: 0.65,
         guideWeight: 0.08,
         maxDeviation: 0.45,
-        ribbonWidth: 0.045,
+        rodRadius: 0.015,
+        rodSides: 6,
         twistDeg: 0,
         showLeaves: true,
         showSkeletalPaths: false,
         showCurves: true,
-        showRibbons: true,
+        showRods: true,
         showGuideTube: false,
         showUnrolled3D: false,
         selectedCurveIdx: 0

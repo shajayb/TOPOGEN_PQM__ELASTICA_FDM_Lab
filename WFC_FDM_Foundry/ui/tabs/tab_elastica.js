@@ -30,7 +30,7 @@ export function mountTabElastica() {
     pane.innerHTML = `
         <div class="bg-gray-900/90 border border-gray-700 rounded p-2 space-y-1.5 text-[10px] font-mono">
             <div class="flex items-center justify-between font-sans">
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-cyan-400">Elastica Curves &amp; Ribbons</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-cyan-400">Elastica Curves &amp; Rods</span>
                 <span id="elastica-status-badge" class="text-[9px] font-mono text-gray-400">Not Built</span>
             </div>
 
@@ -89,9 +89,15 @@ export function mountTabElastica() {
             </div>
 
             <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-16 text-gray-400 flex-shrink-0">Ribbon W</span>
-                <input type="range" id="rng-elastica-width" min="0.010" max="0.150" step="0.005" value="0.045" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-pink-500">
-                <span id="val-elastica-width" class="w-12 text-right text-gray-200 flex-shrink-0">0.045m</span>
+                <span class="w-16 text-gray-400 flex-shrink-0">Rod R</span>
+                <input type="range" id="rng-elastica-radius" min="0.005" max="0.060" step="0.001" value="0.015" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-pink-500">
+                <span id="val-elastica-radius" class="w-12 text-right text-gray-200 flex-shrink-0">0.015m</span>
+            </div>
+
+            <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-16 text-gray-400 flex-shrink-0">Rod Sides</span>
+                <input type="range" id="rng-elastica-sides" min="4" max="12" step="2" value="6" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-pink-500">
+                <span id="val-elastica-sides" class="w-12 text-right text-gray-200 flex-shrink-0">6</span>
             </div>
 
             <div class="flex items-center space-x-2 min-w-0">
@@ -113,9 +119,9 @@ export function mountTabElastica() {
                     <input type="checkbox" id="chk-elastica-show-curves" checked class="accent-cyan-400 rounded">
                     <span>Elasticas</span>
                 </label>
-                <label class="flex items-center space-x-1 cursor-pointer" title="Show RMF quad-strip ribbons along elastica curves">
-                    <input type="checkbox" id="chk-elastica-show-ribbons" checked class="accent-pink-500 rounded">
-                    <span>Ribbons</span>
+                <label class="flex items-center space-x-1 cursor-pointer" title="Show 3D tubular rods along elastica curves">
+                    <input type="checkbox" id="chk-elastica-show-rods" checked class="accent-pink-500 rounded">
+                    <span>Rods</span>
                 </label>
             </div>
 
@@ -123,18 +129,18 @@ export function mountTabElastica() {
 
             <div class="grid grid-cols-2 gap-1 pt-0.5 font-sans">
                 <button id="btn-reset-elastica" class="cad-btn text-[9px] py-1" title="Reset elastica parameters to default">↺ Reset Default</button>
-                <button id="btn-export-elastica-svg" class="cad-btn cyan text-[9px] py-1" title="Export unrolled & packed elastica ribbons as .SVG">Export Ribbons .SVG</button>
+                <button id="btn-export-elastica-svg" class="cad-btn cyan text-[9px] py-1" title="Export unrolled & packed elastica rods as .SVG">Export Rods .SVG</button>
             </div>
 
             <div class="pt-1 border-t border-gray-800 space-y-1 font-sans">
-                <button id="btn-toggle-elastica-unroll-3d" class="cad-btn cyan w-full py-1 flex items-center justify-between text-[9.5px]" title="Render flat 2D unrolled & packed elastica ribbons on the ground plane alongside the 3D structure">
-                    <span>Toggle 3D Unrolled Ribbons</span>
+                <button id="btn-toggle-elastica-unroll-3d" class="cad-btn cyan w-full py-1 flex items-center justify-between text-[9.5px]" title="Render flat 2D unrolled & packed elastica rods on the ground plane alongside the 3D structure">
+                    <span>Toggle 3D Unrolled Rods</span>
                     <span id="elastica-unroll-3d-state" class="font-mono text-[9px] opacity-90">OFF</span>
                 </button>
                 <div class="flex items-center justify-between text-[8.5px] font-mono text-gray-400">
-                    <span id="elastica-unroll-label" class="text-cyan-400 truncate">2D Unrolled Ribbon Preview (click to cycle)</span>
+                    <span id="elastica-unroll-label" class="text-cyan-400 truncate">2D Unrolled Rod Preview (click to cycle)</span>
                 </div>
-                <canvas id="elastica-unroll-canvas" width="308" height="82" class="w-full bg-gray-950 border border-gray-800 rounded cursor-pointer" title="Click to cycle through unrolled elastica ribbon strips"></canvas>
+                <canvas id="elastica-unroll-canvas" width="308" height="82" class="w-full bg-gray-950 border border-gray-800 rounded cursor-pointer" title="Click to cycle through unrolled elastica rods"></canvas>
             </div>
 
             <div id="elastica-readout" class="bg-gray-950/80 border border-gray-800 rounded px-1.5 py-1 text-[9px] text-gray-300 leading-snug">
@@ -168,7 +174,7 @@ export function drawElasticaUnrollCanvas() {
     const hexVal = UI_LOOP_PALETTE[selIdx % UI_LOOP_PALETTE.length];
     const hexStr = '#' + hexVal.toString(16).padStart(6, '0');
     if (label) {
-        label.textContent = `Ribbon #${selIdx + 1}/${curves.length} (V1:${curve.startNode}→V1:${curve.endNode} · L=${curve.totalLength.toFixed(2)}m) · click cycle`;
+        label.textContent = `Rod #${selIdx + 1}/${curves.length} (V1:${curve.startNode}→V1:${curve.endNode} · L=${curve.totalLength.toFixed(2)}m) · click cycle`;
         label.style.color = hexStr;
     }
 
@@ -347,9 +353,10 @@ export function renderElastica3D() {
             viewport.elasticaGroup.add(new THREE.Line(lineGeo, lineMat));
         }
 
-        // RMF Quad Ribbon Strip
-        if (st.showRibbons && c.ribbon && c.ribbon.vertices.length > 0 && c.ribbon.quads.length > 0) {
-            const { vertices, quads } = c.ribbon;
+        // 3D Tubular Rod Mesh
+        const rodMeshData = c.rod || c.ribbon;
+        if (st.showRods && rodMeshData && rodMeshData.vertices.length > 0 && rodMeshData.quads.length > 0) {
+            const { vertices, quads } = rodMeshData;
             const pos = [];
             const wire = [];
             for (const q of quads) {
@@ -402,7 +409,8 @@ export function generateElasticaFromUI() {
         bendingWeight: st.bendingWeight,
         guideWeight: st.guideWeight,
         maxDeviation: st.maxDeviation,
-        ribbonWidth: st.ribbonWidth,
+        rodRadius: st.rodRadius,
+        rodSides: st.rodSides,
         twistDeg: st.twistDeg
     });
 
@@ -489,7 +497,8 @@ export function initTabElastica() {
     bindSlider('rng-elastica-bend', 'val-elastica-bend', '', v => { st.bendingWeight = v; scheduleLiveUpdate(); });
     bindSlider('rng-elastica-guide', 'val-elastica-guide', '', v => { st.guideWeight = v; scheduleLiveUpdate(); });
     bindSlider('rng-elastica-dev', 'val-elastica-dev', 'm', v => { st.maxDeviation = v; scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-width', 'val-elastica-width', 'm', v => { st.ribbonWidth = v; scheduleLiveUpdate(); });
+    bindSlider('rng-elastica-radius', 'val-elastica-radius', 'm', v => { st.rodRadius = v; scheduleLiveUpdate(); });
+    bindSlider('rng-elastica-sides', 'val-elastica-sides', '', v => { st.rodSides = Math.round(v); scheduleLiveUpdate(); });
     bindSlider('rng-elastica-twist', 'val-elastica-twist', '°', v => { st.twistDeg = v; scheduleLiveUpdate(); });
 
     $('chk-elastica-show-leaves')?.addEventListener('change', e => {
@@ -504,8 +513,8 @@ export function initTabElastica() {
         st.showCurves = e.target.checked;
         renderElastica3D();
     });
-    $('chk-elastica-show-ribbons')?.addEventListener('change', e => {
-        st.showRibbons = e.target.checked;
+    $('chk-elastica-show-rods')?.addEventListener('change', e => {
+        st.showRods = e.target.checked;
         renderElastica3D();
     });
 
@@ -524,7 +533,7 @@ export function initTabElastica() {
         const curves = appState.lastElasticaData?.curves || [];
         if (curves.length === 0) return;
         const svg = CORE.buildElasticaRibbonsSVG(curves);
-        downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), 'elastica_ribbons_unrolled.svg');
+        downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), 'elastica_rods_unrolled.svg');
     });
 
     $('btn-reset-elastica')?.addEventListener('click', () => {
@@ -537,12 +546,13 @@ export function initTabElastica() {
             bendingWeight: 0.65,
             guideWeight: 0.08,
             maxDeviation: 0.45,
-            ribbonWidth: 0.045,
+            rodRadius: 0.015,
+            rodSides: 6,
             twistDeg: 0,
             showLeaves: true,
             showSkeletalPaths: false,
             showCurves: true,
-            showRibbons: true,
+            showRods: true,
             showGuideTube: false,
             showUnrolled3D: false,
             selectedCurveIdx: 0
@@ -556,7 +566,8 @@ export function initTabElastica() {
         setV('rng-elastica-bend', 0.65); setTxt('val-elastica-bend', '0.65');
         setV('rng-elastica-guide', 0.08); setTxt('val-elastica-guide', '0.08');
         setV('rng-elastica-dev', 0.45); setTxt('val-elastica-dev', '0.45m');
-        setV('rng-elastica-width', 0.045); setTxt('val-elastica-width', '0.045m');
+        setV('rng-elastica-radius', 0.015); setTxt('val-elastica-radius', '0.015m');
+        setV('rng-elastica-sides', 6); setTxt('val-elastica-sides', '6');
         setV('rng-elastica-twist', 0); setTxt('val-elastica-twist', '0°');
         setTxt('elastica-unroll-3d-state', 'OFF');
         $('btn-toggle-elastica-unroll-3d')?.classList.remove('on');

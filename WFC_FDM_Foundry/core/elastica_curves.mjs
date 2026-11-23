@@ -435,13 +435,14 @@ export function optimizeElasticaCurve(pathPoints, solidData = null, options = {}
 
 /**
  * Compute a Rotation-Minimizing Frame (Bishop Frame) along `curvePoints`
- * and extrude an all-quad ribbon strip.
+ * and extrude an all-quad 3D tubular rod mesh of `rodRadius` and `rodSides`.
  */
-export function buildElasticaRibbonMesh(curvePoints, options = {}) {
-    const width = Math.max(0.004, options.ribbonWidth !== undefined ? options.ribbonWidth : 0.045);
+export function buildElasticaRodMesh(curvePoints, options = {}) {
+    const radius = Math.max(0.002, options.rodRadius !== undefined ? options.rodRadius : 0.015);
+    const nSides = Math.max(3, Math.round(options.rodSides || 6));
     const twistRad = ((options.twistDeg || 0) * Math.PI) / 180;
     const n = curvePoints ? curvePoints.length : 0;
-    if (n < 2) return { vertices: [], quads: [], frames: [], width };
+    if (n < 2) return { vertices: [], quads: [], frames: [], radius, nSides, stripVertices: [], stripQuads: [] };
 
     const tangents = [];
     for (let i = 0; i < n; i++) {
@@ -485,39 +486,57 @@ export function buildElasticaRibbonMesh(curvePoints, options = {}) {
 
     const vertices = [];
     const quads = [];
-    const halfW = width * 0.5;
+    const stripVertices = [];
+    const stripQuads = [];
 
     for (let i = 0; i < n; i++) {
         const p = curvePoints[i];
         const f = frames[i];
         const uFrac = n > 1 ? i / (n - 1) : 0;
         const tw = twistRad * uFrac;
+
+        for (let k = 0; k < nSides; k++) {
+            const ang = tw + (2 * Math.PI * k) / nSides;
+            const ca = Math.cos(ang), sa = Math.sin(ang);
+            vertices.push(new V3(
+                p.x + radius * (ca * f.N.x + sa * f.B.x),
+                p.y + radius * (ca * f.N.y + sa * f.B.y),
+                p.z + radius * (ca * f.N.z + sa * f.B.z)
+            ));
+        }
+
+        // Diametral reference strip for clean 2D isometric unrolling (width = 2 * radius)
         const ct = Math.cos(tw), st = Math.sin(tw);
-        const dir = new V3(
-            f.N.x * ct + f.B.x * st,
-            f.N.y * ct + f.B.y * st,
-            f.N.z * ct + f.B.z * st
-        );
-        vertices.push(new V3(p.x - dir.x * halfW, p.y - dir.y * halfW, p.z - dir.z * halfW));
-        vertices.push(new V3(p.x + dir.x * halfW, p.y + dir.y * halfW, p.z + dir.z * halfW));
+        const dirX = f.N.x * ct + f.B.x * st;
+        const dirY = f.N.y * ct + f.B.y * st;
+        const dirZ = f.N.z * ct + f.B.z * st;
+        stripVertices.push(new V3(p.x - dirX * radius, p.y - dirY * radius, p.z - dirZ * radius));
+        stripVertices.push(new V3(p.x + dirX * radius, p.y + dirY * radius, p.z + dirZ * radius));
     }
 
     for (let i = 0; i < n - 1; i++) {
-        const i0 = i * 2;
-        quads.push([i0, i0 + 1, i0 + 3, i0 + 2]);
+        const ringA = i * nSides;
+        const ringB = (i + 1) * nSides;
+        for (let k = 0; k < nSides; k++) {
+            const kNext = (k + 1) % nSides;
+            quads.push([ringA + k, ringA + kNext, ringB + kNext, ringB + k]);
+        }
+        const s0 = i * 2;
+        stripQuads.push([s0, s0 + 1, s0 + 3, s0 + 2]);
     }
 
-    return { vertices, quads, frames, width };
+    return { vertices, quads, frames, radius, nSides, stripVertices, stripQuads };
 }
 
 /**
  * Isometrically unfold an elastica quad-strip ribbon into 2D (preserving edge & diagonal lengths).
  */
-export function unrollElasticaRibbon2D(ribbon) {
-    if (!ribbon || !ribbon.vertices || !ribbon.quads || ribbon.quads.length === 0) {
+export function unrollElasticaRibbon2D(rod) {
+    const vertices = rod && (rod.stripVertices || rod.vertices);
+    const quads = rod && (rod.stripQuads || rod.quads);
+    if (!rod || !vertices || !quads || quads.length === 0) {
         return { quads2D: [], minX: 0, maxX: 1, minY: 0, maxY: 1, totalArea: 0 };
     }
-    const { vertices, quads } = ribbon;
     const quads2D = [];
     let prevTL = null;
     let prevTR = null;
@@ -675,8 +694,8 @@ export function generateElasticaRibbons(vertices, edges, solidData = null, optio
     for (let i = 0; i < paths.length; i++) {
         const path = paths[i];
         const opt = optimizeElasticaCurve(path.points, solidData, options);
-        const ribbon = buildElasticaRibbonMesh(opt.points, options);
-        const unrolled2D = unrollElasticaRibbon2D(ribbon);
+        const rod = buildElasticaRodMesh(opt.points, options);
+        const unrolled2D = unrollElasticaRibbon2D(rod);
         curves.push({
             id: i,
             startNode: path.startNode,
@@ -691,7 +710,7 @@ export function generateElasticaRibbons(vertices, edges, solidData = null, optio
             maxCurvature: opt.maxCurvature,
             avgCurvature: opt.avgCurvature,
             maxDeviation: opt.maxDeviation,
-            ribbon,
+            rod,
             unrolled2D
         });
     }
