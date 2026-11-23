@@ -8,7 +8,7 @@ description: Orchestrate end-to-end air-gapped Generate -> Verify -> Optimize ->
 Use this skill whenever the user asks to **run a Foundry design-and-verification campaign** for `pilot_brief.json`, `pilot_v2_pq_unrolled.json`, `arch_canopy_example.json`, or **any new structural + fabrication brief** instantiated from `TOPOGEN_FDM_Foundry/briefs/BRIEF_TEMPLATE.md` / `BRIEF_TEMPLATE.json`.
 
 This skill coordinates three sibling skills while strictly preserving the Generator/Verifier air-gap:
-- **Generator**: `.agents/skills/wfc-fdm-generator/SKILL.md` (`TOPOGEN_FDM_Foundry/core/`, `ui/`, `index_WFC.html`, `run_generator.mjs`)
+- **Generator**: `.agents/skills/wfc-fdm-generator/SKILL.md` (`TOPOGEN_FDM_Foundry/core/`, `ui/`, `index_TOPOGEN_PQM_ELASTICA_FDM.html`, `run_generator.mjs`)
 - **Verifier**: `.agents/skills/plaster-fe-verifier/SKILL.md` (`TOPOGEN_FDM_Foundry/verifier/`)
 - **Explainer Video**: `.agents/skills/alice-explainer-video/SKILL.md` (`TOPOGEN_FDM_Foundry/video_build/`)
 
@@ -24,7 +24,7 @@ This skill coordinates three sibling skills while strictly preserving the Genera
 To guarantee that structural verification is never gamed or coupled to form-finding assumptions:
 
 1. **Generator Isolation**: Generator code and generator-side optimization agents MUST NEVER read, import, or edit any file inside `TOPOGEN_FDM_Foundry/verifier/`.
-2. **Verifier Isolation**: Verifier code MUST NEVER read, import, or edit `TOPOGEN_FDM_Foundry/index_WFC.html` or `TOPOGEN_FDM_Foundry/run_generator.mjs`.
+2. **Verifier Isolation**: Verifier code MUST NEVER read, import, or edit `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` or `TOPOGEN_FDM_Foundry/run_generator.mjs`.
 3. **Neutral Artifact Boundary Only**: Every handoff between Generator and Verifier happens strictly through files on disk as defined in `TOPOGEN_FDM_Foundry/schemas/interchange_contract.md`:
    - `TOPOGEN_FDM_Foundry/briefs/<brief>.json` (conforms to `TOPOGEN_FDM_Foundry/schemas/brief.schema.json`)
    - `<run_dir>/<candidate>.topology.json` (`wfc-fdm-topology/v1`)
@@ -81,7 +81,7 @@ node TOPOGEN_FDM_Foundry/build_report.mjs
 ```
 
 ### Mandatory HTML Explainer Requirements
-1. **Goldilocks 3-Layer Progressive Disclosure** (adapted from `index_WFC.html`):
+1. **Goldilocks 3-Layer Progressive Disclosure** (adapted from `index_TOPOGEN_PQM_ELASTICA_FDM.html`):
    - **`H1 · Use`** (default): Unobstructed Z-up Three.js studio viewport + sleek compact floating verdict card, 4-layer 3D switcher (`Tubular`, `FDM`, `WFC Tiles`, `FEA Stress`), and 3D milestone comparison switcher (`Champion`, `Baseline`, `Extreme/Rejected`, `Multi-Brief`).
    - **`H2 · Guide`**: Floating, draggable, resizable 4-tab panel covering:
      - **Tab 1 — Swarm History**: Stage-by-stage timeline, interactive Pareto scatter SVG, FDM mode comparison, preset pass-rate bars, and explored voxel-grid breakdown.

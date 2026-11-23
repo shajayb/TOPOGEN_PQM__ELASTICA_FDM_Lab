@@ -14,10 +14,10 @@ node TOPOGEN_FDM_Foundry/foundry_server.mjs
 ```
 
 Then open in your browser:
-- **Interactive 6-Tab Workbench**: `http://127.0.0.1:8787/index_WFC.html`
+- **Interactive 6-Tab Workbench**: `http://127.0.0.1:8787/index_TOPOGEN_PQM_ELASTICA_FDM.html`
 - **Campaign Launcher & Live Tuner**: `http://127.0.0.1:8787/foundry_launcher.html`
 
-*(Any static server such as `npx serve TOPOGEN_FDM_Foundry` or `python -m http.server` inside `TOPOGEN_FDM_Foundry/` also works for `index_WFC.html`!)*
+*(Any static server such as `npx serve TOPOGEN_FDM_Foundry` or `python -m http.server` inside `TOPOGEN_FDM_Foundry/` also works for `index_TOPOGEN_PQM_ELASTICA_FDM.html`!)*
 
 ---
 
@@ -37,7 +37,7 @@ Then open in your browser:
 | **Tab 5: 3D Space-Frame FEA Contours, Materials, Deflection Animation & Scorecard** | `ui/tabs/tab5_fea.js` | ~585 lines |
 | **Tab 6: Foundry `.JSON`, Quad `.OBJ`, Unroll `.SVG` & Multi-Layer Rhino `.3dm` Exports** | `ui/tabs/tab6_io.js` | ~660 lines |
 | **Shared State (`appState`), Material Constants & Event Bus (`on`/`emit`)** | `ui/state/workbench_state.js` | ~320 lines |
-| **App Startup & Browser Console API (`window.WFC_WORKBENCH`)** | `ui/main.js` & `index_WFC.html` | ~230–295 lines |
+| **App Startup & Browser Console API (`window.WFC_WORKBENCH`)** | `ui/main.js` & `index_TOPOGEN_PQM_ELASTICA_FDM.html` | ~230–295 lines |
 
 > **Tip**: Each `ui/tabs/tab*.js` file contains **both** its own HTML template (`mountTab*()`) and its event listeners (`initTab*()`), so adding a slider or button to a single tab requires editing only that single file!
 
@@ -61,7 +61,7 @@ All files in `core/` are **100% pure JavaScript** (zero DOM or Three.js dependen
 
 ## 4. Browser Console & Headless CLI Experimentation
 
-1. **Live Browser Console (`index_WFC.html`)**:
+1. **Live Browser Console (`index_TOPOGEN_PQM_ELASTICA_FDM.html`)**:
    Open DevTools (`F12`) and inspect `window.WFC_WORKBENCH`:
    ```js
    WFC_WORKBENCH.applyTilePreset('pilot_champion');

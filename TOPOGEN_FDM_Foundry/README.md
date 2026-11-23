@@ -13,7 +13,7 @@ The Foundry separates **Generation** from **Verification** across a strict air-g
 ```text
   ┌─────────────────────────────────────────┐
   │            GENERATOR DOMAIN             │
-  │  index_WFC.html  <──  run_generator.mjs │
+  │  index_TOPOGEN_PQM_ELASTICA_FDM.html  <──  run_generator.mjs │
   │  (WFC -> Welded Graph -> FDM -> Quad    │
   │   Tubular Solidifier)                   │
   └────────────────────┬────────────────────┘
@@ -37,8 +37,8 @@ The Foundry separates **Generation** from **Verification** across a strict air-g
 ```
 
 **Air-Gap Rules:**
-- Generator code (`index_WFC.html`, `run_generator.mjs`) and generator agents **never** read, import, or edit anything inside `verifier/`.
-- Verifier code (`verifier/*`) **never** reads, imports, or edits `index_WFC.html` or `run_generator.mjs`.
+- Generator code (`index_TOPOGEN_PQM_ELASTICA_FDM.html`, `run_generator.mjs`) and generator agents **never** read, import, or edit anything inside `verifier/`.
+- Verifier code (`verifier/*`) **never** reads, imports, or edits `index_TOPOGEN_PQM_ELASTICA_FDM.html` or `run_generator.mjs`.
 - All data exchange uses neutral JSON and OBJ files documented in `schemas/interchange_contract.md`.
 
 ---
@@ -49,7 +49,7 @@ The Foundry separates **Generation** from **Verification** across a strict air-g
 TOPOGEN_FDM_Foundry/
 ├── README.md                          # Overview & quick-start commands
 ├── STUDENT_GUIDE.md                   # Student Quick-Map: "Where do I edit Tab X or Display Y?"
-├── index_WFC.html                     # Lightweight 6-Tab Workbench HTML shell (~230 lines, zero build step)
+├── index_TOPOGEN_PQM_ELASTICA_FDM.html                     # Lightweight 6-Tab Workbench HTML shell (~230 lines, zero build step)
 ├── foundry_launcher.html              # Lightweight Campaign Launcher & Live Tuner shell (~385 lines)
 ├── foundry_server.mjs                 # REST + SSE daemon, /api/quick-eval (~70ms), /api/nudge, TTL cache
 ├── foundry_runner.mjs                 # Warm worker_threads campaign engine (Lightning ~1.4s / Interactive ~4.5s)
@@ -121,7 +121,7 @@ Exit codes: `0` = PASS, `2` = FAIL, `1` = runtime/CLI error. Reports `centerline
   # Open http://127.0.0.1:8787/foundry_launcher.html
   ```
   Author or load briefs, choose **Mode A (Sealed Parametric)** or **Mode B (Adaptive Generator Evolution)**, select specific Foundry Gates (`G1`–`G7`), watch live candidate 3D meshes & Pareto fronts stream in real time via SSE, stop active swarm execution cleanly, and manage/reset `runs/` storage.
-- **Generator UI**: Open `TOPOGEN_FDM_Foundry/index_WFC.html` in a browser and open the **`3. FDM & Tubes`** tab to explore WFC tile presets (including `pilot_champion`), run FDM in `compression` / `zero-weight` / `tensile` modes, adjust solid or hollow **`Inner R`** tubular sections, solidify watertight quad tubular meshes, and export `.topology.json` + `.mesh.obj`.
+- **Generator UI**: Open `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` in a browser and open the **`3. FDM & Tubes`** tab to explore WFC tile presets (including `pilot_champion`), run FDM in `compression` / `zero-weight` / `tensile` modes, adjust solid or hollow **`Inner R`** tubular sections, solidify watertight quad tubular meshes, and export `.topology.json` + `.mesh.obj`.
 - **Verifier UI**: Open `TOPOGEN_FDM_Foundry/verifier/verifier.html` in a browser (includes a built-in demo tower) to drag-and-drop any `.topology.json`, `brief.json`, and `.mesh.obj`, run 3D plaster FEA, and inspect magnified deflected shapes, tensile/compressive/axial/utilization heatmaps, reaction/load arrows, and funicularity KPIs.
 
 ---

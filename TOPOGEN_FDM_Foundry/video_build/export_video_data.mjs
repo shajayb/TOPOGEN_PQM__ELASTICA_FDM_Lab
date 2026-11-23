@@ -62,16 +62,16 @@ async function loadCoreFromIndexWFC() {
       return resolved;
     }
   }
-  const html = fs.readFileSync(path.join(root, 'index_WFC.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'index_TOPOGEN_PQM_ELASTICA_FDM.html'), 'utf8');
   const match = html.match(/<script\s+id=["']wfc-fdm-core["'][^>]*>([\s\S]*?)<\/script>/i);
-  if (!match) throw new Error('Could not find core/index.mjs or <script id="wfc-fdm-core"> in index_WFC.html');
+  if (!match) throw new Error('Could not find core/index.mjs or <script id="wfc-fdm-core"> in index_TOPOGEN_PQM_ELASTICA_FDM.html');
   const sandbox = {
     console, Math, Date, Number, String, Boolean, Array, Object, Set, Map,
     Int32Array, Uint8Array, Uint32Array, Float32Array, Float64Array, JSON,
     isNaN, isFinite, parseFloat, parseInt
   };
   sandbox.globalThis = sandbox;
-  vm.runInNewContext(match[1], sandbox, { filename: 'index_WFC.html#wfc-fdm-core' });
+  vm.runInNewContext(match[1], sandbox, { filename: 'index_TOPOGEN_PQM_ELASTICA_FDM.html#wfc-fdm-core' });
   return sandbox.WFC_FDM_CORE;
 }
 

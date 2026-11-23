@@ -306,7 +306,7 @@ export function buildFoundryTopologyJSONPayloadFromUI(stamp = Date.now()) {
             nSides: tubeState.nSides
         }, {
             name: baseName,
-            source: 'TOPOGEN_FDM_Foundry/index_WFC.html',
+            source: 'TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html',
             gridResolution: [GRID_X, GRID_Y, GRID_Z],
             tilePreset: currentTilePreset,
             algorithm: currentAlgorithm,
@@ -579,7 +579,7 @@ export function buildWeldedGraphJSON(graph = null) {
     return {
         $schema: 'graph-to-tubular-mesh/v1',
         documentation: {
-            description: 'Welded 3D undirected centerline graph exported from the Wave Function Collapse App (index_WFC.html) for direct import into the Graph-to-Tubular Mesh App (index.html).',
+            description: 'Welded 3D undirected centerline graph exported from the Wave Function Collapse App (index_TOPOGEN_PQM_ELASTICA_FDM.html) for direct import into the Graph-to-Tubular Mesh App (index.html).',
             coordinateSystem: 'Right-handed Z-up (Rhino / Three.js model space)',
             units: 'meters',
             fields: {
@@ -597,7 +597,7 @@ export function buildWeldedGraphJSON(graph = null) {
         units: 'meters',
         coordinateSystem: 'Z-up',
         metadata: {
-            source: 'index_WFC.html',
+            source: 'index_TOPOGEN_PQM_ELASTICA_FDM.html',
             exportedAt: new Date().toISOString(),
             algorithm: currentAlgorithm,
             gridResolution: [GRID_X, GRID_Y, GRID_Z],

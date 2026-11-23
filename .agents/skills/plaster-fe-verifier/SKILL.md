@@ -12,7 +12,7 @@ Use this skill whenever you need to **validate the FEA solver against closed-for
 ## 1. Strict Air-Gap Rule
 
 > [!CAUTION]
-> **The Verifier domain (`TOPOGEN_FDM_Foundry/verifier/`) is strictly independent.** Verifier code and verification agents MUST NEVER read, import, or edit `TOPOGEN_FDM_Foundry/index_WFC.html` or `TOPOGEN_FDM_Foundry/run_generator.mjs`.
+> **The Verifier domain (`TOPOGEN_FDM_Foundry/verifier/`) is strictly independent.** Verifier code and verification agents MUST NEVER read, import, or edit `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` or `TOPOGEN_FDM_Foundry/run_generator.mjs`.
 
 The verifier consumes **only** neutral files defined in `TOPOGEN_FDM_Foundry/schemas/interchange_contract.md`:
 - Brief specification: `TOPOGEN_FDM_Foundry/briefs/<brief>.json`

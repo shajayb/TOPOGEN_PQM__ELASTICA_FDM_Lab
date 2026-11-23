@@ -1,6 +1,6 @@
 ---
 name: wfc-fdm-generator
-description: Operate, configure, and optimize the TOPOGEN_FDM_Foundry generator (index_WFC.html and run_generator.mjs) to synthesize Wave Function Collapse (WFC) centerline graphs, run Force Density Method (FDM) funicular form-finding (tensile, zero-weight, compression), solidify watertight quad-dominant tubular meshes, and export neutral wfc-fdm-topology/v1 JSON + Quad OBJ artifacts for air-gapped verification.
+description: Operate, configure, and optimize the TOPOGEN_FDM_Foundry generator (index_TOPOGEN_PQM_ELASTICA_FDM.html and run_generator.mjs) to synthesize Wave Function Collapse (WFC) centerline graphs, run Force Density Method (FDM) funicular form-finding (tensile, zero-weight, compression), solidify watertight quad-dominant tubular meshes, and export neutral wfc-fdm-topology/v1 JSON + Quad OBJ artifacts for air-gapped verification.
 ---
 
 # WFC-FDM Generator Skill (`wfc-fdm-generator`)
@@ -33,7 +33,7 @@ To keep student & agent edits fast and low-token (never reading a 16k-line monol
    - `core/pq_solidifier.mjs` (+ `pq_face_loops.mjs`, `pq_subdivision.mjs`) — Bisector-stitched all-quad PQ tubular solidifier, longitudinal/CC/ring subdivision, `verifyManifold()`, `buildQuadDominantOBJ()`.
    - `core/unroll_patterns.mjs` — 2D per-bar strip unrolling & non-overlapping laser-bed `.svg` layout.
    - `core/frame_fea_preview.mjs` — Generator-side pure-JS space-frame preview (`estimateFrameMechanics`, `analyzeSpaceFrameFEA`, zero `verifier/` imports).
-2. **`TOPOGEN_FDM_Foundry/index_WFC.html` + `TOPOGEN_FDM_Foundry/ui/` (6-Tab Workbench UI)**:
+2. **`TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` + `TOPOGEN_FDM_Foundry/ui/` (6-Tab Workbench UI)**:
    - Lightweight ~230-line HTML shell loading `ui/styles/workbench.css` and `ui/main.js`.
    - **Targeted student edits**: open **only** the specific module needed — `ui/styles/workbench.css` (theme), `ui/display/viewport_scene.js` (3D lighting/camera/Arctic), `ui/display/display_hud.js` (Display HUD/Outliner/Goldilocks), `ui/display/telemetry_hud.js`, or the single tab file `ui/tabs/tab1_tiles.js` .. `ui/tabs/tab6_io.js` (`220–1,280` lines each).
 3. **`TOPOGEN_FDM_Foundry/run_generator.mjs` (Fast ESM & Warm Batch CLI)**:
@@ -89,7 +89,7 @@ Force-density (`q`) profiles & refinement:
 ## 4. Operating the Generator
 
 ### Interactive Browser Mode
-Open `TOPOGEN_FDM_Foundry/index_WFC.html` in any modern browser (or via a local static server):
+Open `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` in any modern browser (or via a local static server):
 1. Generate a WFC centerline graph from the tile/growth tabs or switch directly to the **`3. FDM & Tubes`** tab.
 2. Pick a structural preset (e.g., `pilot_champion`, `catenary_quadripod`, `funicular_vault`, `slender_diagrid`, `hyperboloid_tower`, `arch_braced`), choose the FDM mode (`compression`, `zero-weight`, `tensile`), `q` profile (`uniform`, `height_graded`, `column_boosted`, `funicular_tuned`), load, max anchors, and target envelope, then click **Run FDM** to inspect the force-colored network and anchor spheres.
 3. Configure tubular mesh parameters (outer radius `outerRadiusM`, hollow **`Inner R`** slider `innerRadiusM`, `nSides`, end offset, bisector stitching), click **Solidify**, and confirm the manifold status readout reports watertight manifold geometry.

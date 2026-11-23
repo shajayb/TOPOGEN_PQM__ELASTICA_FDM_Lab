@@ -131,7 +131,7 @@ function buildFoundryTopologyJSON(fdmResult, sectionParams = {}, metadata = {}, 
     if (extraBlocks.geometry) payload.geometry = extraBlocks.geometry;
     if (extraBlocks.fabrication) payload.fabrication = extraBlocks.fabrication;
     payload.metadata = Object.assign({
-        source: 'TOPOGEN_FDM_Foundry/index_WFC.html',
+        source: 'TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html',
         exportedAt: new Date().toISOString()
     }, metadata);
     return payload;
@@ -470,7 +470,7 @@ function generateCandidate(brief = {}, config = {}) {
 
     const metadata = {
         name,
-        source: 'TOPOGEN_FDM_Foundry/index_WFC.html',
+        source: 'TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html',
         wfcSeed: wfcRes ? wfcRes.wfcSeed : wfcSeed,
         algorithm,
         gridResolution,

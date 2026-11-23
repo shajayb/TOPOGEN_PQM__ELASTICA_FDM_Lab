@@ -1,8 +1,8 @@
 # WFC-FDM Foundry Air-Gap & Interchange Contract
 
 ## Air-Gap Rule (Strict)
-1. **Generator domain** (`TOPOGEN_FDM_Foundry/index_WFC.html`, `TOPOGEN_FDM_Foundry/run_generator.mjs`, `TOPOGEN_FDM_Foundry/presets/`) generates centerline graphs, runs Force Density Method (FDM) form-finding, solidifies watertight quad-dominant Planar-Quad (PQ) tubular meshes with longitudinal subdivision, and exports 2D unrolled per-bar fabrication patterns.
-2. **Verifier domain** (`TOPOGEN_FDM_Foundry/verifier/`) is strictly independent. Generator code and generator-optimization agents MUST NEVER read, import, or edit any file inside `TOPOGEN_FDM_Foundry/verifier/`. Verifier code and verification agents MUST NEVER read, import, or edit `TOPOGEN_FDM_Foundry/index_WFC.html` or `TOPOGEN_FDM_Foundry/run_generator.mjs`.
+1. **Generator domain** (`TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html`, `TOPOGEN_FDM_Foundry/run_generator.mjs`, `TOPOGEN_FDM_Foundry/presets/`) generates centerline graphs, runs Force Density Method (FDM) form-finding, solidifies watertight quad-dominant Planar-Quad (PQ) tubular meshes with longitudinal subdivision, and exports 2D unrolled per-bar fabrication patterns.
+2. **Verifier domain** (`TOPOGEN_FDM_Foundry/verifier/`) is strictly independent. Generator code and generator-optimization agents MUST NEVER read, import, or edit any file inside `TOPOGEN_FDM_Foundry/verifier/`. Verifier code and verification agents MUST NEVER read, import, or edit `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` or `TOPOGEN_FDM_Foundry/run_generator.mjs`.
 3. Communication between Generator and Verifier occurs **exclusively** via neutral artifact files on disk:
    - Input Brief: `TOPOGEN_FDM_Foundry/briefs/<brief>.json`
    - Candidate Topology JSON: `<candidate>.topology.json`
@@ -49,7 +49,7 @@
     "hasSelfIntersection": false
   },
   "metadata": {
-    "source": "TOPOGEN_FDM_Foundry/index_WFC.html",
+    "source": "TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html",
     "wfcSeed": 42,
     "gridResolution": [2, 2, 3],
     "tilePreset": "catenary_quadripod",

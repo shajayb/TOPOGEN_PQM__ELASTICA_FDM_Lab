@@ -4,7 +4,7 @@
  *
  * Usage:
  *   node TOPOGEN_FDM_Foundry/serve_lab.mjs [port]
- *   -> http://127.0.0.1:8000/index_WFC.html
+ *   -> http://127.0.0.1:8000/index_TOPOGEN_PQM_ELASTICA_FDM.html
  */
 
 import http from 'node:http';
@@ -33,7 +33,7 @@ const MIME_TYPES = {
 
 const server = http.createServer((req, res) => {
     const reqPath = (req.url || '/').split('?')[0];
-    const relPath = reqPath === '/' ? 'index_WFC.html' : decodeURIComponent(reqPath.replace(/^\/+/, ''));
+    const relPath = reqPath === '/' ? 'index_TOPOGEN_PQM_ELASTICA_FDM.html' : decodeURIComponent(reqPath.replace(/^\/+/, ''));
     const fullPath = path.resolve(ROOT_DIR, relPath);
 
     if (!fullPath.startsWith(ROOT_DIR)) {
@@ -55,5 +55,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-    console.log(`WFC-FDM Lab serving at http://127.0.0.1:${PORT}/index_WFC.html`);
+    console.log(`WFC-FDM Lab serving at http://127.0.0.1:${PORT}/index_TOPOGEN_PQM_ELASTICA_FDM.html`);
 });

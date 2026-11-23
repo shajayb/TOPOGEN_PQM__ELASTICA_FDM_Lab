@@ -4,7 +4,7 @@
  *
  * Reads verified artifacts from TOPOGEN_FDM_Foundry/runs/ (prioritizing Pilot v2 campaign & champion,
  * plus Round 1 baseline, rejected/extreme diagnostic run, Pilot v1 reference, and Arch Canopy multi-brief),
- * extracts WFC_FDM_CORE tile & socket adjacency data from index_WFC.html, computes exact 3D space-frame
+ * extracts WFC_FDM_CORE tile & socket adjacency data from index_TOPOGEN_PQM_ELASTICA_FDM.html, computes exact 3D space-frame
  * FEA fields via verifier/fea_solver.mjs, audits Planar-Quad (PQ) planarity & 2D per-bar unrolled SVG
  * strip patterns, verifies strict 0-cross-import air-gap integrity, and bundles a 100% standalone
  * zero-fetch HTML explainer: TOPOGEN_FDM_Foundry/foundry_report.html.
@@ -224,16 +224,16 @@ async function loadCoreFromIndexWFC() {
       return resolved;
     }
   }
-  const html = fs.readFileSync(path.join(__dirname, 'index_WFC.html'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, 'index_TOPOGEN_PQM_ELASTICA_FDM.html'), 'utf8');
   const match = html.match(/<script\s+id=["']wfc-fdm-core["'][^>]*>([\s\S]*?)<\/script>/i);
-  if (!match) throw new Error('Could not find core/index.mjs or <script id="wfc-fdm-core"> in index_WFC.html');
+  if (!match) throw new Error('Could not find core/index.mjs or <script id="wfc-fdm-core"> in index_TOPOGEN_PQM_ELASTICA_FDM.html');
   const sandbox = {
     console, Math, Date, Number, String, Boolean, Array, Object, Set, Map,
     Int32Array, Uint8Array, Uint32Array, Float32Array, Float64Array, JSON,
     isNaN, isFinite, parseFloat, parseInt,
   };
   sandbox.globalThis = sandbox;
-  vm.runInNewContext(match[1], sandbox, { filename: 'index_WFC.html#wfc-fdm-core' });
+  vm.runInNewContext(match[1], sandbox, { filename: 'index_TOPOGEN_PQM_ELASTICA_FDM.html#wfc-fdm-core' });
   return sandbox.WFC_FDM_CORE;
 }
 
@@ -427,7 +427,7 @@ function auditAirGap() {
       }
     }
   }
-  const genCheckFiles = ['index_WFC.html', 'run_generator.mjs', 'workers/generator_worker.mjs'];
+  const genCheckFiles = ['index_TOPOGEN_PQM_ELASTICA_FDM.html', 'run_generator.mjs', 'workers/generator_worker.mjs'];
   const coreDir = path.join(__dirname, 'core');
   if (fs.existsSync(coreDir)) {
     for (const f of fs.readdirSync(coreDir)) {
