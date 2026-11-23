@@ -321,10 +321,13 @@ export function renderElastica3D() {
     const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
     if (!data) return;
 
-    // 1. Highlight Source / Sink / V=1 nodes
+    // 1. Highlight Source / Sink / V=1 nodes (sized relative to fdmNodePickMeshes baseR)
     if (st.showLeaves && src && src.vertices) {
+        const bb = src.boundingBox || { min: [-0.5, -0.5, 0], max: [0.5, 0.5, 2] };
+        const span = Math.max(0.5, Math.hypot(bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]));
+        const baseR = Math.max(0.018, Math.min(0.055, span * 0.018)) * (appState.nodeDisplayScale || 1.0);
         const hasCustom = (appState.elasticaSourceSet.size > 0 || appState.elasticaSinkSet.size > 0);
-        const leafGeo = new THREE.SphereGeometry(0.026, 12, 10);
+        const leafGeo = new THREE.SphereGeometry(1.0, 12, 10);
         const srcMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
         const sinkMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
         const bothMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 });
@@ -343,7 +346,7 @@ export function renderElastica3D() {
                 const p = CORE.toV3(v);
                 const m = new THREE.Mesh(leafGeo, mat);
                 m.position.set(p.x, p.y, p.z);
-                m.scale.setScalar(appState.nodeDisplayScale || 1.0);
+                m.scale.setScalar(baseR * 1.35);
                 viewport.elasticaGroup.add(m);
             }
         } else if (data.leaves) {
@@ -353,7 +356,7 @@ export function renderElastica3D() {
                 const p = CORE.toV3(v);
                 const m = new THREE.Mesh(leafGeo, sinkMat);
                 m.position.set(p.x, p.y, p.z);
-                m.scale.setScalar(appState.nodeDisplayScale || 1.0);
+                m.scale.setScalar(baseR * 1.18);
                 viewport.elasticaGroup.add(m);
             }
         }
@@ -693,7 +696,15 @@ export function initTabElastica() {
     });
     $('chk-elastica-show-rods')?.addEventListener('change', e => {
         st.showRods = e.target.checked;
+        appState.showQuadMeshes = st.showRods;
+        appState.groupVis.meshes = st.showRods;
+        appState.tubeState.show = st.showRods;
+        const chkShowMeshes = $('chk-show-meshes');
+        if (chkShowMeshes) chkShowMeshes.checked = st.showRods;
+        const chkTubeShow = $('chk-tube-show');
+        if (chkTubeShow) chkTubeShow.checked = st.showRods;
         renderElastica3D();
+        if (actions.applyOutlinerVisibility) actions.applyOutlinerVisibility();
     });
 
     $('btn-generate-elastica')?.addEventListener('click', () => generateElasticaFromUI());

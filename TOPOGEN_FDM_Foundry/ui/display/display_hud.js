@@ -66,28 +66,21 @@ export function applyOutlinerVisibility() {
     const unrollShowOn = !!faceLoopState.showUnrolled3D;
 
     if (appState.fdmNodePickMeshes && appState.fdmNodePickMeshes.length > 0) {
-        const isElastica = (activeTabId === 'tab-elastica');
         for (const sph of appState.fdmNodePickMeshes) {
-            if (isElastica) {
-                if (sph.userData.fdmOrigScale === undefined) sph.userData.fdmOrigScale = sph.scale.x;
-                sph.material = sharedMaterials.pointSphere || sharedMaterials.freeNodeSphere;
-                sph.visible = false;
-            } else {
-                sph.visible = true;
-                if (sph.userData.fdmOrigScale !== undefined) sph.scale.setScalar(sph.userData.fdmOrigScale);
-                sph.material = sph.userData.isFixedAnchor ? sharedMaterials.anchorSphere : sharedMaterials.freeNodeSphere;
-            }
+            sph.visible = true;
+            if (sph.userData.fdmOrigScale !== undefined) sph.scale.setScalar(sph.userData.fdmOrigScale);
+            sph.material = sph.userData.isFixedAnchor ? sharedMaterials.anchorSphere : sharedMaterials.freeNodeSphere;
         }
     }
 
     if (activeTabId === 'tab-fea' && hasFea) {
         viewport.tilePreviewGroup.visible = false;
-        viewport.meshGroup.visible = groupVis.meshes && showQuadMeshes;
-        viewport.graphGroup.visible = groupVis.graph && showCenterlineGraph;
-        viewport.voxelGroup.visible = groupVis.voxels && (showInactiveVoxels || showSuperposition);
+        viewport.meshGroup.visible = false;
+        viewport.graphGroup.visible = false;
+        viewport.voxelGroup.visible = false;
         viewport.fdmGroup.visible = false;
-        viewport.tubeGroup.visible = !!lastSolidData && tubeShowOn && showQuadMeshes;
-        viewport.unroll3DGroup.visible = !!lastSolidData && unrollShowOn;
+        viewport.tubeGroup.visible = false;
+        viewport.unroll3DGroup.visible = false;
         if (viewport.elasticaGroup) viewport.elasticaGroup.visible = false;
         if (viewport.elasticaUnroll3DGroup) viewport.elasticaUnroll3DGroup.visible = false;
         viewport.feaGroup.visible = true;
@@ -110,7 +103,7 @@ export function applyOutlinerVisibility() {
         viewport.graphGroup.visible = false;
         viewport.voxelGroup.visible = false;
         viewport.feaGroup.visible = false;
-        viewport.fdmGroup.visible = true;
+        viewport.fdmGroup.visible = groupVis.graph && showCenterlineGraph;
         viewport.tubeGroup.visible = false;
         viewport.unroll3DGroup.visible = false;
         if (viewport.elasticaGroup) viewport.elasticaGroup.visible = false;
@@ -236,7 +229,15 @@ export function switchTab(targetId) {
         actions.ensureFdmTabReady({ keepCamera: true });
     } else if (targetId === 'tab-pq' && actions.ensurePqTabReady) {
         actions.ensurePqTabReady({ keepCamera: true });
+        if (appState.showCenterlineGraph && viewport.fdmGroup.children.length === 0 && actions.renderHostNetworkInFdmGroup) {
+            actions.renderHostNetworkInFdmGroup();
+        }
     } else if (targetId === 'tab-elastica' && actions.ensureElasticaTabReady) {
+        if (appState.elasticaState) {
+            appState.elasticaState.showRods = appState.showQuadMeshes;
+            const chkElasticaRods = $('chk-elastica-show-rods');
+            if (chkElasticaRods) chkElasticaRods.checked = appState.showQuadMeshes;
+        }
         actions.ensureElasticaTabReady({ keepCamera: true });
     } else if (targetId === 'tab-fea' && !appState.lastFEAResult && actions.runSpaceFrameFEAFromUI) {
         actions.runSpaceFrameFEAFromUI({ trigger: 'tab-switch' });
@@ -497,6 +498,19 @@ export function initDisplayHud() {
             appState.tubeState.show = appState.showQuadMeshes;
             const chkTubeShowEl = $('chk-tube-show');
             if (chkTubeShowEl) chkTubeShowEl.checked = appState.showQuadMeshes;
+            if (appState.elasticaState) {
+                appState.elasticaState.showRods = appState.showQuadMeshes;
+                const chkElasticaRods = $('chk-elastica-show-rods');
+                if (chkElasticaRods) chkElasticaRods.checked = appState.showQuadMeshes;
+                if (appState.lastElasticaData && actions.renderElastica3D) actions.renderElastica3D();
+            }
+            if (appState.showCenterlineGraph && appState.activeTabId === 'tab-pq' && viewport.fdmGroup.children.length === 0) {
+                if (appState.fdmState.triggerOnHost && appState.lastFDMResult && actions.renderFDMNetwork) {
+                    actions.renderFDMNetwork(appState.lastFDMResult);
+                } else if (actions.renderHostNetworkInFdmGroup) {
+                    actions.renderHostNetworkInFdmGroup();
+                }
+            }
             applyOutlinerVisibility();
             refreshOutliner();
         });
@@ -565,7 +579,11 @@ export function initDisplayHud() {
 
     const redrawNodeEdgeDisplay = () => {
         if (actions.draw) actions.draw();
-        if (appState.lastFDMResult && actions.renderFDMNetwork) actions.renderFDMNetwork(appState.lastFDMResult);
+        if (appState.lastFDMResult && actions.renderFDMNetwork) {
+            actions.renderFDMNetwork(appState.lastFDMResult);
+        } else if (actions.renderHostNetworkInFdmGroup && (appState.lastHostGraph || viewport.fdmGroup.children.length > 0)) {
+            actions.renderHostNetworkInFdmGroup();
+        }
         if (appState.lastElasticaData && actions.renderElastica3D) actions.renderElastica3D();
         if (appState.lastFEAResult && actions.renderFEAResults3D) actions.renderFEAResults3D();
     };

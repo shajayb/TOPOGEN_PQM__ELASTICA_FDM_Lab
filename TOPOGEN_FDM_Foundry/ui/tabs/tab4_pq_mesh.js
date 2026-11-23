@@ -799,7 +799,15 @@ export function initTab4PqMesh() {
         appState.groupVis.meshes = c;
         const chkShowMeshes = $('chk-show-meshes');
         if (chkShowMeshes) chkShowMeshes.checked = c;
+        if (appState.elasticaState) {
+            appState.elasticaState.showRods = c;
+            const chkElasticaRods = $('chk-elastica-show-rods');
+            if (chkElasticaRods) chkElasticaRods.checked = c;
+        }
         if (c && !appState.lastSolidData) solidifyActiveGraph({ keepCamera: true });
+        if (!c && appState.showCenterlineGraph && viewport.fdmGroup.children.length === 0 && actions.renderHostNetworkInFdmGroup) {
+            actions.renderHostNetworkInFdmGroup();
+        }
         applyOutlinerVisibility();
         refreshOutliner();
     });
