@@ -1,21 +1,21 @@
 ---
 name: wfc-fdm-generator
-description: Operate, configure, and optimize the WFC_FDM_Foundry generator (index_WFC.html and run_generator.mjs) to synthesize Wave Function Collapse (WFC) centerline graphs, run Force Density Method (FDM) funicular form-finding (tensile, zero-weight, compression), solidify watertight quad-dominant tubular meshes, and export neutral wfc-fdm-topology/v1 JSON + Quad OBJ artifacts for air-gapped verification.
+description: Operate, configure, and optimize the TOPOGEN_FDM_Foundry generator (index_WFC.html and run_generator.mjs) to synthesize Wave Function Collapse (WFC) centerline graphs, run Force Density Method (FDM) funicular form-finding (tensile, zero-weight, compression), solidify watertight quad-dominant tubular meshes, and export neutral wfc-fdm-topology/v1 JSON + Quad OBJ artifacts for air-gapped verification.
 ---
 
 # WFC-FDM Generator Skill (`wfc-fdm-generator`)
 
-Use this skill whenever you need to **generate, tune, or optimize funicular tubular network candidates** inside `WFC_FDM_Foundry/` for any structural and fabrication brief conforming to `WFC_FDM_Foundry/schemas/brief.schema.json`.
+Use this skill whenever you need to **generate, tune, or optimize funicular tubular network candidates** inside `TOPOGEN_FDM_Foundry/` for any structural and fabrication brief conforming to `TOPOGEN_FDM_Foundry/schemas/brief.schema.json`.
 
 ---
 
 ## 1. Strict Air-Gap Rule
 
 > [!CAUTION]
-> **Generator-domain code and generator-optimization agents MUST NEVER read, import, or edit any file inside `WFC_FDM_Foundry/verifier/`.**
+> **Generator-domain code and generator-optimization agents MUST NEVER read, import, or edit any file inside `TOPOGEN_FDM_Foundry/verifier/`.**
 
-All communication with the independent verifier occurs strictly through neutral on-disk artifacts specified in `WFC_FDM_Foundry/schemas/interchange_contract.md`:
-- Input: `WFC_FDM_Foundry/briefs/<brief>.json`
+All communication with the independent verifier occurs strictly through neutral on-disk artifacts specified in `TOPOGEN_FDM_Foundry/schemas/interchange_contract.md`:
+- Input: `TOPOGEN_FDM_Foundry/briefs/<brief>.json`
 - Output: `<candidate>.topology.json` (`wfc-fdm-topology/v1`) and `<candidate>.mesh.obj` (Quad-dominant watertight OBJ)
 - Feedback: `<candidate>.verdict.json` (read-only diagnostic output produced by the verifier)
 
@@ -23,9 +23,9 @@ All communication with the independent verifier occurs strictly through neutral 
 
 ## 2. Modular Student-Friendly Architecture (Zero Build Step)
 
-To keep student & agent edits fast and low-token (never reading a 16k-line monolith), the generator is organized into small, zero-build-step ES modules (see `WFC_FDM_Foundry/STUDENT_GUIDE.md` for the full file map):
+To keep student & agent edits fast and low-token (never reading a 16k-line monolith), the generator is organized into small, zero-build-step ES modules (see `TOPOGEN_FDM_Foundry/STUDENT_GUIDE.md` for the full file map):
 
-1. **`WFC_FDM_Foundry/core/` (Pure-JS Generator Engine — Browser & Node.js)**:
+1. **`TOPOGEN_FDM_Foundry/core/` (Pure-JS Generator Engine — Browser & Node.js)**:
    - `core/index.mjs` — Unified `WFC_FDM_CORE` (`globalThis.WFC_FDM_CORE`), `loadWfcCore()`, `generateCandidate()`, `buildFoundryTopologyJSON()`.
    - `core/math_tiles.mjs` — `V3`, `createTileTemplates()`, `TILE_PRESETS`, socket adjacency rules.
    - `core/wfc_graph.mjs` — `runWFCSolver()`, `buildWeldedGraphFromVoxels()`, `cleanAndWeldGraph()`.
@@ -33,10 +33,10 @@ To keep student & agent edits fast and low-token (never reading a 16k-line monol
    - `core/pq_solidifier.mjs` (+ `pq_face_loops.mjs`, `pq_subdivision.mjs`) — Bisector-stitched all-quad PQ tubular solidifier, longitudinal/CC/ring subdivision, `verifyManifold()`, `buildQuadDominantOBJ()`.
    - `core/unroll_patterns.mjs` — 2D per-bar strip unrolling & non-overlapping laser-bed `.svg` layout.
    - `core/frame_fea_preview.mjs` — Generator-side pure-JS space-frame preview (`estimateFrameMechanics`, `analyzeSpaceFrameFEA`, zero `verifier/` imports).
-2. **`WFC_FDM_Foundry/index_WFC.html` + `WFC_FDM_Foundry/ui/` (6-Tab Workbench UI)**:
+2. **`TOPOGEN_FDM_Foundry/index_WFC.html` + `TOPOGEN_FDM_Foundry/ui/` (6-Tab Workbench UI)**:
    - Lightweight ~230-line HTML shell loading `ui/styles/workbench.css` and `ui/main.js`.
    - **Targeted student edits**: open **only** the specific module needed — `ui/styles/workbench.css` (theme), `ui/display/viewport_scene.js` (3D lighting/camera/Arctic), `ui/display/display_hud.js` (Display HUD/Outliner/Goldilocks), `ui/display/telemetry_hud.js`, or the single tab file `ui/tabs/tab1_tiles.js` .. `ui/tabs/tab6_io.js` (`220–1,280` lines each).
-3. **`WFC_FDM_Foundry/run_generator.mjs` (Fast ESM & Warm Batch CLI)**:
+3. **`TOPOGEN_FDM_Foundry/run_generator.mjs` (Fast ESM & Warm Batch CLI)**:
    - Imports `./core/index.mjs` directly (~35 ms cold start) and supports `--batch <batch.json>` and `--stdin-jsonl` persistent streaming modes alongside all single-candidate CLI flags.
 
 ---
@@ -89,7 +89,7 @@ Force-density (`q`) profiles & refinement:
 ## 4. Operating the Generator
 
 ### Interactive Browser Mode
-Open `WFC_FDM_Foundry/index_WFC.html` in any modern browser (or via a local static server):
+Open `TOPOGEN_FDM_Foundry/index_WFC.html` in any modern browser (or via a local static server):
 1. Generate a WFC centerline graph from the tile/growth tabs or switch directly to the **`3. FDM & Tubes`** tab.
 2. Pick a structural preset (e.g., `pilot_champion`, `catenary_quadripod`, `funicular_vault`, `slender_diagrid`, `hyperboloid_tower`, `arch_braced`), choose the FDM mode (`compression`, `zero-weight`, `tensile`), `q` profile (`uniform`, `height_graded`, `column_boosted`, `funicular_tuned`), load, max anchors, and target envelope, then click **Run FDM** to inspect the force-colored network and anchor spheres.
 3. Configure tubular mesh parameters (outer radius `outerRadiusM`, hollow **`Inner R`** slider `innerRadiusM`, `nSides`, end offset, bisector stitching), click **Solidify**, and confirm the manifold status readout reports watertight manifold geometry.
@@ -97,10 +97,10 @@ Open `WFC_FDM_Foundry/index_WFC.html` in any modern browser (or via a local stat
 
 ### Headless CLI Mode
 ```bash
-node WFC_FDM_Foundry/run_generator.mjs \
-  --brief WFC_FDM_Foundry/briefs/pilot_brief.json \
-  [--config WFC_FDM_Foundry/runs/configs/candidate.json] \
-  --out-dir WFC_FDM_Foundry/runs/batch_01 \
+node TOPOGEN_FDM_Foundry/run_generator.mjs \
+  --brief TOPOGEN_FDM_Foundry/briefs/pilot_brief.json \
+  [--config TOPOGEN_FDM_Foundry/runs/configs/candidate.json] \
+  --out-dir TOPOGEN_FDM_Foundry/runs/batch_01 \
   --name cand_001 \
   [--seed 42] \
   [--preset pilot_champion] \

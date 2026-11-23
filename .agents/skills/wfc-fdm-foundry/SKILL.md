@@ -1,20 +1,20 @@
 ---
 name: wfc-fdm-foundry
-description: Orchestrate end-to-end air-gapped Generate -> Verify -> Optimize -> HTML Explainer -> 60s Video design campaigns in WFC_FDM_Foundry for ANY structural and fabrication brief conforming to brief.schema.json. Enforces the strict Generator/Verifier air-gap, runs analytical verifier benchmarks, executes parametric/swarm exploration, applies diagnosis-driven optimization (including compression-only, PQ longitudinal-subdiv tubes, unrolled patterns, min surface area, and min element count), and mandates both an interactive 3D Goldilocks HTML explainer and a verified 60s showcase video.
+description: Orchestrate end-to-end air-gapped Generate -> Verify -> Optimize -> HTML Explainer -> 60s Video design campaigns in TOPOGEN_FDM_Foundry for ANY structural and fabrication brief conforming to brief.schema.json. Enforces the strict Generator/Verifier air-gap, runs analytical verifier benchmarks, executes parametric/swarm exploration, applies diagnosis-driven optimization (including compression-only, PQ longitudinal-subdiv tubes, unrolled patterns, min surface area, and min element count), and mandates both an interactive 3D Goldilocks HTML explainer and a verified 60s showcase video.
 ---
 
 # WFC-FDM Foundry End-to-End Orchestrator Skill (`wfc-fdm-foundry`)
 
-Use this skill whenever the user asks to **run a Foundry design-and-verification campaign** for `pilot_brief.json`, `pilot_v2_pq_unrolled.json`, `arch_canopy_example.json`, or **any new structural + fabrication brief** instantiated from `WFC_FDM_Foundry/briefs/BRIEF_TEMPLATE.md` / `BRIEF_TEMPLATE.json`.
+Use this skill whenever the user asks to **run a Foundry design-and-verification campaign** for `pilot_brief.json`, `pilot_v2_pq_unrolled.json`, `arch_canopy_example.json`, or **any new structural + fabrication brief** instantiated from `TOPOGEN_FDM_Foundry/briefs/BRIEF_TEMPLATE.md` / `BRIEF_TEMPLATE.json`.
 
 This skill coordinates three sibling skills while strictly preserving the Generator/Verifier air-gap:
-- **Generator**: `.agents/skills/wfc-fdm-generator/SKILL.md` (`WFC_FDM_Foundry/core/`, `ui/`, `index_WFC.html`, `run_generator.mjs`)
-- **Verifier**: `.agents/skills/plaster-fe-verifier/SKILL.md` (`WFC_FDM_Foundry/verifier/`)
-- **Explainer Video**: `.agents/skills/alice-explainer-video/SKILL.md` (`WFC_FDM_Foundry/video_build/`)
+- **Generator**: `.agents/skills/wfc-fdm-generator/SKILL.md` (`TOPOGEN_FDM_Foundry/core/`, `ui/`, `index_WFC.html`, `run_generator.mjs`)
+- **Verifier**: `.agents/skills/plaster-fe-verifier/SKILL.md` (`TOPOGEN_FDM_Foundry/verifier/`)
+- **Explainer Video**: `.agents/skills/alice-explainer-video/SKILL.md` (`TOPOGEN_FDM_Foundry/video_build/`)
 
 > [!TIP]
 > **Fast Student Edits & Sub-5-Second Search**:
-> - When customizing UI tabs, themes, or 3D display settings, consult `WFC_FDM_Foundry/STUDENT_GUIDE.md` and read/edit **only** the targeted module inside `WFC_FDM_Foundry/ui/` or `WFC_FDM_Foundry/launcher_ui/` (200–1,280 lines each).
+> - When customizing UI tabs, themes, or 3D display settings, consult `TOPOGEN_FDM_Foundry/STUDENT_GUIDE.md` and read/edit **only** the targeted module inside `TOPOGEN_FDM_Foundry/ui/` or `TOPOGEN_FDM_Foundry/launcher_ui/` (200–1,280 lines each).
 > - Use `foundry_server.mjs` + `foundry_runner.mjs` warm air-gapped `worker_threads` pools (`workers/generator_worker.mjs` & `workers/verifier_worker.mjs`): **`POST /api/quick-eval`** verifies a single candidate in **~70 ms**, **`searchProfile: 'lightning'`** completes Gates 1–5 in **~1.4 s**, **`'interactive'`** completes 25 Mode A/B evaluations in **~4.5 s**, and **`POST /api/nudge`** supports live mid-run candidate injection or `finish_round` early freeze.
 
 ---
@@ -23,10 +23,10 @@ This skill coordinates three sibling skills while strictly preserving the Genera
 
 To guarantee that structural verification is never gamed or coupled to form-finding assumptions:
 
-1. **Generator Isolation**: Generator code and generator-side optimization agents MUST NEVER read, import, or edit any file inside `WFC_FDM_Foundry/verifier/`.
-2. **Verifier Isolation**: Verifier code MUST NEVER read, import, or edit `WFC_FDM_Foundry/index_WFC.html` or `WFC_FDM_Foundry/run_generator.mjs`.
-3. **Neutral Artifact Boundary Only**: Every handoff between Generator and Verifier happens strictly through files on disk as defined in `WFC_FDM_Foundry/schemas/interchange_contract.md`:
-   - `WFC_FDM_Foundry/briefs/<brief>.json` (conforms to `WFC_FDM_Foundry/schemas/brief.schema.json`)
+1. **Generator Isolation**: Generator code and generator-side optimization agents MUST NEVER read, import, or edit any file inside `TOPOGEN_FDM_Foundry/verifier/`.
+2. **Verifier Isolation**: Verifier code MUST NEVER read, import, or edit `TOPOGEN_FDM_Foundry/index_WFC.html` or `TOPOGEN_FDM_Foundry/run_generator.mjs`.
+3. **Neutral Artifact Boundary Only**: Every handoff between Generator and Verifier happens strictly through files on disk as defined in `TOPOGEN_FDM_Foundry/schemas/interchange_contract.md`:
+   - `TOPOGEN_FDM_Foundry/briefs/<brief>.json` (conforms to `TOPOGEN_FDM_Foundry/schemas/brief.schema.json`)
    - `<run_dir>/<candidate>.topology.json` (`wfc-fdm-topology/v1`)
    - `<run_dir>/<candidate>.mesh.obj` (Quad-dominant watertight OBJ, plus optional PQ & unrolled pattern JSON/SVG)
    - `<run_dir>/<candidate>.verdict.json` (Verifier scorecard & worst-member diagnostics)
@@ -42,15 +42,15 @@ To guarantee that structural verification is never gamed or coupled to form-find
 ```
 
 ### Phase 1: Brief Validation & Verifier Benchmark Gate
-1. Confirm the target brief JSON exists under `WFC_FDM_Foundry/briefs/` and satisfies `WFC_FDM_Foundry/schemas/brief.schema.json` (`envelope`, `topology`, `geometry`, `funicular`, `supports`, `material`, `loadCases`, `fabrication`, `acceptanceCriteria`, `objectives`, `deliverables`).
+1. Confirm the target brief JSON exists under `TOPOGEN_FDM_Foundry/briefs/` and satisfies `TOPOGEN_FDM_Foundry/schemas/brief.schema.json` (`envelope`, `topology`, `geometry`, `funicular`, `supports`, `material`, `loadCases`, `fabrication`, `acceptanceCriteria`, `objectives`, `deliverables`).
 2. Run the independent analytical mechanics benchmark suite:
    ```bash
-   node WFC_FDM_Foundry/verifier/test_verifier.mjs
+   node TOPOGEN_FDM_Foundry/verifier/test_verifier.mjs
    ```
    **Hard Gate**: Do not proceed unless `test_verifier.mjs` passes **100% (`10/10`)**.
 
 ### Phase 2: Baseline Smoke Run
-1. Create a run folder: `WFC_FDM_Foundry/runs/<brief_id>_<timestamp>/`.
+1. Create a run folder: `TOPOGEN_FDM_Foundry/runs/<brief_id>_<timestamp>/`.
 2. Generate and verify a baseline candidate via `run_generator.mjs` + `verifier/verify.mjs` to establish starting metrics (mass, element count, unrolled area, max deflection, `SF_t`, `SF_c`, `SF_b`, compression dominance, PQ planarity, manifoldness).
 
 ### Phase 3: Broad Parametric / Swarm Exploration
@@ -69,15 +69,15 @@ Filter candidates by failure mode in `<name>.verdict.json` and optimize along th
 - **Multi-objective Pareto minimization** (once feasibility is achieved): simultaneously minimize **plaster mass (`massKg`)**, **total unrolled surface area (`totalUnrolledSurfaceAreaM2`)**, and **number of elements (`nEdges`)** while maintaining strong safety margins (`SF_t >= 1.5`, `SF_c >= 2.0`, `SF_b >= 2.0`, `maxDisp <= L/300`, lateral `MinSF >= 1.5`).
 
 ### Phase 5: Pareto Frontier Logging & Champion Freeze
-Save the verified Pareto log (`pareto_summary.json`) and freeze the winning champion in `WFC_FDM_Foundry/runs/champion/` (`champion.{topology.json,mesh.obj,verdict.json,config.json}` + unrolled pattern `.svg` when required).
+Save the verified Pareto log (`pareto_summary.json`) and freeze the winning champion in `TOPOGEN_FDM_Foundry/runs/champion/` (`champion.{topology.json,mesh.obj,verdict.json,config.json}` + unrolled pattern `.svg` when required).
 
 ---
 
 ## 3. Phase 6 — Mandatory Interactive 3D Goldilocks HTML Explainer Artifact
 
-Every completed Foundry campaign MUST generate and browser-verify a standalone, zero-fetch interactive 3D report at `WFC_FDM_Foundry/foundry_report.html` via:
+Every completed Foundry campaign MUST generate and browser-verify a standalone, zero-fetch interactive 3D report at `TOPOGEN_FDM_Foundry/foundry_report.html` via:
 ```bash
-node WFC_FDM_Foundry/build_report.mjs
+node TOPOGEN_FDM_Foundry/build_report.mjs
 ```
 
 ### Mandatory HTML Explainer Requirements
@@ -95,12 +95,12 @@ node WFC_FDM_Foundry/build_report.mjs
 
 ## 4. Phase 7 — Mandatory 60-Second Showcase Explainer Video
 
-Every completed Foundry campaign MUST produce a verified **`60.0 s` (`1800` frames @ `30.00 FPS`, `1920×1080` Full HD, `22 Mbps` H.264)** explainer film at `WFC_FDM_Foundry/foundry_showcase_60s.mp4`, governed by `.agents/skills/alice-explainer-video/SKILL.md`:
+Every completed Foundry campaign MUST produce a verified **`60.0 s` (`1800` frames @ `30.00 FPS`, `1920×1080` Full HD, `22 Mbps` H.264)** explainer film at `TOPOGEN_FDM_Foundry/foundry_showcase_60s.mp4`, governed by `.agents/skills/alice-explainer-video/SKILL.md`:
 
 ```bash
-node WFC_FDM_Foundry/video_build/export_video_data.mjs
-clang++ -std=c++20 -O2 -DNOMINMAX WFC_FDM_Foundry/video_build/render_foundry_60s.cpp -o WFC_FDM_Foundry/video_build/render_foundry_60s.exe -lgdiplus -lmfplat -lmfreadwrite -lmfuuid -lole32 -luser32 -lgdi32
-./WFC_FDM_Foundry/video_build/render_foundry_60s.exe
+node TOPOGEN_FDM_Foundry/video_build/export_video_data.mjs
+clang++ -std=c++20 -O2 -DNOMINMAX TOPOGEN_FDM_Foundry/video_build/render_foundry_60s.cpp -o TOPOGEN_FDM_Foundry/video_build/render_foundry_60s.exe -lgdiplus -lmfplat -lmfreadwrite -lmfuuid -lole32 -luser32 -lgdi32
+./TOPOGEN_FDM_Foundry/video_build/render_foundry_60s.exe
 ```
 
 ### Mandatory Video Content & Visual Mandates
@@ -131,6 +131,6 @@ clang++ -std=c++20 -O2 -DNOMINMAX WFC_FDM_Foundry/video_build/render_foundry_60s
 
 ## 6. Invoking the Foundry on a New Brief
 
-1. Copy `WFC_FDM_Foundry/briefs/BRIEF_TEMPLATE.md` (and `BRIEF_TEMPLATE.json`) to `WFC_FDM_Foundry/briefs/<new_brief>.{md,json}`.
+1. Copy `TOPOGEN_FDM_Foundry/briefs/BRIEF_TEMPLATE.md` (and `BRIEF_TEMPLATE.json`) to `TOPOGEN_FDM_Foundry/briefs/<new_brief>.{md,json}`.
 2. Fill in Envelope, Voxel Resolution, Geometry/PQ, Funicular Mode, Supports, Material, Load Cases, Fabrication/Unrolling, Optimization Objectives, and Deliverables.
 3. Run Phases 1–7 above (never breaking the Generator/Verifier air-gap).

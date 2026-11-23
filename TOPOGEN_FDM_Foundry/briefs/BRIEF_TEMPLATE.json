@@ -1,0 +1,127 @@
+{
+  "$schema": "../schemas/brief.schema.json",
+  "id": "template-brief-slug",
+  "name": "Template Brief — Cast Plaster Funicular Tubular Network",
+  "version": "2.0.0",
+  "description": "Fillable machine-readable brief template for invoking TOPOGEN_FDM_Foundry end-to-end (Generate -> Verify -> Optimize -> Goldilocks 3D HTML Report -> 60s Showcase Video).",
+  "envelope": {
+    "units": "meters",
+    "coordinateSystem": "Z-up",
+    "maxPlanX": 1.0,
+    "maxPlanY": 1.0,
+    "targetHeightZ": 2.0,
+    "minHeightZ": 1.90,
+    "maxHeightZ": 2.05,
+    "planTolerance": 0.02,
+    "groundZ": 0.0,
+    "groundTolerance": 0.02
+  },
+  "topology": {
+    "minGridResolution": [2, 2, 2],
+    "maxGridResolution": [4, 4, 6],
+    "symmetryXY": true,
+    "requireSingleConnectedComponent": true,
+    "pruneNonAnchorLeaves": true
+  },
+  "geometry": {
+    "requireTubeTopology": true,
+    "minLongitudinalSubdivLevels": 1,
+    "requirePQOptimization": true,
+    "maxQuadPlanarityErrorM": 0.0005,
+    "requireWatertightManifoldMesh": true
+  },
+  "funicular": {
+    "mode": "compression",
+    "allowedModes": ["compression"],
+    "requireCompressionOnly": true,
+    "minCompressionDominance": 1.0,
+    "maxTensileAxialForceN": 0.0,
+    "maxEquilibriumResidualNorm": 1e-4
+  },
+  "supports": {
+    "minAnchors": 3,
+    "maxAnchors": 4,
+    "mustBeOnGround": true,
+    "restraintType": "pinned"
+  },
+  "material": {
+    "name": "Standard Cast Gypsum Plaster (Plaster of Paris / Hydrocal)",
+    "densityKgM3": 1250,
+    "youngsModulusPa": 5.0e9,
+    "poissonsRatio": 0.24,
+    "compressiveStrengthPa": 12.0e6,
+    "tensileStrengthPa": 2.0e6,
+    "shearStrengthPa": 1.5e6
+  },
+  "loadCases": [
+    {
+      "id": "LC1_self_weight",
+      "name": "Self-Weight Only",
+      "required": true,
+      "gravityMS2": 9.81,
+      "distributedVerticalMassKg": 0,
+      "distribution": "none"
+    },
+    {
+      "id": "LC2_self_weight_plus_imposed",
+      "name": "Self-Weight + Imposed Vertical Distributed Load",
+      "required": true,
+      "idealTarget": true,
+      "gravityMS2": 9.81,
+      "distributedVerticalMassKg": 50.0,
+      "distribution": "top_zone_nodes",
+      "topZoneFractionZ": 0.85
+    }
+  ],
+  "fabrication": {
+    "requireUnrolledPatternsPerBar": true,
+    "unrollFormat": "svg",
+    "allowUnrollSelfIntersection": false,
+    "minMemberLengthM": 0.04,
+    "maxSlendernessRatio": 120,
+    "minTubeOuterRadiusM": 0.012,
+    "maxTubeOuterRadiusM": 0.090,
+    "minWallThicknessM": 0.006
+  },
+  "acceptanceCriteria": {
+    "maxDeflectionRatio": 0.0033333333,
+    "characteristicLengthDef": "min(planSpan, height)",
+    "maxDeflectionMeters": 0.0033333333,
+    "minTensileSafetyFactor": 1.5,
+    "minCompressiveSafetyFactor": 2.0,
+    "minBucklingSafetyFactor": 2.0,
+    "requireSingleConnectedComponent": true,
+    "requireWatertightManifoldMesh": true,
+    "minMemberLengthM": 0.04,
+    "maxSlendernessRatio": 120,
+    "minTubeOuterRadiusM": 0.012,
+    "maxTubeOuterRadiusM": 0.090,
+    "minWallThicknessM": 0.006
+  },
+  "objectives": [
+    { "metric": "totalUnrolledSurfaceAreaM2", "direction": "minimize", "priority": 1 },
+    { "metric": "elementCount", "direction": "minimize", "priority": 2 },
+    { "metric": "centerlineMassKg", "direction": "minimize", "priority": 3 },
+    { "metric": "funicularEfficiency", "direction": "maximize", "priority": 4 }
+  ],
+  "deliverables": {
+    "htmlExplainer": {
+      "required": true,
+      "outputPath": "TOPOGEN_FDM_Foundry/foundry_report.html",
+      "goldilocksLayers": ["H1_Use", "H2_Guide", "H3_Telemetry"],
+      "requireZeroConsoleErrors": true
+    },
+    "videoShowcase60s": {
+      "required": true,
+      "outputPath": "TOPOGEN_FDM_Foundry/foundry_showcase_60s.mp4",
+      "durationSeconds": 60,
+      "fps": 30,
+      "resolution": [1920, 1080],
+      "minExploredOptionsCycled": 16,
+      "requireAdjacentFEAInExploration": true,
+      "requireUnifiedCADMeshDisplay": true,
+      "requireFullTileCycle": true,
+      "requirePostEncodeDecodeVerify": true
+    }
+  }
+}

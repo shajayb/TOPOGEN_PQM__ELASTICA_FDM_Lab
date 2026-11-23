@@ -13,11 +13,11 @@ node_modules/
 *.mp4
 video_build/frames*/
 video_build/raw*/
-WFC_FDM_Foundry/video_build/frames*/
-WFC_FDM_Foundry/video_build/raw*/
+TOPOGEN_FDM_Foundry/video_build/frames*/
+TOPOGEN_FDM_Foundry/video_build/raw*/
 
 # OS / Editor Temp Files
 .DS_Store
 Thumbs.db
-WFC_FDM_Foundry/runs/.bench_cache.json
-WFC_FDM_Foundry/runs/_tmp*
+TOPOGEN_FDM_Foundry/runs/.bench_cache.json
+TOPOGEN_FDM_Foundry/runs/_tmp*

@@ -1,27 +1,27 @@
 ---
 name: plaster-fe-verifier
-description: Operate the independent, air-gapped WFC_FDM_Foundry/verifier/ structural & fabrication verification suite (verify.mjs, test_verifier.mjs, verifier.html). Run analytical closed-form mechanics benchmarks, evaluate 3D Euler-Bernoulli space-frame FEA for brittle cast gypsum plaster (L/300 deflection, tensile vs compressive safety factors, Euler buckling), audit watertight quad-dominant OBJ manifoldness, and interpret JSON verdicts.
+description: Operate the independent, air-gapped TOPOGEN_FDM_Foundry/verifier/ structural & fabrication verification suite (verify.mjs, test_verifier.mjs, verifier.html). Run analytical closed-form mechanics benchmarks, evaluate 3D Euler-Bernoulli space-frame FEA for brittle cast gypsum plaster (L/300 deflection, tensile vs compressive safety factors, Euler buckling), audit watertight quad-dominant OBJ manifoldness, and interpret JSON verdicts.
 ---
 
 # Independent Plaster FEA & Fabrication Verifier Skill (`plaster-fe-verifier`)
 
-Use this skill whenever you need to **validate the FEA solver against closed-form mechanics, verify a candidate funicular topology + mesh against any Foundry brief, or inspect deflected shapes and stress distributions** in `WFC_FDM_Foundry/verifier/`.
+Use this skill whenever you need to **validate the FEA solver against closed-form mechanics, verify a candidate funicular topology + mesh against any Foundry brief, or inspect deflected shapes and stress distributions** in `TOPOGEN_FDM_Foundry/verifier/`.
 
 ---
 
 ## 1. Strict Air-Gap Rule
 
 > [!CAUTION]
-> **The Verifier domain (`WFC_FDM_Foundry/verifier/`) is strictly independent.** Verifier code and verification agents MUST NEVER read, import, or edit `WFC_FDM_Foundry/index_WFC.html` or `WFC_FDM_Foundry/run_generator.mjs`.
+> **The Verifier domain (`TOPOGEN_FDM_Foundry/verifier/`) is strictly independent.** Verifier code and verification agents MUST NEVER read, import, or edit `TOPOGEN_FDM_Foundry/index_WFC.html` or `TOPOGEN_FDM_Foundry/run_generator.mjs`.
 
-The verifier consumes **only** neutral files defined in `WFC_FDM_Foundry/schemas/interchange_contract.md`:
-- Brief specification: `WFC_FDM_Foundry/briefs/<brief>.json`
+The verifier consumes **only** neutral files defined in `TOPOGEN_FDM_Foundry/schemas/interchange_contract.md`:
+- Brief specification: `TOPOGEN_FDM_Foundry/briefs/<brief>.json`
 - Candidate topology: `<candidate>.topology.json` (`wfc-fdm-topology/v1`)
 - Candidate mesh (optional/recommended): `<candidate>.mesh.obj`
 
 ---
 
-## 2. Verifier Architecture (`WFC_FDM_Foundry/verifier/`)
+## 2. Verifier Architecture (`TOPOGEN_FDM_Foundry/verifier/`)
 
 | File | Role |
 | :--- | :--- |
@@ -38,7 +38,7 @@ The verifier consumes **only** neutral files defined in `WFC_FDM_Foundry/schemas
 Before trusting verifier results on a new brief or after any maintenance, **always** run the analytical validation suite:
 
 ```bash
-node WFC_FDM_Foundry/verifier/test_verifier.mjs
+node TOPOGEN_FDM_Foundry/verifier/test_verifier.mjs
 ```
 
 Confirm **10/10 PASS** across all closed-form mechanics, KPI, and fabrication benchmarks:
@@ -59,11 +59,11 @@ Confirm **10/10 PASS** across all closed-form mechanics, KPI, and fabrication be
 
 ### Standalone CLI
 ```bash
-node WFC_FDM_Foundry/verifier/verify.mjs \
-  --topology WFC_FDM_Foundry/runs/smoke/baseline.topology.json \
-  --mesh WFC_FDM_Foundry/runs/smoke/baseline.mesh.obj \
-  --brief WFC_FDM_Foundry/briefs/pilot_brief.json \
-  --out WFC_FDM_Foundry/runs/smoke/baseline.verdict.json \
+node TOPOGEN_FDM_Foundry/verifier/verify.mjs \
+  --topology TOPOGEN_FDM_Foundry/runs/smoke/baseline.topology.json \
+  --mesh TOPOGEN_FDM_Foundry/runs/smoke/baseline.mesh.obj \
+  --brief TOPOGEN_FDM_Foundry/briefs/pilot_brief.json \
+  --out TOPOGEN_FDM_Foundry/runs/smoke/baseline.verdict.json \
   [--json]
 ```
 
@@ -82,7 +82,7 @@ node WFC_FDM_Foundry/verifier/verify.mjs \
 - `1`: Runtime / CLI / file error.
 
 ### Interactive Browser Viewer
-Open `WFC_FDM_Foundry/verifier/verifier.html` in a browser (includes a built-in demo tower), drag-and-drop any `<candidate>.topology.json`, `brief.json`, and optional `<candidate>.mesh.obj`, and click **Run Plaster FEA** to inspect:
+Open `TOPOGEN_FDM_Foundry/verifier/verifier.html` in a browser (includes a built-in demo tower), drag-and-drop any `<candidate>.topology.json`, `brief.json`, and optional `<candidate>.mesh.obj`, and click **Run Plaster FEA** to inspect:
 - Magnified 3D deflected shape (with deflection scale slider)
 - Color-mapped tensile, compressive, axial, and utilization heatmaps
 - Support reaction and applied load force arrows
