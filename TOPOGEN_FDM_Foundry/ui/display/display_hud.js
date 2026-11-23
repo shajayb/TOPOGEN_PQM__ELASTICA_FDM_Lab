@@ -9,7 +9,7 @@
  *   - Edit floating panel drag / resize / minimize behavior -> wireFloatingPanel()
  */
 
-import { appState, actions, $, $$ } from '../state/workbench_state.js';
+import { appState, actions, $, $$, setTxt } from '../state/workbench_state.js';
 import {
     viewport,
     sharedMaterials,
@@ -547,6 +547,46 @@ export function initDisplayHud() {
     clickProxy('btn-compact-reset', 'btn-sim-reset');
 
     // Summarized pipeline actions (PQ Mesh, FDM, FEA, I/O) in Compact Mode
+    const rngCompactTubeRadius = $('rng-compact-tube-radius');
+    if (rngCompactTubeRadius) {
+        let compactRadiusTimer = null;
+        rngCompactTubeRadius.addEventListener('input', () => {
+            const v = parseFloat(rngCompactTubeRadius.value);
+            if (!Number.isFinite(v)) return;
+            appState.tubeState.radius = v;
+            if (actions.syncTubeWallRadiiUI) actions.syncTubeWallRadiiUI();
+            if (compactRadiusTimer) clearTimeout(compactRadiusTimer);
+            compactRadiusTimer = setTimeout(() => {
+                if (actions.solidifyActiveGraph) actions.solidifyActiveGraph({ keepCamera: true });
+                if (actions.updateSimUI) actions.updateSimUI();
+            }, 35);
+        });
+    }
+
+    const redrawNodeEdgeDisplay = () => {
+        if (actions.draw) actions.draw();
+        if (appState.lastFDMResult && actions.renderFDMNetwork) actions.renderFDMNetwork(appState.lastFDMResult);
+        if (appState.lastElasticaData && actions.renderElastica3D) actions.renderElastica3D();
+    };
+    const rngDispNodeSize = $('rng-disp-node-size');
+    if (rngDispNodeSize) {
+        rngDispNodeSize.addEventListener('input', () => {
+            const v = parseFloat(rngDispNodeSize.value) || 1.0;
+            appState.nodeDisplayScale = v;
+            setTxt('val-disp-node-size', `${v.toFixed(1)}×`);
+            redrawNodeEdgeDisplay();
+        });
+    }
+    const rngDispEdgeSize = $('rng-disp-edge-size');
+    if (rngDispEdgeSize) {
+        rngDispEdgeSize.addEventListener('input', () => {
+            const v = parseFloat(rngDispEdgeSize.value) || 1.5;
+            appState.edgeDisplayWidthPx = v;
+            setTxt('val-disp-edge-size', `${v.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}px`);
+            redrawNodeEdgeDisplay();
+        });
+    }
+
     const btnCompactPqm = $('btn-compact-pqm');
     if (btnCompactPqm) {
         btnCompactPqm.addEventListener('click', () => {

@@ -25,6 +25,8 @@ import {
     sharedMaterials,
     sharedGeometries,
     clearGroup,
+    makeFatMaterial,
+    makeFatLineSegments,
     recomputeModelBox,
     zoomToBox,
     modelBoxToWorld
@@ -120,7 +122,7 @@ export function mountTab2Topo() {
             <div class="grid grid-cols-6 gap-1 pt-0.5">
                 <button data-rx="3"  data-ry="3"  data-rz="4"  class="res-preset-btn cad-btn seg-on text-[8.5px] py-0.5" title="3×3×4 structural tower">3×3×4</button>
                 <button data-rx="4"  data-ry="3"  data-rz="1"  class="res-preset-btn cad-btn text-[8.5px] py-0.5" title="4×3×1 flat slab">4×3×1</button>
-                <button data-rx="6"  data-ry="6"  data-rz="1"  class="res-preset-btn cad-btn text-[8.5px] py-0.5" title="6×6×1 2D slice">6×6×1</button>
+                <button data-rx="1"  data-ry="1"  data-rz="3"  class="res-preset-btn cad-btn text-[8.5px] py-0.5" title="1×1×3 tower">1×1×3</button>
                 <button data-rx="4"  data-ry="4"  data-rz="8"  class="res-preset-btn cad-btn text-[8.5px] py-0.5" title="4×4×8 vertical tower">4×4×8</button>
                 <button data-rx="5"  data-ry="5"  data-rz="5"  class="res-preset-btn cad-btn text-[8.5px] py-0.5" title="5×5×5 cube">5×5×5</button>
                 <button data-rx="10" data-ry="10" data-rz="10" class="res-preset-btn cad-btn text-[8.5px] py-0.5" title="10×10×10 dense cube">10³</button>
@@ -987,14 +989,20 @@ export function draw() {
             gPos[o] = p0[0]; gPos[o + 1] = p0[1]; gPos[o + 2] = p0[2];
             gPos[o + 3] = p1[0]; gPos[o + 4] = p1[1]; gPos[o + 5] = p1[2];
         }
-        const gLineGeo = new THREE.BufferGeometry();
-        gLineGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3));
-        const gLines = new THREE.LineSegments(gLineGeo, sharedMaterials.graphEdge);
+        const gLines = makeFatLineSegments(
+            gPos,
+            makeFatMaterial(0xef4444, appState.edgeDisplayWidthPx || 1.5, {
+                disposeOnClear: true,
+                transparent: true,
+                opacity: 0.92,
+                depthTest: false
+            })
+        );
         gLines.renderOrder = 10;
         viewport.graphGroup.add(gLines);
 
         if (appState.lastWeldedGraph.vertices.length > 0 && appState.lastWeldedGraph.edges.length <= 600) {
-            const nScale = Math.max(0.18, Math.min(0.85, 2.8 / Math.sqrt(Math.max(8, appState.lastWeldedGraph.vertices.length))));
+            const nScale = Math.max(0.18, Math.min(0.85, 2.8 / Math.sqrt(Math.max(8, appState.lastWeldedGraph.vertices.length)))) * (appState.nodeDisplayScale || 1.0);
             const instNodes = new THREE.InstancedMesh(sharedGeometries.graphNode, sharedMaterials.graphNode, appState.lastWeldedGraph.vertices.length);
             const dummy = new THREE.Object3D();
             for (let i = 0; i < appState.lastWeldedGraph.vertices.length; i++) {

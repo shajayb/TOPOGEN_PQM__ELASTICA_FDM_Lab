@@ -418,6 +418,8 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
     const Kff = Array.from({ length: nf }, () => new Float64Array(nf));
     const elemCache = new Array(nEdges);
     let totalLengthM = 0;
+    let totalMassKg = 0;
+    const edgeSpecs = Array.isArray(cfg.edgeSpecs) ? cfg.edgeSpecs : null;
 
     for (let e = 0; e < nEdges; e++) {
         const [u, v] = edges[e];
@@ -426,7 +428,24 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
         const dx = pv[0] - pu[0], dy = pv[1] - pu[1], dz = pv[2] - pu[2];
         const L = Math.hypot(dx, dy, dz);
         if (L < 1e-7) return emptyInvalid();
+
+        const spec = edgeSpecs && edgeSpecs[e] ? edgeSpecs[e] : null;
+        const Re = spec && spec.outerRadiusM !== undefined ? Math.max(1e-4, Number(spec.outerRadiusM)) : R;
+        const re = spec && spec.innerRadiusM !== undefined ? Math.max(0, Math.min(Re - 1e-4, Number(spec.innerRadiusM))) : (spec ? 0 : r);
+        const Ae = Math.PI * (Re * Re - re * re);
+        const Ie = 0.25 * Math.PI * (Math.pow(Re, 4) - Math.pow(re, 4));
+        const Je = 2.0 * Ie;
+        const rge = 0.5 * Math.sqrt(Re * Re + re * re);
+        const Ee = spec && spec.youngsModulusPa !== undefined ? Number(spec.youngsModulusPa) : E;
+        const Ge = spec && spec.shearModulusPa !== undefined ? Number(spec.shearModulusPa) : (Ee / (2.0 * (1.0 + nu)));
+        const rhoe = spec && spec.densityKgM3 !== undefined ? Number(spec.densityKgM3) : rho;
+        const sigTe = spec && spec.tensileStrengthPa !== undefined ? Number(spec.tensileStrengthPa) : sigT;
+        const sigCe = spec && spec.compressiveStrengthPa !== undefined ? Number(spec.compressiveStrengthPa) : sigC;
+        const isElastica = !!(spec && spec.isElastica);
+        const initialBendStressPa = spec && spec.initialBendStressPa !== undefined ? Math.max(0, Number(spec.initialBendStressPa)) : 0;
+
         totalLengthM += L;
+        totalMassKg += L * Ae * rhoe;
 
         const ex = [dx / L, dy / L, dz / L];
         const tmp = Math.abs(ex[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1];
@@ -445,12 +464,12 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
         const R3 = [ex, ey, ez];
 
         const kL = Array.from({ length: 12 }, () => new Float64Array(12));
-        const eaL = (E * A) / L;
-        const gjL = (G * J) / L;
-        const eiL3 = (12 * E * I) / (L * L * L);
-        const eiL2 = (6 * E * I) / (L * L);
-        const ei4L = (4 * E * I) / L;
-        const ei2L = (2 * E * I) / L;
+        const eaL = (Ee * Ae) / L;
+        const gjL = (Ge * Je) / L;
+        const eiL3 = (12 * Ee * Ie) / (L * L * L);
+        const eiL2 = (6 * Ee * Ie) / (L * L);
+        const ei4L = (4 * Ee * Ie) / L;
+        const ei2L = (2 * Ee * Ie) / L;
 
         kL[0][0] = eaL;  kL[0][6] = -eaL;
         kL[6][0] = -eaL; kL[6][6] = eaL;
@@ -504,7 +523,7 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
                 Kff[fi][fj] += kG[i][j];
             }
         }
-        elemCache[e] = { u, v, L, R3, kL, T, kG, gDofs };
+        elemCache[e] = { u, v, L, R3, kL, T, kG, gDofs, Re, re, Ae, Ie, Je, rge, Ee, Ge, rhoe, sigTe, sigCe, isElastica, initialBendStressPa };
     }
 
     // Tiny rotational regularization to prevent collinear torsional singularity on pinned nodes
@@ -572,49 +591,81 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
     const nCases = casesToRun.length;
     const RHS = Array.from({ length: nf }, () => new Float64Array(nCases));
     const globalAppliedDof = Array.from({ length: nCases }, () => new Float64Array(nDof));
+    const globalExternalOnlyDof = Array.from({ length: nCases }, () => new Float64Array(nDof));
     const elemFEF = Array.from({ length: nCases }, () => Array.from({ length: nEdges }, () => new Float64Array(12)));
 
     for (let ci = 0; ci < nCases; ci++) {
         const lc = casesToRun[ci];
-        const qz = -rho * lc.grav * A;
         const fExt = globalAppliedDof[ci];
+        const fVis = globalExternalOnlyDof[ci];
 
         for (let e = 0; e < nEdges; e++) {
             const ec = elemCache[e];
             const L = ec.L;
+            const qz = -ec.rhoe * lc.grav * ec.Ae;
             const qlx = ec.R3[0][2] * qz;
             const qly = ec.R3[1][2] * qz;
             const qlz = ec.R3[2][2] * qz;
+            const fefGrav = new Float64Array(12);
+            fefGrav[0]  = 0.5 * qlx * L;
+            fefGrav[1]  = 0.5 * qly * L;
+            fefGrav[2]  = 0.5 * qlz * L;
+            fefGrav[4]  = -(qlz * L * L) / 12.0;
+            fefGrav[5]  =  (qly * L * L) / 12.0;
+            fefGrav[6]  = 0.5 * qlx * L;
+            fefGrav[7]  = 0.5 * qly * L;
+            fefGrav[8]  = 0.5 * qlz * L;
+            fefGrav[10] =  (qlz * L * L) / 12.0;
+            fefGrav[11] = -(qly * L * L) / 12.0;
+
             const fefL = elemFEF[ci][e];
-            fefL[0]  = 0.5 * qlx * L;
-            fefL[1]  = 0.5 * qly * L;
-            fefL[2]  = 0.5 * qlz * L;
-            fefL[4]  = -(qlz * L * L) / 12.0;
-            fefL[5]  =  (qly * L * L) / 12.0;
-            fefL[6]  = 0.5 * qlx * L;
-            fefL[7]  = 0.5 * qly * L;
-            fefL[8]  = 0.5 * qlz * L;
-            fefL[10] =  (qlz * L * L) / 12.0;
-            fefL[11] = -(qly * L * L) / 12.0;
+            for (let k = 0; k < 12; k++) fefL[k] = fefGrav[k];
 
             for (let i = 0; i < 12; i++) {
-                let fg = 0;
-                for (let k = 0; k < 12; k++) fg += ec.T[k][i] * fefL[k];
+                let fgGrav = 0;
+                for (let k = 0; k < 12; k++) {
+                    fgGrav += ec.T[k][i] * fefGrav[k];
+                }
                 const gd = ec.gDofs[i];
-                fExt[gd] += fg;
+                fExt[gd] += fgGrav;
+                fVis[gd] += fgGrav;
                 const fi = dofMap[gd];
-                if (fi !== -1) RHS[fi][ci] += fg;
+                if (fi !== -1) RHS[fi][ci] += fgGrav;
+            }
+        }
+
+        // Apply self-equilibrated chord tightening & active-bending thrusts between coupled rod endpoints
+        if (Array.isArray(cfg.nodalSelfStressPairs)) {
+            for (const pair of cfg.nodalSelfStressPairs) {
+                const { u, v, pullForceN } = pair;
+                if (u < 0 || v < 0 || u >= nNodes || v >= nNodes || u === v) continue;
+                const pu = verts[u], pv = verts[v];
+                const dx = pv[0] - pu[0], dy = pv[1] - pu[1], dz = pv[2] - pu[2];
+                const cl = Math.hypot(dx, dy, dz);
+                if (cl < 1e-6) continue;
+                const fx = (pullForceN * dx) / cl;
+                const fy = (pullForceN * dy) / cl;
+                const fz = (pullForceN * dz) / cl;
+                fExt[6 * u + 0] += fx; fExt[6 * u + 1] += fy; fExt[6 * u + 2] += fz;
+                fExt[6 * v + 0] -= fx; fExt[6 * v + 1] -= fy; fExt[6 * v + 2] -= fz;
+                if (dofMap[6 * u + 0] !== -1) RHS[dofMap[6 * u + 0]][ci] += fx;
+                if (dofMap[6 * u + 1] !== -1) RHS[dofMap[6 * u + 1]][ci] += fy;
+                if (dofMap[6 * u + 2] !== -1) RHS[dofMap[6 * u + 2]][ci] += fz;
+                if (dofMap[6 * v + 0] !== -1) RHS[dofMap[6 * v + 0]][ci] -= fx;
+                if (dofMap[6 * v + 1] !== -1) RHS[dofMap[6 * v + 1]][ci] -= fy;
+                if (dofMap[6 * v + 2] !== -1) RHS[dofMap[6 * v + 2]][ci] -= fz;
             }
         }
 
         let topNodes = [];
+        const nHostOnly = cfg.hostNodeCount !== undefined ? Number(cfg.hostNodeCount) : nNodes;
         const topZCut = zMin + lc.topFrac * H;
-        for (let ni = 0; ni < nNodes; ni++) {
+        for (let ni = 0; ni < nHostOnly; ni++) {
             if (!anchorSet.has(ni) && verts[ni][2] >= topZCut - 1e-6) topNodes.push(ni);
         }
         if (topNodes.length === 0) {
             let bestNi = -1, bestZ = -Infinity;
-            for (let ni = 0; ni < nNodes; ni++) {
+            for (let ni = 0; ni < nHostOnly; ni++) {
                 if (!anchorSet.has(ni) && verts[ni][2] > bestZ) { bestZ = verts[ni][2]; bestNi = ni; }
             }
             if (bestNi !== -1) topNodes = [bestNi];
@@ -627,6 +678,9 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
                 fExt[6 * ni + 0] += fxPer;
                 fExt[6 * ni + 1] += fyPer;
                 fExt[6 * ni + 2] += fzPer;
+                fVis[6 * ni + 0] += fxPer;
+                fVis[6 * ni + 1] += fyPer;
+                fVis[6 * ni + 2] += fzPer;
                 if (dofMap[6 * ni + 0] !== -1) RHS[dofMap[6 * ni + 0]][ci] += fxPer;
                 if (dofMap[6 * ni + 1] !== -1) RHS[dofMap[6 * ni + 1]][ci] += fyPer;
                 if (dofMap[6 * ni + 2] !== -1) RHS[dofMap[6 * ni + 2]][ci] += fzPer;
@@ -693,13 +747,16 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
         let caseMaxNode = 0;
         const nodalDisps = new Array(nNodes);
         const nodalRots  = new Array(nNodes);
+        const nHostOnlyDisp = cfg.hostNodeCount !== undefined ? Number(cfg.hostNodeCount) : nNodes;
         for (let ni = 0; ni < nNodes; ni++) {
             const ux = uGlobal[6 * ni + 0], uy = uGlobal[6 * ni + 1], uz = uGlobal[6 * ni + 2];
             const rx = uGlobal[6 * ni + 3], ry = uGlobal[6 * ni + 4], rz = uGlobal[6 * ni + 5];
             nodalDisps[ni] = [ux, uy, uz];
             nodalRots[ni]  = [rx, ry, rz];
-            const d = Math.hypot(ux, uy, uz);
-            if (d > caseMaxDispM) { caseMaxDispM = d; caseMaxNode = ni; }
+            if (ni < nHostOnlyDisp) {
+                const d = Math.hypot(ux, uy, uz);
+                if (d > caseMaxDispM) { caseMaxDispM = d; caseMaxNode = ni; }
+            }
         }
         if (lc.required && caseMaxDispM > maxDispReqM) maxDispReqM = caseMaxDispM;
 
@@ -738,29 +795,29 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
             const M_v = Math.hypot(fInt[10], fInt[11]);
             const M_max = Math.max(M_u, M_v);
 
-            const Z_mod = I / R;
-            const sigAxial = N_avg / A;
-            const sigBend = M_max / Z_mod;
-            const peakTensPa = Math.max(0, Math.max(N_u, N_v) / A + sigBend);
-            const peakCompPa = Math.max(0, -Math.min(N_u, N_v) / A + sigBend);
+            const Z_mod = ec.Ie / ec.Re;
+            const sigAxial = N_avg / ec.Ae;
+            const sigBend = M_max / Z_mod + (ec.initialBendStressPa || 0);
+            const peakTensPa = Math.max(0, Math.max(N_u, N_v) / ec.Ae + sigBend);
+            const peakCompPa = Math.max(0, -Math.min(N_u, N_v) / ec.Ae + sigBend);
 
-            const sfT = peakTensPa > 1e-6 ? (sigT / peakTensPa) : 999.0;
-            const sfC = peakCompPa > 1e-6 ? (sigC / peakCompPa) : 999.0;
+            const sfT = peakTensPa > 1e-6 ? (ec.sigTe / peakTensPa) : 999.0;
+            const sfC = peakCompPa > 1e-6 ? (ec.sigCe / peakCompPa) : 999.0;
             const P_comp = Math.max(0, -Math.min(N_u, N_v, N_avg));
-            const P_crit = (Math.PI * Math.PI * E * I) / (ec.L * ec.L);
+            const P_crit = (Math.PI * Math.PI * ec.Ee * ec.Ie) / (ec.L * ec.L);
             const sfB = P_comp > 1e-6 ? (P_crit / P_comp) : 999.0;
             const govSF = Math.min(sfT, sfC, sfB);
             const utilCode = Math.max(
-                peakTensPa / Math.max(1.0, sigT / minReqSF_t),
-                peakCompPa / Math.max(1.0, sigC / minReqSF_c),
+                peakTensPa / Math.max(1.0, ec.sigTe / minReqSF_t),
+                peakCompPa / Math.max(1.0, ec.sigCe / minReqSF_c),
                 P_comp / Math.max(1e-6, P_crit / minReqSF_b)
             );
 
             // Member strain energy partition (axial vs bending vs torsion)
-            const uAx = (N_avg * N_avg * ec.L) / Math.max(1e-9, 2.0 * E * A);
+            const uAx = (N_avg * N_avg * ec.L) / Math.max(1e-9, 2.0 * ec.Ee * ec.Ae);
             const mSqAvg = 0.5 * (M_u * M_u + M_v * M_v);
-            const uBd = (mSqAvg * ec.L) / Math.max(1e-9, 2.0 * E * I);
-            const uTr = (T_max * T_max * ec.L) / Math.max(1e-9, 2.0 * G * J);
+            const uBd = (mSqAvg * ec.L) / Math.max(1e-9, 2.0 * ec.Ee * ec.Ie);
+            const uTr = (T_max * T_max * ec.L) / Math.max(1e-9, 2.0 * ec.Ge * ec.Je);
             sumUAxial += uAx;
             sumUBend  += uBd;
             sumUTors  += uTr;
@@ -787,8 +844,10 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
                 edgeIndex: e,
                 u: ec.u,
                 v: ec.v,
+                isElastica: ec.isElastica,
+                outerRadiusM: ec.Re,
                 lengthM: ec.L,
-                slenderness: ec.L / Math.max(1e-6, rg),
+                slenderness: ec.L / Math.max(1e-6, ec.rge),
                 axialForceN: N_avg,
                 shearForceN: V_max,
                 torsionMomentNm: T_max,
@@ -833,10 +892,11 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
                 };
             });
 
+            const fVis = globalExternalOnlyDof[ci];
             const allNodalLoads = new Array(nNodes);
             const appliedLoads = [];
             for (let ni = 0; ni < nNodes; ni++) {
-                const fx = fExt[6 * ni + 0], fy = fExt[6 * ni + 1], fz = fExt[6 * ni + 2];
+                const fx = fVis[6 * ni + 0], fy = fVis[6 * ni + 1], fz = fVis[6 * ni + 2];
                 allNodalLoads[ni] = [fx, fy, fz];
                 const mag = Math.hypot(fx, fy, fz);
                 if (mag > 1e-6) {
@@ -879,7 +939,7 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
     const dispM = Math.max(maxDispReqM, govResult.maxDispM);
     const deflectionRatio = dispM / characteristicLengthM;
     const inverseDeflectionRatio = dispM > 1e-12 ? (characteristicLengthM / dispM) : 999999.0;
-    const centerlineMassKg = totalLengthM * A * rho;
+    const centerlineMassKg = totalMassKg;
     const passed = (deflectionRatio <= maxDeflectionRatio)
         && (minSF_t >= minReqSF_t)
         && (minSF_c >= minReqSF_c)

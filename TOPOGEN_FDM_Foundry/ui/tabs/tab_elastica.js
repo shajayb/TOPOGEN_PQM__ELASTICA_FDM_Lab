@@ -21,6 +21,8 @@ import {
     viewport,
     sharedMaterials,
     clearGroup,
+    makeFatMaterial,
+    makeFatLine,
     recomputeModelBox
 } from '../display/viewport_scene.js';
 import { applyOutlinerVisibility } from '../display/display_hud.js';
@@ -342,6 +344,7 @@ export function renderElastica3D() {
                 const p = CORE.toV3(v);
                 const m = new THREE.Mesh(leafGeo, mat);
                 m.position.set(p.x, p.y, p.z);
+                m.scale.setScalar(appState.nodeDisplayScale || 1.0);
                 viewport.elasticaGroup.add(m);
             }
         } else if (data.leaves) {
@@ -351,6 +354,7 @@ export function renderElastica3D() {
                 const p = CORE.toV3(v);
                 const m = new THREE.Mesh(leafGeo, sinkMat);
                 m.position.set(p.x, p.y, p.z);
+                m.scale.setScalar(appState.nodeDisplayScale || 1.0);
                 viewport.elasticaGroup.add(m);
             }
         }
@@ -375,10 +379,8 @@ export function renderElastica3D() {
         // Optimized Elastica curve
         if (st.showCurves && c.points && c.points.length >= 2) {
             const linePts = c.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
-            const lineGeo = new THREE.BufferGeometry().setFromPoints(linePts);
-            const lineMat = new THREE.LineBasicMaterial({ color: hex, linewidth: 2 });
-            lineMat.userData.disposeOnClear = true;
-            viewport.elasticaGroup.add(new THREE.Line(lineGeo, lineMat));
+            const lineMat = makeFatMaterial(hex, appState.edgeDisplayWidthPx || 1.5, { disposeOnClear: true });
+            viewport.elasticaGroup.add(makeFatLine(linePts, lineMat));
         }
 
         // 3D Tubular Rod Mesh
@@ -742,4 +744,5 @@ export function initTabElastica() {
         clearGroup(viewport.elasticaUnroll3DGroup);
         generateElasticaFromUI();
     });
+    actions.renderElastica3D = renderElastica3D;
 }

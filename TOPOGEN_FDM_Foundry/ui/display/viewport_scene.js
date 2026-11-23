@@ -15,8 +15,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { appState, actions, PALETTE, $ } from '../state/workbench_state.js';
 
 export const viewport = {
@@ -69,10 +71,12 @@ export function sizeOverlay() {
     viewport.octx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-export function makeFatMaterial(color, widthPx) {
+export function makeFatMaterial(color, widthPx, opts = {}) {
     const { w, h } = cssSize();
-    const m = new LineMaterial({ color, linewidth: widthPx });
+    const { disposeOnClear = false, ...rest } = opts;
+    const m = new LineMaterial({ color, linewidth: widthPx, ...rest });
     m.resolution.set(w, h);
+    if (disposeOnClear) m.userData.disposeOnClear = true;
     viewport.fatMaterials.push(m);
     return m;
 }
@@ -85,6 +89,15 @@ export function makeFatLine(points, material) {
     const line = new Line2(geo, material);
     line.computeLineDistances();
     return line;
+}
+
+export function makeFatLineSegments(positionsArray, material, colorsArray = null) {
+    const geo = new LineSegmentsGeometry();
+    geo.setPositions(positionsArray);
+    if (colorsArray) geo.setColors(colorsArray);
+    const segs = new LineSegments2(geo, material);
+    segs.computeLineDistances();
+    return segs;
 }
 
 export function clearGroup(group) {
@@ -106,7 +119,11 @@ export function clearGroup(group) {
                 if (obj.material) {
                     const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
                     for (const m of mats) {
-                        if (m && m.userData && m.userData.disposeOnClear) m.dispose();
+                        if (m && m.userData && m.userData.disposeOnClear) {
+                            m.dispose();
+                            const idx = viewport.fatMaterials.indexOf(m);
+                            if (idx !== -1) viewport.fatMaterials.splice(idx, 1);
+                        }
                     }
                 }
             });

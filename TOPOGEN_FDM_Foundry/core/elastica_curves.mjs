@@ -394,32 +394,31 @@ export function computeElasticaMetrics(pts, rodRadius = 0.015) {
 }
 
 /**
- * Project polyline segments onto uniform inextensible rest length `segRestLen`
- * with pinned endpoints p[0] and p[n-1] (Position-Based Discrete Elastic Rod inextensibility).
+ * Uniformly resample an open polyline by true cumulative arc length so all segments
+ * have equal length ds = L_total / (targetCount - 1) without bunching or kinks.
  */
-function projectInextensibleRodSegments(pts, segRestLen, passes = 4) {
-    const n = pts.length;
-    if (n < 3 || segRestLen <= 1e-7) return;
-    for (let pass = 0; pass < passes; pass++) {
-        // Forward-backward Gauss-Seidel distance constraint projection
-        for (let i = 0; i < n - 1; i++) {
-            const j = (pass % 2 === 0) ? i : (n - 2 - i);
-            const a = pts[j];
-            const b = pts[j + 1];
-            const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
-            const len = Math.hypot(dx, dy, dz);
-            if (len < 1e-9) continue;
-            const diff = (len - segRestLen) / len;
-            const wA = (j === 0) ? 0.0 : (j + 1 === n - 1 ? 1.0 : 0.5);
-            const wB = (j + 1 === n - 1) ? 0.0 : (j === 0 ? 1.0 : 0.5);
-            a.x += dx * diff * wA;
-            a.y += dy * diff * wA;
-            a.z += dz * diff * wA;
-            b.x -= dx * diff * wB;
-            b.y -= dy * diff * wB;
-            b.z -= dz * diff * wB;
-        }
+function resampleUniformArcLength(pts, targetCount) {
+    const m = pts.length;
+    if (m < 2 || targetCount < 2) return pts.map(p => p.clone());
+    const cum = new Float64Array(m);
+    for (let i = 0; i < m - 1; i++) {
+        cum[i + 1] = cum[i] + pts[i].distanceTo(pts[i + 1]);
     }
+    const total = cum[m - 1];
+    if (total < 1e-8) return pts.map(p => p.clone());
+
+    const out = [pts[0].clone()];
+    let seg = 0;
+    for (let k = 1; k < targetCount - 1; k++) {
+        const sTarget = (total * k) / (targetCount - 1);
+        while (seg < m - 2 && cum[seg + 1] < sTarget) seg++;
+        const s0 = cum[seg], s1 = cum[seg + 1];
+        const t = (s1 - s0) > 1e-9 ? (sTarget - s0) / (s1 - s0) : 0;
+        const a = pts[seg], b = pts[seg + 1];
+        out.push(new V3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t));
+    }
+    out.push(pts[m - 1].clone());
+    return out;
 }
 
 /**
@@ -463,13 +462,6 @@ export function optimizeElasticaCurve(rawPathPoints, solidData = null, options =
     if (n < 3) {
         return { points: pts, refPoints, maxDeviation: 0, ...computeElasticaMetrics(pts, rodRadius) };
     }
-
-    // Compute initial rest length L0 along the seeded curve (bounded >= chord length * 1.001)
-    let initLen = 0;
-    for (let i = 0; i < n - 1; i++) initLen += pts[i].distanceTo(pts[i + 1]);
-    const chordLen = pts[0].distanceTo(pts[n - 1]);
-    const restLength = Math.max(chordLen * 1.0005, initLen);
-    const segRestLen = restLength / (n - 1);
 
     // Clamped end-tangent directions & local-plane inward normals (prevents dipping below end tangents)
     const pStart = pathPoints[0];
@@ -562,19 +554,13 @@ export function optimizeElasticaCurve(rawPathPoints, solidData = null, options =
             nextPts[i].set(nx, ny, nz);
         }
         for (let i = 1; i < n - 1; i++) pts[i].copy(nextPts[i]);
-
-        // 4. Enforce neutral-axis inextensibility (fixed rest length & uniform segments)
-        if (enforceInextensible) {
-            projectInextensibleRodSegments(pts, segRestLen, 3);
-        }
         enforceLocalPlaneAndTangents();
     }
 
-    // Final arc-length equalization pass so stations are uniformly spaced along the rod
-    if (enforceInextensible && iterations > 0) {
-        let finalLen = 0;
-        for (let i = 0; i < n - 1; i++) finalLen += pts[i].distanceTo(pts[i + 1]);
-        projectInextensibleRodSegments(pts, finalLen / (n - 1), 6);
+    // Release excess length: resample uniformly along the relaxed, kink-free curve
+    // so 3D stations are evenly spaced and 2D straight cut length matches 1:1
+    if (iterations > 0) {
+        pts = resampleUniformArcLength(pts, n);
         enforceLocalPlaneAndTangents();
     }
 
@@ -862,4 +848,158 @@ export function buildElasticaRibbonsSVG(curves, options = {}) {
 
     const totalH = Math.max(120, packed.sheetCount * (sheetHPx + sheetGapPx));
     return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${sheetWPx.toFixed(1)}" height="${totalH.toFixed(1)}" viewBox="0 0 ${sheetWPx.toFixed(1)} ${totalH.toFixed(1)}">\n  <rect width="100%" height="100%" fill="#ffffff"/>\n  ${groups.join('\n  ')}\n</svg>\n`;
+}
+
+/**
+ * Assemble a coupled hybrid 3D FEA space-frame combining the primary skeletal network
+ * with discretized curved Elastica rod elements, accounting for:
+ *   1. Arch / knee-bracing axial + flexural stiffness (EA/L, EI/L^3),
+ *   2. Self-equilibrated post-tensioning / compressive tightening preload (prestressForceN),
+ *   3. Self-equilibrated active-bending straightening moments M0 = E_rod * I_rod * kappa_0.
+ */
+export function buildHybridGraphWithElastica(hostVertices, hostEdges, elasticaCurves, options = {}) {
+    const verts = hostVertices.map(v => {
+        const p = toV3(v);
+        return [p.x, p.y, p.z];
+    });
+    const nHostNodes = verts.length;
+    const edges = hostEdges.map(e => [e[0], e[1]]);
+    const edgeSpecs = edges.map(() => null);
+
+    if (!Array.isArray(elasticaCurves) || elasticaCurves.length === 0) {
+        return { vertices: verts, edges, edgeSpecs, hostNodeCount: nHostNodes, hostEdgeCount: edges.length, elasticaEdgeCount: 0, coupledRodCount: 0 };
+    }
+
+    const maxRods = Math.max(1, Math.round(options.maxRods || 64));
+    const segsPerRod = Math.max(3, Math.round(options.segsPerRod || 8));
+    const rodRadiusM = Math.max(0.002, Number(options.rodRadiusM || 0.015));
+    const rodMat = options.rodMaterial || {
+        youngsModulusPa: 7.5e9,
+        shearModulusPa: 3.0e9,
+        densityKgM3: 1450,
+        tensileStrengthPa: 65.0e6,
+        compressiveStrengthPa: 90.0e6
+    };
+    const prestressForceN = Number(options.prestressForceN || 0);
+    const activeBendFactor = Number(options.activeBendFactor !== undefined ? options.activeBendFactor : 1.0);
+    const tieTol = options.tieToleranceM !== undefined ? Number(options.tieToleranceM) : 0.035;
+    const tieTolSq = tieTol * tieTol;
+
+    let coupledRodCount = 0;
+    const nodalSelfStressPairs = [];
+    const curvesToUse = elasticaCurves.slice(0, maxRods);
+
+    for (const c of curvesToUse) {
+        if (!c || !c.points || c.points.length < 2) continue;
+        if (c.startNode < 0 || c.startNode >= nHostNodes || c.endNode < 0 || c.endNode >= nHostNodes) continue;
+        if (c.startNode === c.endNode) continue;
+
+        const sampled = resampleUniformArcLength(c.points.map(p => toV3(p)), segsPerRod + 1);
+        const m = sampled.length;
+        if (m < 2) continue;
+
+        const rActual = c.rod && c.rod.radius ? c.rod.radius : rodRadiusM;
+        const Irod = 0.25 * Math.PI * Math.pow(rActual, 4);
+
+        // Compute discrete curvature magnitude kappa_i at stations along the rod
+        const stationKappa = new Float64Array(m);
+        let bendEnergy = 0;
+        let arcLen = 0;
+        for (let i = 0; i < m - 1; i++) arcLen += sampled[i].distanceTo(sampled[i + 1]);
+        for (let i = 1; i < m - 1; i++) {
+            const e0 = new V3().subVectors(sampled[i], sampled[i - 1]);
+            const e1 = new V3().subVectors(sampled[i + 1], sampled[i]);
+            const l0 = e0.length(), l1 = e1.length();
+            const ds = 0.5 * (l0 + l1);
+            const denom = l0 * l1 + e0.dot(e1);
+            if (ds > 1e-7 && denom > 1e-10) {
+                const cross = new V3().crossVectors(e0, e1).length();
+                const kap = (2.0 * cross) / (denom * ds);
+                stationKappa[i] = kap;
+                bendEnergy += 0.5 * rodMat.youngsModulusPa * Irod * kap * kap * ds;
+            }
+        }
+        stationKappa[0] = stationKappa[1];
+        stationKappa[m - 1] = stationKappa[m - 2];
+
+        const nodeIds = new Int32Array(m);
+        nodeIds[0] = c.startNode;
+        nodeIds[m - 1] = c.endNode;
+
+        for (let i = 1; i < m - 1; i++) {
+            const pt = sampled[i];
+            let tiedHost = -1;
+            let bestD2 = tieTolSq;
+            for (let hi = 0; hi < nHostNodes; hi++) {
+                if (hi === c.startNode || hi === c.endNode) continue;
+                const hv = verts[hi];
+                const dx = hv[0] - pt.x, dy = hv[1] - pt.y, dz = hv[2] - pt.z;
+                const d2 = dx * dx + dy * dy + dz * dz;
+                if (d2 <= bestD2) {
+                    bestD2 = d2;
+                    tiedHost = hi;
+                }
+            }
+            if (tiedHost !== -1) {
+                nodeIds[i] = tiedHost;
+            } else {
+                nodeIds[i] = verts.length;
+                verts.push([pt.x, pt.y, pt.z]);
+            }
+        }
+
+        let addedSeg = false;
+        for (let i = 0; i < m - 1; i++) {
+            const u = nodeIds[i], v = nodeIds[i + 1];
+            if (u === v) continue;
+            const pu = verts[u], pv = verts[v];
+            if (Math.hypot(pv[0] - pu[0], pv[1] - pu[1], pv[2] - pu[2]) < 1e-5) continue;
+
+            const kappaAvg = 0.5 * (stationKappa[i] + stationKappa[i + 1]);
+            edges.push([u, v]);
+            edgeSpecs.push({
+                isElastica: true,
+                outerRadiusM: rActual,
+                innerRadiusM: 0,
+                youngsModulusPa: rodMat.youngsModulusPa,
+                shearModulusPa: rodMat.shearModulusPa,
+                densityKgM3: rodMat.densityKgM3,
+                tensileStrengthPa: rodMat.tensileStrengthPa,
+                compressiveStrengthPa: rodMat.compressiveStrengthPa,
+                initialBendStressPa: activeBendFactor > 0 ? (activeBendFactor * rodMat.youngsModulusPa * rActual * kappaAvg) : 0
+            });
+            addedSeg = true;
+        }
+
+        if (addedSeg) {
+            coupledRodCount++;
+            // Self-equilibrated chord force between (startNode, endNode):
+            // +prestressForceN pulls startNode & endNode inward (compressive tightening of host frame);
+            // -activeBendThrustN pushes outward from the pre-bent rod's elastica straightening tendency.
+            const pA = verts[c.startNode], pB = verts[c.endNode];
+            const chordLen = Math.hypot(pB[0] - pA[0], pB[1] - pA[1], pB[2] - pA[2]);
+            if (chordLen > 1e-5) {
+                const slack = Math.max(0.05 * chordLen, arcLen - chordLen);
+                const eulerChord = (Math.PI * Math.PI * rodMat.youngsModulusPa * Irod) / (chordLen * chordLen);
+                const activeBendThrustN = activeBendFactor > 0
+                    ? activeBendFactor * Math.min(0.35 * eulerChord, bendEnergy / Math.max(1e-4, slack))
+                    : 0;
+                const netPullN = prestressForceN - activeBendThrustN;
+                if (Math.abs(netPullN) > 1e-6) {
+                    nodalSelfStressPairs.push({ u: c.startNode, v: c.endNode, pullForceN: netPullN });
+                }
+            }
+        }
+    }
+
+    return {
+        vertices: verts,
+        edges,
+        edgeSpecs,
+        nodalSelfStressPairs,
+        hostNodeCount: nHostNodes,
+        hostEdgeCount: hostEdges.length,
+        elasticaEdgeCount: edges.length - hostEdges.length,
+        coupledRodCount
+    };
 }

@@ -1,27 +1,33 @@
 /**
  * WFC-FDM Foundry — Student-Editable Workbench Stylesheet (ui/styles/workbench.css)
  *
- * Customize studio background, accent colors, panel widths, or CAD button styling
- * by editing the `:root` CSS custom properties below!
+ * Studio Light theme: crisp white/slate panels matching the 3D studio viewport,
+ * with high-contrast typography and CAD accent controls.
  */
 
 :root {
     --bg-studio: #ffffff;
-    --fg-studio: #111827;
-    --panel-bg: rgba(17, 24, 39, 0.96);
-    --panel-hud-bg: rgba(17, 24, 39, 0.94);
-    --panel-border: #374151;
-    --panel-text: #f3f4f6;
-    --panel-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.55);
+    --fg-studio: #0f172a;
+    --panel-bg: rgba(255, 255, 255, 0.94);
+    --panel-hud-bg: rgba(248, 250, 252, 0.94);
+    --panel-surface: #f8fafc;
+    --panel-surface-alt: #f1f5f9;
+    --panel-border: #cbd5e1;
+    --panel-text: #0f172a;
+    --panel-muted: #475569;
+    --panel-shadow: 0 12px 28px -8px rgba(15, 23, 42, 0.14), 0 2px 6px -1px rgba(15, 23, 42, 0.06);
 
-    --accent-pink: #ec4899;
-    --accent-pink-soft: rgba(236, 72, 153, 0.15);
-    --accent-cyan: #06b6d4;
-    --accent-cyan-bright: #22d3ee;
-    --accent-cyan-soft: rgba(6, 182, 212, 0.08);
-    --accent-emerald: #10b981;
-    --accent-amber: #f59e0b;
-    --accent-rose: #f43f5e;
+    --accent-primary: #2563eb;
+    --accent-primary-hover: #1d4ed8;
+    --accent-primary-soft: rgba(37, 99, 235, 0.08);
+    --accent-pink: #2563eb;
+    --accent-pink-soft: rgba(37, 99, 235, 0.08);
+    --accent-cyan: #2563eb;
+    --accent-cyan-bright: #1e293b;
+    --accent-cyan-soft: #ffffff;
+    --accent-emerald: #059669;
+    --accent-amber: #d97706;
+    --accent-rose: #e11d48;
 
     --sidebar-width: 386px;
     --sidebar-min-width: 340px;
@@ -63,7 +69,7 @@ body {
     max-width: var(--sidebar-max-width);
     max-height: calc(100vh - 38px);
     background-color: var(--panel-bg);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(10px);
     color: var(--panel-text);
     border: 1px solid var(--panel-border);
     border-radius: 8px;
@@ -102,7 +108,7 @@ body {
 }
 
 .sidebar-resize-handle-e:hover {
-    background: rgba(236, 72, 153, 0.45);
+    background: rgba(219, 39, 119, 0.35);
 }
 
 .sidebar-resize-handle-se {
@@ -113,7 +119,7 @@ body {
     height: 14px;
     cursor: nwse-resize;
     z-index: 41;
-    background: linear-gradient(135deg, transparent 50%, #6b7280 50%);
+    background: linear-gradient(135deg, transparent 50%, #94a3b8 50%);
     border-bottom-right-radius: 7px;
 }
 
@@ -131,7 +137,7 @@ body {
     max-width: 560px;
     max-height: calc(100vh - 24px);
     background-color: var(--panel-hud-bg);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(10px);
     color: var(--panel-text);
     border: 1px solid var(--panel-border);
     border-radius: 8px;
@@ -156,7 +162,7 @@ body {
     min-width: 240px;
     max-width: 520px;
     background-color: var(--panel-hud-bg);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(10px);
     color: var(--panel-text);
     border: 1px solid var(--panel-border);
     border-radius: 8px;
@@ -176,23 +182,231 @@ body {
     width: 6px;
 }
 ::-webkit-scrollbar-track {
-    background: #1f2937;
+    background: #f1f5f9;
 }
 ::-webkit-scrollbar-thumb {
-    background: #4b5563;
+    background: #94a3b8;
     border-radius: 3px;
 }
 
-/* Compact CAD-style controls */
+/* ==========================================================================
+   Studio Light Surface & Typography Normalization for Panel Subtrees
+   ========================================================================== */
+.floating-sidebar,
+.floating-telemetry,
+.floating-display-hud,
+#outliner {
+    color: #0f172a;
+}
+
+#outliner {
+    background-color: var(--panel-hud-bg) !important;
+    border-color: var(--panel-border) !important;
+    box-shadow: var(--panel-shadow) !important;
+    backdrop-filter: blur(10px);
+}
+
+.floating-sidebar [class*="bg-gray-900"],
+.floating-telemetry [class*="bg-gray-900"],
+.floating-display-hud [class*="bg-gray-900"],
+#outliner [class*="bg-gray-900"] {
+    background-color: #f8fafc !important;
+}
+
+.floating-sidebar [class*="bg-gray-950"],
+.floating-telemetry [class*="bg-gray-950"],
+.floating-display-hud [class*="bg-gray-950"],
+#outliner [class*="bg-gray-950"] {
+    background-color: #f1f5f9 !important;
+}
+
+.floating-sidebar [class*="bg-gray-800"],
+.floating-telemetry [class*="bg-gray-800"],
+.floating-display-hud [class*="bg-gray-800"],
+#outliner [class*="bg-gray-800"] {
+    background-color: #e2e8f0 !important;
+}
+
+.floating-sidebar [class*="bg-gray-700"],
+.floating-telemetry [class*="bg-gray-700"],
+.floating-display-hud [class*="bg-gray-700"] {
+    background-color: #cbd5e1 !important;
+}
+
+/* Soft pastel light-mode backgrounds for status pills & badges */
+.floating-sidebar [class*="bg-emerald-950"],
+.floating-telemetry [class*="bg-emerald-950"] {
+    background-color: #ecfdf5 !important;
+    border-color: #6ee7b7 !important;
+}
+.floating-sidebar [class*="bg-amber-950"],
+.floating-telemetry [class*="bg-amber-950"] {
+    background-color: #fffbeb !important;
+    border-color: #fcd34d !important;
+}
+.floating-sidebar [class*="bg-cyan-950"],
+.floating-telemetry [class*="bg-cyan-950"] {
+    background-color: #f0f9ff !important;
+    border-color: #7dd3fc !important;
+}
+.floating-sidebar [class*="bg-pink-950"],
+.floating-telemetry [class*="bg-pink-950"] {
+    background-color: #fdf2f8 !important;
+    border-color: #f9a8d4 !important;
+}
+.floating-sidebar [class*="bg-rose-950"],
+.floating-telemetry [class*="bg-rose-950"] {
+    background-color: #fff1f2 !important;
+    border-color: #fda4af !important;
+}
+
+.floating-sidebar [class*="border-gray-800"],
+.floating-sidebar [class*="border-gray-700"],
+.floating-telemetry [class*="border-gray-800"],
+.floating-telemetry [class*="border-gray-700"],
+.floating-display-hud [class*="border-gray-800"],
+.floating-display-hud [class*="border-gray-700"],
+#outliner [class*="border-gray-700"] {
+    border-color: #cbd5e1 !important;
+}
+
+/* Text color contrast on Studio Light surfaces */
+.floating-sidebar .text-gray-100,
+.floating-sidebar .text-gray-200,
+.floating-telemetry .text-gray-100,
+.floating-telemetry .text-gray-200,
+.floating-display-hud .text-gray-100,
+.floating-display-hud .text-gray-200,
+#outliner .text-gray-200 {
+    color: #0f172a !important;
+}
+
+.floating-sidebar .text-gray-300,
+.floating-telemetry .text-gray-300,
+.floating-display-hud .text-gray-300,
+#outliner .text-gray-300 {
+    color: #334155 !important;
+}
+
+.floating-sidebar .text-gray-400,
+.floating-telemetry .text-gray-400,
+.floating-display-hud .text-gray-400,
+#outliner .text-gray-400 {
+    color: #475569 !important;
+}
+
+.floating-sidebar .text-gray-500,
+.floating-telemetry .text-gray-500,
+.floating-display-hud .text-gray-500,
+#outliner .text-gray-500 {
+    color: #64748b !important;
+}
+
+.floating-sidebar .text-white:not(.cad-btn):not([class*="bg-pink-"]),
+.floating-telemetry .text-white:not(.cad-btn),
+.floating-display-hud .text-white:not(.cad-btn) {
+    color: #0f172a !important;
+}
+
+/* Deepen bright dark-mode accent text into a restrained Studio Light hierarchy:
+   - Cobalt (#1d4ed8): interactive/editable cues & primary titles
+   - Emerald (#047857): PASS / verified / watertight feedback ONLY
+   - Amber (#b45309): warnings / clamp alerts ONLY
+   - Rose (#be123c): errors / failures ONLY */
+.floating-sidebar .text-cyan-300,
+.floating-sidebar .text-cyan-400,
+.floating-telemetry .text-cyan-300,
+.floating-telemetry .text-cyan-400 {
+    color: #1d4ed8 !important;
+}
+
+.floating-sidebar .text-emerald-300,
+.floating-sidebar .text-emerald-400,
+.floating-telemetry .text-emerald-300,
+.floating-telemetry .text-emerald-400 {
+    color: #047857 !important;
+}
+
+.floating-sidebar .text-amber-300,
+.floating-sidebar .text-amber-400,
+.floating-telemetry .text-amber-300,
+.floating-telemetry .text-amber-400,
+.floating-display-hud .text-amber-300 {
+    color: #b45309 !important;
+}
+
+.floating-sidebar .text-pink-200,
+.floating-sidebar .text-pink-300,
+.floating-sidebar .text-pink-400,
+.floating-telemetry .text-pink-300,
+.floating-telemetry .text-pink-400 {
+    color: #0f172a !important;
+}
+
+.floating-sidebar .text-rose-300,
+.floating-sidebar .text-rose-400,
+.floating-telemetry .text-rose-300,
+.floating-telemetry .text-rose-400 {
+    color: #be123c !important;
+}
+
+/* Unified User Input Controls (Sliders & Checkboxes -> Cobalt #2563eb on light #e2e8f0 track) */
+.floating-sidebar input[type="range"],
+.floating-display-hud input[type="range"] {
+    accent-color: var(--accent-primary) !important;
+    background-color: #e2e8f0 !important;
+    border-radius: 9999px;
+}
+
+.floating-sidebar input[type="checkbox"],
+.floating-display-hud input[type="checkbox"] {
+    accent-color: var(--accent-primary) !important;
+}
+
+/* Primary Execute CTAs (Solid Cobalt #2563eb) */
+.floating-sidebar button[class*="bg-pink-600"],
+.floating-sidebar button[class*="bg-cyan-600"] {
+    background-color: var(--accent-primary) !important;
+    border-color: var(--accent-primary) !important;
+    color: #ffffff !important;
+}
+.floating-sidebar button[class*="bg-pink-600"]:hover,
+.floating-sidebar button[class*="bg-cyan-600"]:hover {
+    background-color: var(--accent-primary-hover) !important;
+}
+
+/* Light Drafting-Paper 2D Unroll Canvases */
+#unroll-canvas,
+#elastica-unroll-canvas {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+}
+
+.floating-sidebar select,
+.floating-sidebar input[type="number"],
+.floating-sidebar input[type="text"] {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+}
+
+/* Tab bar active state */
+.floating-sidebar .ui-tab.border-pink-500 {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-bottom-color: var(--accent-primary) !important;
+}
+
+/* Compact CAD-style controls (Studio Light) */
 .cad-btn {
     font: 600 10.5px/1.5 var(--font-ui);
     letter-spacing: .05em;
     text-transform: uppercase;
     padding: 4px 8px;
-    border: 1px solid var(--panel-border);
-    border-radius: 3px;
-    background: #1f2937;
-    color: #d1d5db;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #1e293b;
     cursor: pointer;
     transition: background .12s, border-color .12s, color .12s;
     white-space: nowrap;
@@ -201,52 +415,60 @@ body {
 }
 
 .cad-btn:hover:not(:disabled) {
-    background: #374151;
-    border-color: #6b7280;
+    background: #f1f5f9;
+    border-color: #94a3b8;
 }
 
 .cad-btn:disabled {
-    opacity: .35;
+    opacity: .42;
     cursor: default;
 }
 
 .cad-btn.primary {
-    background: #e5e7eb;
-    border-color: #e5e7eb;
-    color: #111827;
+    background: #0f172a;
+    border-color: #0f172a;
+    color: #ffffff !important;
 }
 .cad-btn.primary:hover:not(:disabled) {
-    background: #ffffff;
+    background: #1e293b;
 }
 
 .cad-btn.accent {
-    border-color: var(--accent-pink);
-    color: var(--accent-pink);
-    background: transparent;
+    border-color: #cbd5e1;
+    color: #1e293b !important;
+    background: #ffffff;
 }
 .cad-btn.accent:hover:not(:disabled) {
-    background: var(--accent-pink-soft);
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1d4ed8 !important;
 }
 
 .cad-btn.cyan {
-    border-color: var(--accent-cyan);
-    color: var(--accent-cyan-bright);
-    background: var(--accent-cyan-soft);
+    border-color: #cbd5e1;
+    color: #1e293b !important;
+    background: #ffffff;
 }
 .cad-btn.cyan:hover:not(:disabled) {
-    background: rgba(6, 182, 212, 0.2);
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1d4ed8 !important;
 }
 
 .cad-btn.seg-on {
-    background: #e5e7eb;
-    border-color: #e5e7eb;
-    color: #111827;
+    background: #0f172a !important;
+    border-color: #0f172a !important;
+    color: #ffffff !important;
 }
 
 .cad-btn.on {
-    background: var(--accent-pink);
-    border-color: var(--accent-pink);
-    color: #ffffff;
+    background: #0f172a !important;
+    border-color: #0f172a !important;
+    color: #ffffff !important;
+}
+
+.cad-btn.on * {
+    color: #ffffff !important;
 }
 
 /* Outliner tree */
@@ -255,25 +477,26 @@ body {
     align-items: center;
     gap: 4px;
     padding: 1px 4px;
-    border-radius: 2px;
+    border-radius: 3px;
     cursor: pointer;
     user-select: none;
+    color: #1e293b;
 }
 .otl-row:hover {
-    background: #1f2937;
+    background: #e2e8f0;
 }
 .otl-row.sel {
-    background: #374151;
+    background: #cbd5e1;
 }
 .otl-eye {
     width: 14px;
-    color: #d1d5db;
+    color: #334155;
     cursor: pointer;
     text-align: center;
     flex: none;
 }
 .otl-eye.off {
-    color: #4b5563;
+    color: #94a3b8;
 }
 .otl-name {
     flex: 1;
@@ -290,7 +513,7 @@ body {
 }
 .otl-grp .otl-name {
     font-weight: 700;
-    color: #9ca3af;
+    color: #475569;
     text-transform: uppercase;
     font-size: 9.5px;
     letter-spacing: .06em;
@@ -318,16 +541,16 @@ body.goldilocks-h3 .goldilocks-guide-prose {
     top: calc(100% + 6px);
     width: max-content;
     max-width: 245px;
-    background: rgba(9, 13, 22, 0.96);
-    color: #e2e8f0;
-    border: 1px solid #38bdf8;
+    background: rgba(255, 255, 255, 0.98);
+    color: #0f172a;
+    border: 1px solid #0284c7;
     border-radius: 4px;
     padding: 5px 8px;
     font: 500 9.5px/1.35 var(--font-ui);
     white-space: normal;
     z-index: 9999;
     pointer-events: none;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
 }
 
 /* Adjacency Matrix Table */
@@ -342,31 +565,31 @@ body.goldilocks-h3 .goldilocks-guide-prose {
     transition: background .1s, color .1s, box-shadow .1s, transform .1s;
 }
 .adj-cell.allowed {
-    background: rgba(236, 72, 153, 0.25);
-    color: #f472b6;
-    border-color: #be185d;
+    background: rgba(219, 39, 119, 0.14);
+    color: #be185d;
+    border-color: #db2777;
 }
 .adj-cell.denied {
-    background: #111827;
-    color: #4b5563;
+    background: #f1f5f9;
+    color: #94a3b8;
 }
 .adj-cell:hover {
-    filter: brightness(1.25);
+    filter: brightness(0.95);
 }
 .adj-cell.substep-ok {
-    background: rgba(16, 185, 129, 0.45) !important;
-    color: #a7f3d0 !important;
+    background: rgba(16, 185, 129, 0.25) !important;
+    color: #065f46 !important;
     border-color: var(--accent-emerald) !important;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.9);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.45);
     transform: scale(1.08);
     z-index: 5;
     position: relative;
 }
 .adj-cell.substep-fail {
-    background: rgba(244, 63, 94, 0.45) !important;
-    color: #fecdd3 !important;
+    background: rgba(225, 29, 72, 0.20) !important;
+    color: #9f1239 !important;
     border-color: var(--accent-rose) !important;
-    box-shadow: 0 0 8px rgba(244, 63, 94, 0.9);
+    box-shadow: 0 0 8px rgba(225, 29, 72, 0.45);
     transform: scale(1.08);
     z-index: 5;
     position: relative;

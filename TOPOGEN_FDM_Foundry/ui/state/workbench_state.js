@@ -79,6 +79,14 @@ export const FEA_MATERIALS = Object.freeze({
         densityKgM3: 7850,
         tensileStrengthPa: 235.0e6,
         compressiveStrengthPa: 235.0e6
+    },
+    gfrp_rod: {
+        name: 'GFRP Elastic Rod',
+        youngsModulusPa: 38.0e9,
+        shearModulusPa: 4.5e9,
+        densityKgM3: 1850,
+        tensileStrengthPa: 650.0e6,
+        compressiveStrengthPa: 450.0e6
     }
 });
 
@@ -138,6 +146,8 @@ export const appState = {
     showCenterlineGraph: true,
     showQuadMeshes: true,
     showBoundingBox: true,
+    nodeDisplayScale: 1.0,
+    edgeDisplayWidthPx: 1.5,
     structureBBox: new THREE.Box3(),
 
     // Tab 1 & Tab 2: Tiles, Adjacency Rules & Voxel Grid
@@ -225,6 +235,10 @@ export const appState = {
         materialKey: 'plaster',
         topLoadKg: 25,
         restraintType: 'pinned',
+        includeElastica: false,
+        elasticaMaterialKey: 'gfrp_rod',
+        elasticaPrestressN: 15,
+        elasticaActiveBend: false,
         visMode: 'axial',
         exaggeration: 50,
         animate: false,

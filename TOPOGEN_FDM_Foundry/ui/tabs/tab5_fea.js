@@ -99,6 +99,37 @@ export function mountTab5Fea() {
                 </div>
             </div>
 
+            <!-- Coupled Elastica Rods: Bracing, Post-Tensioning & Active-Bending -->
+            <div class="bg-gray-950/85 border border-gray-800 rounded p-1.5 space-y-1.5 font-sans">
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center space-x-1.5 cursor-pointer text-[9.5px] font-semibold text-cyan-300" title="Couple 3D curved Elastica rods into the space-frame stiffness matrix with post-tensioning &amp; active-bending springback">
+                        <input type="checkbox" id="chk-fea-include-elastica" class="accent-cyan-400 rounded">
+                        <span>Include Elastica Rods</span>
+                    </label>
+                    <span id="fea-elastica-badge" class="text-[8.5px] font-mono text-gray-400">Off</span>
+                </div>
+                <div id="fea-elastica-controls" class="space-y-1 text-[9px] font-mono">
+                    <div class="flex items-center justify-between space-x-1.5">
+                        <span class="text-gray-400 flex-shrink-0">Rod Mat</span>
+                        <select id="sel-fea-elastica-mat" class="flex-1 bg-gray-900 border border-gray-700 rounded px-1 py-0.5 text-[9px] text-gray-100">
+                            <option value="gfrp_rod" selected>GFRP Elastic Rod (38 GPa)</option>
+                            <option value="steel">Steel Tendon/Rod (210 GPa)</option>
+                            <option value="timber">Timber Lath/Rod (11 GPa)</option>
+                            <option value="same">Same as Host Frame</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-1.5" title="Post-tensioning (+N pulls &amp; compressively tightens host frame) or pre-compression (-N)">
+                        <span class="text-gray-400 w-16 flex-shrink-0">Pre-Tens</span>
+                        <input type="range" id="rng-fea-elastica-prestress" min="-100" max="250" step="5" value="15" class="flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-amber-400">
+                        <span id="val-fea-elastica-prestress" class="w-12 text-right text-amber-300 flex-shrink-0">+15N</span>
+                    </div>
+                    <label class="flex items-center space-x-1.5 cursor-pointer text-[8.5px] font-sans text-gray-300" title="Include cold-bent straightening thrust &amp; bending stress M0 = E*I*kappa (sensitive to Rod R^4)">
+                        <input type="checkbox" id="chk-fea-elastica-activebend" class="accent-pink-500 rounded">
+                        <span>Cold-Bent Springback (M₀ = EIκ)</span>
+                    </label>
+                </div>
+            </div>
+
             <button id="btn-run-fea" class="cad-btn on w-full py-1.5 font-sans">⚡ Run 3D FEA</button>
         </div>
 
@@ -335,10 +366,11 @@ export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appS
             cV.copy(cU);
         }
 
+        const rElem = m.isElastica ? Math.max(0.006, m.outerRadiusM || 0.015) : rVis;
         for (let s = 0; s < nSides; s++) {
             const a0 = (2 * Math.PI * s) / nSides, a1 = (2 * Math.PI * ((s + 1) % nSides)) / nSides;
-            const off0 = e1.clone().multiplyScalar(Math.cos(a0) * rVis).addScaledVector(e2, Math.sin(a0) * rVis);
-            const off1 = e1.clone().multiplyScalar(Math.cos(a1) * rVis).addScaledVector(e2, Math.sin(a1) * rVis);
+            const off0 = e1.clone().multiplyScalar(Math.cos(a0) * rElem).addScaledVector(e2, Math.sin(a0) * rElem);
+            const off1 = e1.clone().multiplyScalar(Math.cos(a1) * rElem).addScaledVector(e2, Math.sin(a1) * rElem);
             const v00 = pA.clone().add(off0), v01 = pA.clone().add(off1);
             const v11 = pB.clone().add(off1), v10 = pB.clone().add(off0);
             triPos.push(v00.x, v00.y, v00.z, v01.x, v01.y, v01.z, v11.x, v11.y, v11.z, v00.x, v00.y, v00.z, v11.x, v11.y, v11.z, v10.x, v10.y, v10.z);
@@ -354,9 +386,10 @@ export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appS
     }
 
     const anchorSet = new Set(feaSrc.anchors || []);
+    const nHostNodes = feaSrc.hostNodeCount !== undefined ? feaSrc.hostNodeCount : defVerts.length;
     const jRad = rVis * 1.18;
     const maxDispRef = Math.max(1e-8, lastFEAResult.maxDispM || 1e-4);
-    for (let i = 0; i < defVerts.length; i++) {
+    for (let i = 0; i < nHostNodes; i++) {
         if (anchorSet.has(i)) {
             const cone = new THREE.Mesh(assets.unitCone, sharedMaterials.anchorSphere);
             cone.scale.setScalar(rVis);
@@ -458,13 +491,71 @@ export function runSpaceFrameFEAFromUI(opts = {}) {
     }
     if (!feaSrc) return null;
 
-    const { feaState, tubeState } = appState;
+    const { feaState, tubeState, elasticaState } = appState;
     const mat = FEA_MATERIALS[feaState.materialKey] || FEA_MATERIALS.plaster;
     const sectionParams = { outerRadiusM: tubeState.radius, innerRadiusM: tubeState.innerRadiusM || 0.0, nSides: tubeState.nSides };
-    const loadConfig = { distributedVerticalMassKg: feaState.topLoadKg, restraintType: feaState.restraintType, topZoneFractionZ: 0.20, includeSelfWeight: true };
 
-    appState.lastFEAResult = CORE.analyzeSpaceFrameFEA(feaSrc.vertices, feaSrc.edges, feaSrc.anchors, sectionParams, mat, loadConfig);
-    if (appState.lastFEAResult) appState.lastFEAResult._sourceGraph = feaSrc;
+    let solveVerts = feaSrc.vertices;
+    let solveEdges = feaSrc.edges;
+    let edgeSpecs = null;
+    let nodalSelfStressPairs = null;
+    let hostNodeCount = feaSrc.vertices.length;
+    let coupledRods = 0;
+
+    if (feaState.includeElastica) {
+        if ((!appState.lastElasticaData || !appState.lastElasticaData.curves?.length) && actions.generateElasticaFromUI) {
+            actions.generateElasticaFromUI();
+        }
+        const curves = appState.lastElasticaData?.curves || [];
+        const rodMat = feaState.elasticaMaterialKey === 'same'
+            ? mat
+            : (FEA_MATERIALS[feaState.elasticaMaterialKey] || FEA_MATERIALS.gfrp_rod);
+        const hybrid = CORE.buildHybridGraphWithElastica(feaSrc.vertices, feaSrc.edges, curves, {
+            maxRods: 64,
+            segsPerRod: 8,
+            rodRadiusM: elasticaState ? elasticaState.rodRadius : 0.015,
+            rodMaterial: rodMat,
+            prestressForceN: Number(feaState.elasticaPrestressN || 0),
+            activeBendFactor: feaState.elasticaActiveBend ? 1.0 : 0.0
+        });
+        solveVerts = hybrid.vertices;
+        solveEdges = hybrid.edges;
+        edgeSpecs = hybrid.edgeSpecs;
+        nodalSelfStressPairs = hybrid.nodalSelfStressPairs;
+        hostNodeCount = hybrid.hostNodeCount;
+        coupledRods = hybrid.coupledRodCount;
+    }
+
+    const elBadge = $('fea-elastica-badge');
+    if (elBadge) {
+        elBadge.textContent = feaState.includeElastica
+            ? `${coupledRods} rods (${feaState.elasticaPrestressN >= 0 ? '+' : ''}${feaState.elasticaPrestressN}N)`
+            : 'Off';
+        elBadge.className = `text-[8.5px] font-mono ${feaState.includeElastica ? 'text-cyan-300' : 'text-gray-400'}`;
+    }
+
+    const loadConfig = {
+        distributedVerticalMassKg: feaState.topLoadKg,
+        restraintType: feaState.restraintType,
+        topZoneFractionZ: 0.20,
+        includeSelfWeight: true,
+        edgeSpecs,
+        nodalSelfStressPairs,
+        hostNodeCount
+    };
+
+    const solveGraph = {
+        ...feaSrc,
+        vertices: solveVerts,
+        edges: solveEdges,
+        hostNodeCount
+    };
+
+    appState.lastFEAResult = CORE.analyzeSpaceFrameFEA(solveVerts, solveEdges, feaSrc.anchors, sectionParams, mat, loadConfig);
+    if (appState.lastFEAResult) {
+        appState.lastFEAResult._sourceGraph = solveGraph;
+        appState.lastFEAResult.coupledRodCount = coupledRods;
+    }
 
     feaState.runCount = (feaState.runCount || 0) + 1;
     updateFEAScorecardUI(appState.lastFEAResult);
@@ -546,6 +637,37 @@ export function initTab5Fea() {
             runSpaceFrameFEAFromUI();
         });
     });
+
+    const chkFeaElastica = $('chk-fea-include-elastica');
+    if (chkFeaElastica) {
+        chkFeaElastica.addEventListener('change', () => {
+            appState.feaState.includeElastica = chkFeaElastica.checked;
+            runSpaceFrameFEAFromUI();
+        });
+    }
+    const selFeaElasticaMat = $('sel-fea-elastica-mat');
+    if (selFeaElasticaMat) {
+        selFeaElasticaMat.addEventListener('change', () => {
+            appState.feaState.elasticaMaterialKey = selFeaElasticaMat.value;
+            if (appState.feaState.includeElastica) runSpaceFrameFEAFromUI();
+        });
+    }
+    const rngFeaPrestress = $('rng-fea-elastica-prestress');
+    if (rngFeaPrestress) {
+        rngFeaPrestress.addEventListener('input', () => {
+            const v = parseFloat(rngFeaPrestress.value) || 0;
+            appState.feaState.elasticaPrestressN = v;
+            setTxt('val-fea-elastica-prestress', `${v >= 0 ? '+' : ''}${v}N`);
+            if (appState.feaState.includeElastica) scheduleLiveFEARun();
+        });
+    }
+    const chkFeaActiveBend = $('chk-fea-elastica-activebend');
+    if (chkFeaActiveBend) {
+        chkFeaActiveBend.addEventListener('change', () => {
+            appState.feaState.elasticaActiveBend = chkFeaActiveBend.checked;
+            if (appState.feaState.includeElastica) runSpaceFrameFEAFromUI();
+        });
+    }
 
     const btnRunFea = $('btn-run-fea');
     if (btnRunFea) btnRunFea.addEventListener('click', () => runSpaceFrameFEAFromUI({ expandHud: false }));

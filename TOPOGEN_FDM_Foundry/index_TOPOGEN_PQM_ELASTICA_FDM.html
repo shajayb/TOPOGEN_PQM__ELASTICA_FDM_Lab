@@ -34,15 +34,13 @@
             <div class="min-w-0 flex-1">
                 <div class="flex items-center space-x-1 whitespace-nowrap">
                     <span class="text-gray-500 text-xs flex-shrink-0">⠿</span>
-                    <h1 class="text-[11px] font-bold tracking-tight text-gray-100 whitespace-nowrap"><span class="text-pink-400">TOPOGEN</span><span class="text-gray-400">-</span><span class="text-amber-300">PQ MESH</span><span class="text-gray-400">-</span><span class="text-cyan-400">FDM</span><span class="text-gray-400">-</span><span class="text-emerald-400">FEA</span></h1>
+                    <h1 class="text-[11px] font-bold tracking-tight text-gray-100 whitespace-nowrap">TOPOGEN · PQ MESH · FDM · FEA</h1>
                 </div>
-                <p class="text-[8.5px] text-gray-400 mt-0.5 truncate">Topo · PQ · Force Density · FEA <span id="build-tag" class="text-emerald-400/90 font-mono">· foundry</span></p>
+                <p class="text-[8.5px] text-gray-400 mt-0.5 truncate">Topo · PQ · Force Density · FEA <span id="build-tag" class="text-cyan-400 font-mono">· foundry</span></p>
             </div>
-            <div class="flex items-center space-x-0.5 flex-shrink-0 whitespace-nowrap">
-                <a href="./foundry_launcher.html" class="whitespace-nowrap flex-shrink-0 text-pink-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-pink-500/40 rounded px-1 py-0.5 text-[8px] font-mono leading-tight" title="Open Foundry Campaign Launcher &amp; Long-Horizon Swarm Monitor">Launcher ↗</a>
-                <button id="btn-goldilocks-mode" class="whitespace-nowrap flex-shrink-0 text-emerald-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-emerald-500/40 rounded px-1 py-0.5 text-[8px] font-mono leading-tight" data-tip="Cycle Goldilocks detail: H1 Use (clean), H2 Guide, H3 Telemetry." title="Cycle Goldilocks detail: H1 Use (clean), H2 Guide, H3 Telemetry.">H1 · Use</button>
-                <span id="btn-goldilocks-help" class="whitespace-nowrap flex-shrink-0 text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded px-1 py-0.5 text-[8.5px] font-mono leading-tight cursor-help" data-tip="3D Topo Collapse &amp; Adjacency Growth, Force Density form-finding, all-quad PQ tubular solidification, 2D unroll, and 3D Space-Frame FEA." title="3D Topo Collapse &amp; Adjacency Growth, Force Density form-finding, all-quad PQ tubular solidification, 2D unroll, and 3D Space-Frame FEA.">?</span>
-                <button id="btn-sidebar-compact-toggle" class="whitespace-nowrap flex-shrink-0 text-cyan-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-cyan-500/40 rounded px-1 py-0.5 text-[8px] font-mono leading-tight" title="Switch between 3-Button Compact Card and Full 6-Tab UI">Compact</button>
+            <div class="flex items-center space-x-1 flex-shrink-0 whitespace-nowrap">
+                <span id="btn-goldilocks-help" class="whitespace-nowrap flex-shrink-0 text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded px-1.5 py-0.5 text-[8.5px] font-mono leading-tight cursor-help" data-tip="3D Topo Collapse &amp; Adjacency Growth, Force Density form-finding, all-quad PQ tubular solidification, 2D unroll, and 3D Space-Frame FEA." title="3D Topo Collapse &amp; Adjacency Growth, Force Density form-finding, all-quad PQ tubular solidification, 2D unroll, and 3D Space-Frame FEA.">?</span>
+                <button id="btn-sidebar-compact-toggle" class="whitespace-nowrap flex-shrink-0 cad-btn px-1.5 py-0.5 text-[8px] font-mono leading-tight" title="Switch between 3-Button Compact Card and Full 6-Tab UI">Compact</button>
                 <button id="btn-sidebar-minimize" class="whitespace-nowrap flex-shrink-0 text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded px-1.5 py-0.5 text-xs font-mono leading-none" title="Minimize / Expand Panel">–</button>
             </div>
         </div>
@@ -89,13 +87,20 @@
                     <button id="btn-compact-burst" class="cad-btn py-1.5 px-2 text-[10px]" title="Step 50 iterations">⚡×50</button>
                 </div>
 
-                <!-- 3. PQ MESH: Solidify All-Quad & 3D Unroll -->
-                <div class="flex space-x-1">
-                    <button id="btn-compact-pqm" class="cad-btn accent flex-1 py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Solidify active network into watertight all-quad PQ tubular mesh">
-                        <span>3. PQ Mesh · Solidify</span>
-                        <span id="compact-pqm-badge" class="font-mono text-[9px] text-pink-300 bg-pink-950/50 border border-pink-500/30 rounded px-1.5 py-0.5">Build</span>
-                    </button>
-                    <button id="btn-compact-unroll" class="cad-btn py-1.5 px-2 text-[9px]" title="Toggle 3D Unrolled PQ Strips grid">Unroll</button>
+                <!-- 3. PQ MESH: Solidify All-Quad & 3D Unroll + Compact Tube Radius -->
+                <div class="space-y-1">
+                    <div class="flex space-x-1">
+                        <button id="btn-compact-pqm" class="cad-btn accent flex-1 py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Solidify active network into watertight all-quad PQ tubular mesh">
+                            <span>3. PQ Mesh · Solidify</span>
+                            <span id="compact-pqm-badge" class="font-mono text-[9px] text-pink-300 bg-pink-950/50 border border-pink-500/30 rounded px-1.5 py-0.5">Build</span>
+                        </button>
+                        <button id="btn-compact-unroll" class="cad-btn py-1.5 px-2 text-[9px]" title="Toggle 3D Unrolled PQ Strips grid">Unroll</button>
+                    </div>
+                    <div class="flex items-center space-x-2 px-2 py-1 rounded bg-gray-900/60 border border-gray-700 text-[10px]">
+                        <span class="font-mono font-semibold text-pink-400 shrink-0" title="Tube outer radius (m)">R</span>
+                        <input id="rng-compact-tube-radius" type="range" min="0.040" max="0.200" step="0.001" value="0.060" class="flex-1 h-1.5 accent-pink-500 cursor-pointer" title="Tube outer radius (m)">
+                        <span id="val-compact-tube-radius" class="font-mono text-[9px] text-gray-200 w-11 text-right shrink-0">0.060m</span>
+                    </div>
                 </div>
 
                 <!-- 4. FDM: Form-Finding -->
@@ -227,6 +232,18 @@
                     <input type="checkbox" id="chk-bounding-box" checked class="accent-amber-400 rounded">
                     <span>Bounding Box (W×D×H m)</span>
                 </label>
+            </div>
+            <div class="space-y-1.5 pt-1.5 border-t border-gray-800 text-[10px]">
+                <div class="flex items-center space-x-2">
+                    <span class="text-gray-300 w-16 shrink-0 font-medium">Node Size</span>
+                    <input id="rng-disp-node-size" type="range" min="0.2" max="3.0" step="0.1" value="1.0" class="flex-1 h-1.5 accent-pink-500 cursor-pointer" title="Scale 3D node markers">
+                    <span id="val-disp-node-size" class="font-mono text-[9px] text-gray-300 w-10 text-right shrink-0">1.0×</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-gray-300 w-16 shrink-0 font-medium">Edge Size</span>
+                    <input id="rng-disp-edge-size" type="range" min="0.5" max="6.0" step="0.25" value="1.5" class="flex-1 h-1.5 accent-sky-400 cursor-pointer" title="Line thickness of graph, FDM, and Elastica edges (px)">
+                    <span id="val-disp-edge-size" class="font-mono text-[9px] text-gray-300 w-10 text-right shrink-0">1.5px</span>
+                </div>
             </div>
             <div class="grid grid-cols-3 gap-1 pt-1.5 border-t border-gray-800 font-sans">
                 <button id="btn-wireframe" class="cad-btn py-1">Wireframe</button>

@@ -97,7 +97,8 @@ import {
     unrollElasticaRibbon2D,
     packElasticaRibbons2D,
     generateElasticaRibbons,
-    buildElasticaRibbonsSVG
+    buildElasticaRibbonsSVG,
+    buildHybridGraphWithElastica
 } from './elastica_curves.mjs';
 
 // --- Neutral Interchange Contract JSON Builder (wfc-fdm-topology/v1) ---
@@ -604,7 +605,8 @@ export const WFC_FDM_CORE = {
     unrollElasticaRibbon2D,
     packElasticaRibbons2D,
     generateElasticaRibbons,
-    buildElasticaRibbonsSVG
+    buildElasticaRibbonsSVG,
+    buildHybridGraphWithElastica
 };
 
 globalThis.WFC_FDM_CORE = WFC_FDM_CORE;
@@ -686,7 +688,8 @@ export {
     unrollElasticaRibbon2D,
     packElasticaRibbons2D,
     generateElasticaRibbons,
-    buildElasticaRibbonsSVG
+    buildElasticaRibbonsSVG,
+    buildHybridGraphWithElastica
 };
 
 export default WFC_FDM_CORE;

@@ -124,8 +124,8 @@ export function mountTab4PqMesh() {
                     <span id="tube-loop-count-badge" class="font-mono text-pink-400">0 loops</span>
                 </div>
                 <div class="grid grid-cols-2 gap-1">
-                    <button data-tube-color="solid"        class="tube-color-btn cad-btn text-[9px] py-0.5">Solid</button>
                     <button data-tube-color="longitudinal" class="tube-color-btn cad-btn seg-on text-[9px] py-0.5">Longitudinal Strips</button>
+                    <button data-tube-color="solid"        class="tube-color-btn cad-btn text-[9px] py-0.5">Solid</button>
                     <button data-tube-color="ring"         class="tube-color-btn cad-btn text-[9px] py-0.5">Ring Loops</button>
                     <button data-tube-color="heatmap"      class="tube-color-btn cad-btn text-[9px] py-0.5">Planarity Heatmap</button>
                 </div>
@@ -218,7 +218,7 @@ export function drawUnrolledLoopCanvas() {
     if (!unrollCanvas) return;
     const ctx = unrollCanvas.getContext('2d');
     const W = unrollCanvas.width, H = unrollCanvas.height;
-    ctx.fillStyle = '#090d16';
+    ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, W, H);
 
     const loops = appState.faceLoopState.loops;
@@ -279,7 +279,7 @@ export function drawUnrolledLoopCanvas() {
 
         if (idx < rotQuads.length - 1) {
             ctx.save();
-            ctx.strokeStyle = '#f8fafc';
+            ctx.strokeStyle = '#334155';
             ctx.lineWidth = 0.9;
             ctx.setLineDash([2, 2]);
             ctx.beginPath();
@@ -571,24 +571,22 @@ export function syncTubeWallRadiiUI() {
     const maxInner = Math.max(0, Math.round((tubeState.radius - 0.001) * 10000) / 10000);
     tubeState.innerRadiusM = Math.max(0, Math.min(Number(tubeState.innerRadiusM) || 0, maxInner));
 
-    const rEl = $('rng-tube-radius'), irEl = $('rng-tube-inner-radius');
+    const rEl = $('rng-tube-radius'), rcEl = $('rng-compact-tube-radius'), irEl = $('rng-tube-inner-radius');
     const fmtM = (val) => `${Number(val).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}m`;
     if (rEl && Math.abs(parseFloat(rEl.value) - tubeState.radius) > 1e-6) rEl.value = String(tubeState.radius);
     setTxt('val-tube-radius', fmtM(tubeState.radius));
+    if (rcEl && Math.abs(parseFloat(rcEl.value) - tubeState.radius) > 1e-6) rcEl.value = String(tubeState.radius);
+    setTxt('val-compact-tube-radius', `${tubeState.radius.toFixed(3)}m`);
     if (irEl) {
         irEl.max = String(Math.max(0.0005, maxInner).toFixed(4));
         if (Math.abs(parseFloat(irEl.value) - tubeState.innerRadiusM) > 1e-6) irEl.value = String(tubeState.innerRadiusM);
     }
     setTxt('val-tube-inner-radius', fmtM(tubeState.innerRadiusM));
 
-    const roMM = (tubeState.radius * 1000).toFixed(1);
-    const riMM = (tubeState.innerRadiusM * 1000).toFixed(1);
-    const tMM = Math.max(0, (tubeState.radius - tubeState.innerRadiusM) * 1000).toFixed(1);
     const statusEl = $('tube-status-badge');
     if (statusEl) {
-        const secKind = tubeState.innerRadiusM > 1e-5 ? `t = ${tMM} mm (Ro ${roMM} · Ri ${riMM} mm)` : `Solid R = ${roMM} mm (t = ${roMM} mm)`;
         const clampTxt = tubeState.miterClamp !== false ? 'Miter Clamp: ON' : 'Uniform R (No Clamp)';
-        statusEl.innerHTML = `<span>${secKind}</span><span class="${tubeState.miterClamp !== false ? 'text-gray-400' : 'text-amber-300'}">${clampTxt}</span>`;
+        statusEl.innerHTML = `<span class="text-gray-400">Joint Mode</span><span class="${tubeState.miterClamp !== false ? 'text-gray-300' : 'text-amber-300'}">${clampTxt}</span>`;
     }
 }
 

@@ -23,6 +23,8 @@ import {
     sharedMaterials,
     sharedGeometries,
     clearGroup,
+    makeFatMaterial,
+    makeFatLineSegments,
     recomputeModelBox,
     zoomToBox,
     modelBoxToWorld
@@ -195,16 +197,20 @@ export function renderFDMNetwork(fdm, opts = {}) {
         col[o] = tmpC.r; col[o + 1] = tmpC.g; col[o + 2] = tmpC.b;
         col[o + 3] = tmpC.r; col[o + 4] = tmpC.g; col[o + 5] = tmpC.b;
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true }));
+    const lines = makeFatLineSegments(
+        pos,
+        makeFatMaterial(0xffffff, appState.edgeDisplayWidthPx || 1.5, {
+            disposeOnClear: true,
+            vertexColors: true
+        }),
+        col
+    );
     lines.renderOrder = 15;
     viewport.fdmGroup.add(lines);
 
     const bb = fdm.boundingBox || { min: [-0.5, -0.5, 0], max: [0.5, 0.5, 2] };
     const span = Math.max(0.5, Math.hypot(bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]));
-    const baseR = Math.max(0.018, Math.min(0.055, span * 0.018));
+    const baseR = Math.max(0.018, Math.min(0.055, span * 0.018)) * (appState.nodeDisplayScale || 1.0);
     const fixedSet = new Set(fdm.anchors || []);
     const hostMap = Array.isArray(fdm.hostNodeMap) ? fdm.hostNodeMap : null;
 
