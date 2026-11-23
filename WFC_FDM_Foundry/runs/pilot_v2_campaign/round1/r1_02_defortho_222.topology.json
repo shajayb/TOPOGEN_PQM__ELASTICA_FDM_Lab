@@ -1,0 +1,199 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r1_02_defortho_222",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.331299,
+      -0.331299,
+      0.612914
+    ],
+    [
+      -0.228321,
+      -0.228321,
+      2
+    ],
+    [
+      -0.228321,
+      0.228321,
+      2
+    ],
+    [
+      0.228321,
+      0.228321,
+      2
+    ],
+    [
+      0.331299,
+      0.331299,
+      0.612914
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      0.228321,
+      -0.228321,
+      2
+    ],
+    [
+      -0.331299,
+      0.331299,
+      0.612914
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ],
+    [
+      0.331299,
+      -0.331299,
+      0.612914
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ],
+    [
+      -0.46,
+      -0.46,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      11
+    ],
+    [
+      0,
+      9
+    ],
+    [
+      0,
+      7
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      6
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      7
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      3,
+      6
+    ],
+    [
+      4,
+      9
+    ],
+    [
+      4,
+      7
+    ],
+    [
+      4,
+      5
+    ],
+    [
+      6,
+      9
+    ],
+    [
+      7,
+      8
+    ],
+    [
+      9,
+      10
+    ]
+  ],
+  "anchors": [
+    5,
+    8,
+    10,
+    11
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.0165,
+    "innerRadiusM": 0.0105,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      228.514658,
+      29.8574,
+      29.8574,
+      93.4825,
+      21.081384,
+      21.081384,
+      93.4825,
+      21.081384,
+      93.4825,
+      21.081384,
+      29.8574,
+      29.8574,
+      228.514658,
+      93.4825,
+      228.514658,
+      228.514658
+    ],
+    "equilibriumResidual": 1.242402564890283e-13
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 2.8e-7,
+    "meanQuadPlanarityErrorM": 5e-8,
+    "barTubeQuadCount": 328
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "r1_02_defortho_222.patterns.svg",
+    "unrolledDataFile": "r1_02_defortho_222.unrolled.json",
+    "barCount": 16,
+    "unrolledBarCount": 16,
+    "totalUnrolledSurfaceAreaM2": 1.191185,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:01:21.430Z",
+    "name": "r1_02_defortho_222",
+    "wfcSeed": 13,
+    "algorithm": "wfc",
+    "gridResolution": [
+      2,
+      2,
+      2
+    ],
+    "tilePreset": "default_ortho",
+    "symmetryXY": true,
+    "qProfile": "column_boosted"
+  }
+}

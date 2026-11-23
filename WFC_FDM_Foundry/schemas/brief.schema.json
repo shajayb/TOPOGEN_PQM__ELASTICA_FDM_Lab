@@ -1,0 +1,432 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wfc-fdm-foundry.local/schemas/brief.schema.json",
+  "title": "WFC-FDM Foundry Structural & Fabrication Brief",
+  "description": "Schema defining the spatial envelope, funicular form-finding mode, boundary supports, material properties, structural load cases, and acceptance criteria for any WFC-FDM Foundry design-verification run.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "version",
+    "envelope",
+    "funicular",
+    "supports",
+    "material",
+    "loadCases",
+    "acceptanceCriteria"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Relative or URI path to this JSON Schema."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-_]*$",
+      "description": "Unique lowercase slug identifying the brief (used for run directories and logs)."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable title of the structural & fabrication brief."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of the brief specification."
+    },
+    "description": {
+      "type": "string",
+      "description": "Plain-English architectural, structural, and fabrication intent."
+    },
+    "envelope": {
+      "type": "object",
+      "description": "3D bounding envelope and ground datum in Z-up metric coordinates.",
+      "required": [
+        "units",
+        "coordinateSystem",
+        "maxPlanX",
+        "maxPlanY",
+        "targetHeightZ",
+        "minHeightZ",
+        "maxHeightZ",
+        "groundZ"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "units": {
+          "type": "string",
+          "enum": ["meters"],
+          "description": "Physical length unit (strictly SI meters)."
+        },
+        "coordinateSystem": {
+          "type": "string",
+          "enum": ["Z-up"],
+          "description": "Right-handed Cartesian coordinate convention (Z-up, gravity along -Z)."
+        },
+        "maxPlanX": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Maximum allowed footprint span along X (m)."
+        },
+        "maxPlanY": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Maximum allowed footprint span along Y (m)."
+        },
+        "targetHeightZ": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Nominal target overall height along Z above groundZ (m)."
+        },
+        "minHeightZ": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Minimum acceptable overall height along Z (m)."
+        },
+        "maxHeightZ": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Maximum acceptable overall height along Z (m)."
+        },
+        "planTolerance": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.02,
+          "description": "Allowed tolerance beyond maxPlanX / maxPlanY (m)."
+        },
+        "groundZ": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Elevation of the ground/support plane (m)."
+        },
+        "groundTolerance": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.02,
+          "description": "Maximum allowed |z - groundZ| deviation for ground anchor nodes (m)."
+        }
+      }
+    },
+    "funicular": {
+      "type": "object",
+      "description": "Force Density Method (FDM) equilibrium mode and residual requirements.",
+      "required": ["mode", "allowedModes", "maxEquilibriumResidualNorm"],
+      "additionalProperties": true,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["auto", "compression", "tensile", "zero-weight"],
+          "description": "Preferred FDM mode ('auto' lets the generator choose among allowedModes)."
+        },
+        "allowedModes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["compression", "tensile", "zero-weight"]
+          },
+          "description": "Permitted FDM form-finding modes for this brief."
+        },
+        "maxEquilibriumResidualNorm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Maximum allowed Euclidean residual norm of the FDM equilibrium solve."
+        }
+      }
+    },
+    "supports": {
+      "type": "object",
+      "description": "Boundary condition and anchor count constraints.",
+      "required": ["maxAnchors", "minAnchors", "mustBeOnGround", "restraintType"],
+      "additionalProperties": true,
+      "properties": {
+        "minAnchors": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum number of structural anchor/support nodes (typically >= 3 for 3D stability)."
+        },
+        "maxAnchors": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of structural anchor/support nodes."
+        },
+        "mustBeOnGround": {
+          "type": "boolean",
+          "description": "If true, every anchor vertex must lie within groundTolerance of envelope.groundZ."
+        },
+        "restraintType": {
+          "type": "string",
+          "enum": ["pinned", "fixed"],
+          "description": "Support DOF restraint model: 'pinned' (ux=uy=uz=0, free rotations) or 'fixed' (all 6 DOFs restrained)."
+        },
+        "note": {
+          "type": "string",
+          "description": "Engineering rationale for support assumptions."
+        }
+      }
+    },
+    "material": {
+      "type": "object",
+      "description": "Isotropic linear-elastic & strength parameters for the structural fabrication material.",
+      "required": [
+        "name",
+        "densityKgM3",
+        "youngsModulusPa",
+        "poissonsRatio",
+        "compressiveStrengthPa",
+        "tensileStrengthPa"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Material name (e.g., Cast Gypsum Plaster, Timber, Steel, Glass-Fiber Reinforced Gypsum)."
+        },
+        "densityKgM3": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Mass density rho in kg/m^3."
+        },
+        "youngsModulusPa": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Elastic Young's modulus E in Pascals (N/m^2)."
+        },
+        "poissonsRatio": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 0.5,
+          "description": "Poisson's ratio nu (used to derive shear modulus G = E / (2*(1+nu)))."
+        },
+        "compressiveStrengthPa": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Characteristic compressive strength f_c in Pascals."
+        },
+        "tensileStrengthPa": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Characteristic tensile / flexural strength f_t in Pascals (governing limit for brittle plaster)."
+        },
+        "shearStrengthPa": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Characteristic shear strength f_v in Pascals."
+        }
+      }
+    },
+    "loadCases": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of structural load cases evaluated by the independent FEA verifier.",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "required", "gravityMS2", "distributedVerticalMassKg", "distribution"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+            "description": "Unique load-case identifier (e.g., LC1_self_weight)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable description of the load case."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "If true, failing this load case fails the overall candidate verdict."
+          },
+          "idealTarget": {
+            "type": "boolean",
+            "default": false,
+            "description": "Marks a stretch or primary performance load case."
+          },
+          "gravityMS2": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Downward gravitational acceleration g in m/s^2 (typically 9.81)."
+          },
+          "distributedVerticalMassKg": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Total imposed downward vertical mass in kg (converted to force Fz = -mass * gravityMS2)."
+          },
+          "distribution": {
+            "type": "string",
+            "enum": ["none", "top_zone_nodes", "all_free_nodes", "apex_node", "nodalLoads"],
+            "description": "Spatial distribution rule for applying the imposed vertical load across free nodes."
+          },
+          "topZoneFractionZ": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "When distribution is 'top_zone_nodes', nodes with z >= groundZ + topZoneFractionZ * H receive equal shares of the imposed vertical load."
+          },
+          "note": {
+            "type": "string",
+            "description": "Additional physical interpretation of the load case."
+          }
+        }
+      }
+    },
+    "acceptanceCriteria": {
+      "type": "object",
+      "description": "Quantitative pass/fail thresholds for structural serviceability, strength, stability, and fabrication geometry.",
+      "required": [
+        "maxDeflectionRatio",
+        "maxDeflectionMeters",
+        "minTensileSafetyFactor",
+        "minCompressiveSafetyFactor",
+        "minBucklingSafetyFactor",
+        "requireSingleConnectedComponent",
+        "requireWatertightManifoldMesh",
+        "minMemberLengthM",
+        "maxSlendernessRatio",
+        "minTubeOuterRadiusM",
+        "maxTubeOuterRadiusM"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "maxDeflectionRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Serviceability deflection ratio limit delta/L (e.g., 1/300 = 0.0033333333)."
+        },
+        "characteristicLengthDef": {
+          "type": "string",
+          "description": "Formula or description for characteristic span L used with maxDeflectionRatio."
+        },
+        "maxDeflectionMeters": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Hard absolute deflection ceiling in meters (e.g., L/300 on governing span)."
+        },
+        "maxDeflectionHeightRatioMeters": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Optional secondary deflection reference based on overall height (e.g., H/300 in meters)."
+        },
+        "minTensileSafetyFactor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Minimum required tensile safety factor SF_t = f_t / max(sigma_t)."
+        },
+        "minCompressiveSafetyFactor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Minimum required compressive safety factor SF_c = f_c / max(|sigma_c|)."
+        },
+        "minBucklingSafetyFactor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Minimum required Euler buckling safety factor SF_b = min(P_cr / |N|) across compressed members."
+        },
+        "requireSingleConnectedComponent": {
+          "type": "boolean",
+          "description": "If true, the centerline graph must be a single connected component."
+        },
+        "requireWatertightManifoldMesh": {
+          "type": "boolean",
+          "description": "If true, the exported tubular .obj mesh must have 0 boundary edges, 0 non-manifold edges, and positive signed volume."
+        },
+        "minMemberLengthM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Minimum allowed centerline edge length (m) to prevent degenerate cast joints."
+        },
+        "maxSlendernessRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Maximum allowed member slenderness L / r_g (where r_g = sqrt(I / A))."
+        },
+        "minTubeOuterRadiusM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Minimum allowed cast tube outer radius (m) for moldability and handling."
+        },
+        "maxTubeOuterRadiusM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Maximum allowed cast tube outer radius (m) to prevent excessive mass or joint clashing."
+        },
+        "minWallThicknessM": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Minimum wall thickness (outerRadiusM - innerRadiusM) when hollow sections are used (m)."
+        }
+      }
+    },
+    "topology": {
+      "type": "object",
+      "description": "WFC voxel grid resolution and graph topology constraints.",
+      "additionalProperties": true,
+      "properties": {
+        "minGridResolution": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "integer", "minimum": 1 },
+          "description": "Minimum allowed [nx, ny, nz] WFC voxel grid resolution (e.g. [2, 2, 2])."
+        },
+        "maxGridResolution": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "symmetryXY": { "type": "boolean" },
+        "requireSingleConnectedComponent": { "type": "boolean" },
+        "pruneNonAnchorLeaves": { "type": "boolean" }
+      }
+    },
+    "geometry": {
+      "type": "object",
+      "description": "Tubular mesh topology, longitudinal subdivision, and Planar Quad (PQ) constraints.",
+      "additionalProperties": true,
+      "properties": {
+        "requireTubeTopology": { "type": "boolean", "description": "Every bar must be solidified with watertight quad-dominant tube topology." },
+        "minLongitudinalSubdivLevels": { "type": "integer", "minimum": 0, "description": "Minimum number of {longitudinal subdivision + PQ} passes per bar." },
+        "requirePQOptimization": { "type": "boolean", "description": "If true, Planar Quad (PQ) planarization must be applied." },
+        "maxQuadPlanarityErrorM": { "type": "number", "exclusiveMinimum": 0 },
+        "requireWatertightManifoldMesh": { "type": "boolean" }
+      }
+    },
+    "fabrication": {
+      "type": "object",
+      "description": "Unrolled 2D strip fabrication pattern and castability requirements.",
+      "additionalProperties": true,
+      "properties": {
+        "requireUnrolledPatternsPerBar": { "type": "boolean", "description": "Every bar must produce a valid 2D unrolled fabrication pattern." },
+        "unrollFormat": { "type": "string", "enum": ["svg", "dxf", "json"] },
+        "allowUnrollSelfIntersection": { "type": "boolean" }
+      }
+    },
+    "objectives": {
+      "type": "array",
+      "description": "Ordered multi-objective Pareto optimization goals (e.g., minimize totalUnrolledSurfaceAreaM2, minimize elementCount, minimize centerlineMassKg).",
+      "items": {
+        "type": "object",
+        "required": ["metric", "direction"],
+        "properties": {
+          "metric": { "type": "string" },
+          "direction": { "type": "string", "enum": ["minimize", "maximize"] },
+          "priority": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "deliverables": {
+      "type": "object",
+      "description": "Mandatory Foundry communication artifacts (Goldilocks 3D HTML explainer + 60s showcase video).",
+      "additionalProperties": true,
+      "properties": {
+        "htmlExplainer": { "type": "object" },
+        "videoShowcase60s": { "type": "object" }
+      }
+    }
+  }
+}

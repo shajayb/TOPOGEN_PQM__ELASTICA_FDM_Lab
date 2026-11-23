@@ -1,0 +1,113 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r1_25_defortho_333",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.46,
+      0,
+      0
+    ],
+    [
+      -0.256844,
+      0,
+      1.998498
+    ],
+    [
+      0,
+      0,
+      2
+    ],
+    [
+      0.256844,
+      0,
+      1.998498
+    ],
+    [
+      0.46,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      5
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ]
+  ],
+  "anchors": [
+    0,
+    4,
+    5
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.016,
+    "innerRadiusM": 0.01,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      85.255836,
+      67.435081,
+      85.396805,
+      67.435081,
+      85.255836
+    ],
+    "equilibriumResidual": 4.0194366942304644e-14
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 2e-7,
+    "meanQuadPlanarityErrorM": 3e-8,
+    "barTubeQuadCount": 80
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "r1_25_defortho_333.patterns.svg",
+    "unrolledDataFile": "r1_25_defortho_333.unrolled.json",
+    "barCount": 5,
+    "unrolledBarCount": 5,
+    "totalUnrolledSurfaceAreaM2": 0.637953,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:01:34.507Z",
+    "name": "r1_25_defortho_333",
+    "wfcSeed": 42,
+    "algorithm": "wfc",
+    "gridResolution": [
+      3,
+      3,
+      3
+    ],
+    "tilePreset": "default_ortho",
+    "symmetryXY": true,
+    "qProfile": "height_graded"
+  }
+}

@@ -1,0 +1,634 @@
+{
+  "verifier": "WFC_FDM_Foundry/verifier (3D Euler-Bernoulli Space Frame FEA)",
+  "timestamp": "2026-11-21T20:29:33.539Z",
+  "candidateName": "hyperboloid_tower_1x1x3_h16_10_ft",
+  "briefId": "pilot-plaster-tower-1x1x2",
+  "passed": true,
+  "failureReasons": [],
+  "geometry": {
+    "nNodes": 7,
+    "nEdges": 6,
+    "nAnchors": 4,
+    "nFreeDofs": 30,
+    "spanX": 0.92,
+    "spanY": 0.92,
+    "spanZ": 2,
+    "planSpan": 0.92,
+    "characteristicLengthM": 0.92,
+    "totalVolumeM3": 0.002215299910556138,
+    "totalMassKg": 2.769124888195172,
+    "centerlineMassKg": 2.769124888195172,
+    "meshVolumeM3": 0.0033691167936379194,
+    "meshMassKg": 4.211395992047399,
+    "effectiveMassKg": 4.211395992047399
+  },
+  "kpis": {
+    "sourceLoadCaseId": "LC2_self_weight_plus_50kg",
+    "funicularEfficiency": 0.8659997333839168,
+    "compressionDominance": 1,
+    "imposedLoadKg": 50,
+    "centerlineMassKg": 2.769124888195172,
+    "meshMassKg": 4.211395992047399,
+    "loadToMassRatio": 18.056245932839964,
+    "loadToMeshMassRatio": 11.872547747686903,
+    "minIncidentAngleDeg": 85.76781392451488
+  },
+  "fabrication": {
+    "passed": true,
+    "checks": {
+      "connectivity": {
+        "passed": true,
+        "required": true,
+        "componentCount": 1,
+        "isolatedNodeCount": 0,
+        "largestComponentSize": 7
+      },
+      "anchors": {
+        "passed": true,
+        "count": 4,
+        "minAnchors": 3,
+        "maxAnchors": 4,
+        "anchorCountOk": true,
+        "mustBeOnGround": true,
+        "groundZ": 0,
+        "groundTolerance": 0.02,
+        "maxAnchorGroundOffsetM": 0,
+        "offGroundAnchors": [],
+        "anchorGroundOk": true
+      },
+      "envelope": {
+        "passed": true,
+        "planX": 0.92,
+        "planY": 0.92,
+        "heightZ": 2,
+        "minZ": 0,
+        "maxZ": 2,
+        "limits": {
+          "maxPlanX": 1,
+          "maxPlanY": 1,
+          "planTolerance": 0.02,
+          "minHeightZ": 1.9,
+          "maxHeightZ": 2.05
+        },
+        "planXOk": true,
+        "planYOk": true,
+        "minHeightOk": true,
+        "maxHeightOk": true,
+        "aboveGroundOk": true
+      },
+      "members": {
+        "passed": true,
+        "edgeCount": 6,
+        "minMemberLengthM": 0.6759585615257788,
+        "shortestEdge": 0,
+        "maxMemberLengthM": 1.079856,
+        "minMemberLengthLimitM": 0.04,
+        "shortEdgeCount": 0,
+        "maxSlendernessRatio": 114.46450707121477,
+        "mostSlenderEdge": 3,
+        "maxSlendernessLimit": 120,
+        "slenderEdgeCount": 0,
+        "minOuterRadiusM": 0.016,
+        "maxOuterRadiusM": 0.016,
+        "radiusLimitsM": [
+          0.012,
+          0.09
+        ],
+        "radiusViolationCount": 0,
+        "hasHollowMembers": true,
+        "minWallThicknessM": 0.006,
+        "minWallThicknessLimitM": 0.006,
+        "wallViolationCount": 0,
+        "minIncidentAngleDeg": 85.76781392451488,
+        "minIncidentAngleNode": 1,
+        "minIncidentAngleEdges": [
+          0,
+          4
+        ],
+        "minIncidentAngleLimitDeg": null,
+        "angleOk": true
+      },
+      "funicularMetadata": {
+        "passed": true,
+        "mode": "compression",
+        "equilibriumResidual": 1.1368683772161603e-13,
+        "maxAllowedResidual": 0.0001,
+        "resOk": true,
+        "modeOk": true
+      },
+      "mesh": {
+        "passed": true,
+        "required": true,
+        "provided": true,
+        "meshMassKg": 4.211395992047399,
+        "vertexCount": 98,
+        "faceCount": 134,
+        "triCount": 76,
+        "quadCount": 58,
+        "ngonCount": 0,
+        "undirectedEdgeCount": 230,
+        "matchedTwinEdges": 230,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "inconsistentOrientationEdges": 0,
+        "degenerateFaces": 0,
+        "signedVolumeM3": 0.0033691167936379194,
+        "boundingBox": {
+          "min": [
+            -0.471696,
+            -0.471696,
+            -0.015398
+          ],
+          "max": [
+            0.471696,
+            0.471696,
+            2
+          ],
+          "span": [
+            0.943392,
+            0.943392,
+            2.015398
+          ]
+        },
+        "isClosed": true,
+        "isManifold": true,
+        "hasPositiveVolume": true,
+        "isWatertightManifold": true
+      }
+    }
+  },
+  "loadCases": [
+    {
+      "id": "LC1_self_weight",
+      "name": "Self-Weight Only",
+      "required": true,
+      "passed": true,
+      "restraintType": "pinned",
+      "minPivotRatio": 0.000014044397003830623,
+      "loads": {
+        "gravityMS2": 9.81,
+        "totalSelfWeightN": 27.16511515319464,
+        "totalDistributedLoadN": 0,
+        "totalHorizontalLoadN": 0,
+        "loadedNodeCount": 0,
+        "netExternalForceN": [
+          0,
+          0,
+          -27.16511515319464
+        ]
+      },
+      "displacements": {
+        "maxDispM": 0.000021708994926442468,
+        "maxDispMm": 0.021708994926442467,
+        "maxDispNode": 4,
+        "maxDispZM": -0.000021708994926442468,
+        "deflectionRatio": 0.000023596733615698333,
+        "heightDeflectionRatio": 0.000010854497463221234
+      },
+      "stresses": {
+        "maxTensileMPa": 0,
+        "worstTensileMember": -1,
+        "maxCompressiveMPa": 0.04442219646338907,
+        "worstCompressiveMember": 0,
+        "maxShearMPa": 0.0001469524721830246,
+        "worstShearMember": 0
+      },
+      "safetyFactors": {
+        "tension": 999999,
+        "compression": 270.1352241753715,
+        "shear": 10207.381867872205,
+        "buckling": 270.81518970085165
+      },
+      "kpis": {
+        "funicularEfficiency": 0.865999733383911,
+        "compressionDominance": 1,
+        "imposedLoadKg": 0,
+        "loadToMassRatio": 0
+      },
+      "reactions": {
+        "sumReactionN": [
+          0,
+          -3.552713678800501e-15,
+          27.165115153194648
+        ],
+        "equilibriumResidual": 2.924379022725048e-16,
+        "freeDofResidual": 6.757989631815626e-16,
+        "perAnchor": [
+          {
+            "node": 0,
+            "fx": 11.83055086360433,
+            "fy": 11.830550863604326,
+            "fz": 6.791278788298685,
+            "mx": 0,
+            "my": 0,
+            "mz": 0
+          },
+          {
+            "node": 6,
+            "fx": 11.830550863604334,
+            "fy": -11.830550863604334,
+            "fz": 6.791278788298651,
+            "mx": 0,
+            "my": 0,
+            "mz": 0
+          },
+          {
+            "node": 5,
+            "fx": -11.830550863604335,
+            "fy": 11.830550863604332,
+            "fz": 6.791278788298651,
+            "mx": 0,
+            "my": 0,
+            "mz": 0
+          },
+          {
+            "node": 2,
+            "fx": -11.830550863604328,
+            "fy": -11.830550863604328,
+            "fz": 6.791278788298664,
+            "mx": 0,
+            "my": 0,
+            "mz": 0
+          }
+        ]
+      },
+      "criteria": {
+        "equilibrium": {
+          "passed": true,
+          "value": 2.924379022725048e-16,
+          "limit": 0.00001
+        },
+        "deflectionRatio": {
+          "passed": true,
+          "value": 0.000023596733615698333,
+          "limit": 0.0033333333,
+          "inverseRatio": 42379
+        },
+        "maxDeflectionM": {
+          "passed": true,
+          "value": 0.000021708994926442468,
+          "limit": 0.0033333333,
+          "worstNode": 4
+        },
+        "tensileSafetyFactor": {
+          "passed": true,
+          "value": 999999,
+          "limit": 1.5,
+          "maxStressPa": 0,
+          "worstMember": -1
+        },
+        "compressiveSafetyFactor": {
+          "passed": true,
+          "value": 270.1352241753715,
+          "limit": 2,
+          "maxStressPa": 44422.19646338907,
+          "worstMember": 0
+        },
+        "bucklingSafetyFactor": {
+          "passed": true,
+          "value": 270.81518970085165,
+          "limit": 2,
+          "worstMember": 0,
+          "compressedMemberCount": 6
+        },
+        "shearSafetyFactor": {
+          "passed": true,
+          "value": 10207.381867872205,
+          "limit": 0,
+          "maxStressPa": 146.9524721830246,
+          "worstMember": 0
+        }
+      },
+      "worstMembers": [
+        {
+          "edgeIndex": 0,
+          "u": 0,
+          "v": 1,
+          "lengthM": 0.6759585615257788,
+          "N": -17.394864956742612,
+          "Mmax": 0.024341169751635222,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 0.04442219646338907,
+          "sfTension": 999999,
+          "sfCompression": 270.1352241753715,
+          "sfBuckling": 270.81518970085165,
+          "governingMode": "compression",
+          "utilization": 0.007403699410564844
+        },
+        {
+          "edgeIndex": 1,
+          "u": 1,
+          "v": 2,
+          "lengthM": 0.6759585615257788,
+          "N": -17.394864956742605,
+          "Mmax": 0.024341169751629175,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 0.04442219646338683,
+          "sfTension": 999999,
+          "sfCompression": 270.1352241753851,
+          "sfBuckling": 270.81518970085176,
+          "governingMode": "compression",
+          "utilization": 0.007403699410564472
+        },
+        {
+          "edgeIndex": 4,
+          "u": 1,
+          "v": 5,
+          "lengthM": 0.6759585615257788,
+          "N": -17.39486495674261,
+          "Mmax": 0.02434116975162812,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 0.04442219646338646,
+          "sfTension": 999999,
+          "sfCompression": 270.13522417538735,
+          "sfBuckling": 270.8151897008517,
+          "governingMode": "compression",
+          "utilization": 0.007403699410564409
+        },
+        {
+          "edgeIndex": 5,
+          "u": 1,
+          "v": 6,
+          "lengthM": 0.6759585615257788,
+          "N": -17.39486495674261,
+          "Mmax": 0.024341169751625598,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 0.04442219646338552,
+          "sfTension": 999999,
+          "sfCompression": 270.13522417539303,
+          "sfBuckling": 270.8151897008517,
+          "governingMode": "compression",
+          "utilization": 0.007403699410564254
+        },
+        {
+          "edgeIndex": 2,
+          "u": 1,
+          "v": 3,
+          "lengthM": 0.736514,
+          "N": -8.702738694551641,
+          "Mmax": 9.795944286839015e-16,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 0.017757485662500388,
+          "sfTension": 999999,
+          "sfCompression": 675.7713466913373,
+          "sfBuckling": 455.9490032352834,
+          "governingMode": "buckling",
+          "utilization": 0.004386455471573737
+        }
+      ]
+    },
+    {
+      "id": "LC2_self_weight_plus_50kg",
+      "name": "Self-Weight + 50 kg Vertical Distributed Load",
+      "required": true,
+      "passed": true,
+      "restraintType": "pinned",
+      "minPivotRatio": 0.000014044397003830623,
+      "loads": {
+        "gravityMS2": 9.81,
+        "totalSelfWeightN": 27.16511515319464,
+        "totalDistributedLoadN": 490.5,
+        "totalHorizontalLoadN": 0,
+        "loadedNodeCount": 1,
+        "netExternalForceN": [
+          0,
+          0,
+          -517.6651151531946
+        ]
+      },
+      "displacements": {
+        "maxDispM": 0.0008403118218315398,
+        "maxDispMm": 0.8403118218315399,
+        "maxDispNode": 4,
+        "maxDispZM": -0.0008403118218315398,
+        "deflectionRatio": 0.0009133824150342823,
+        "heightDeflectionRatio": 0.0004201559109157699
+      },
+      "stresses": {
+        "maxTensileMPa": 0,
+        "worstTensileMember": -1,
+        "maxCompressiveMPa": 1.1887778421707336,
+        "worstCompressiveMember": 0,
+        "maxShearMPa": 0.0039325800318095565,
+        "worstShearMember": 1
+      },
+      "safetyFactors": {
+        "tension": 999999,
+        "compression": 10.09440079913312,
+        "shear": 381.4289824661961,
+        "buckling": 3.7385224418158023
+      },
+      "kpis": {
+        "funicularEfficiency": 0.8659997333839168,
+        "compressionDominance": 1,
+        "imposedLoadKg": 50,
+        "loadToMassRatio": 18.056245932839964
+      },
+      "reactions": {
+        "sumReactionN": [
+          2.2737367544323206e-13,
+          -2.2737367544323206e-13,
+          517.6651151531944
+        ],
+        "equilibriumResidual": 7.60767427905217e-16,
+        "freeDofResidual": 5.490365991147203e-16,
+        "perAnchor": [
+          {
+            "node": 0,
+            "fx": 316.59615793464377,
+            "fy": 316.5961579346441,
+            "fz": 129.41627878829925,
+            "mx": 0,
+            "my": 0,
+            "mz": 0
+          },
+          {
+            "node": 6,
+            "fx": 316.5961579346442,
+            "fy": -316.5961579346441,
+            "fz": 129.41627878829863,
+            "mx": 0,
+            "my": 0,
+            "mz": 0
+          },
+          {
+            "node": 5,
+            "fx": -316.5961579346438,
+            "fy": 316.5961579346437,
+            "fz": 129.4162787882984,
+            "mx": 0,
+            "my": 0,
+            "mz": 0
+          },
+          {
+            "node": 2,
+            "fx": -316.59615793464394,
+            "fy": -316.59615793464394,
+            "fz": 129.41627878829814,
+            "mx": 0,
+            "my": 0,
+            "mz": 0
+          }
+        ]
+      },
+      "criteria": {
+        "equilibrium": {
+          "passed": true,
+          "value": 7.60767427905217e-16,
+          "limit": 0.00001
+        },
+        "deflectionRatio": {
+          "passed": true,
+          "value": 0.0009133824150342823,
+          "limit": 0.0033333333,
+          "inverseRatio": 1095
+        },
+        "maxDeflectionM": {
+          "passed": true,
+          "value": 0.0008403118218315398,
+          "limit": 0.0033333333,
+          "worstNode": 4
+        },
+        "tensileSafetyFactor": {
+          "passed": true,
+          "value": 999999,
+          "limit": 1.5,
+          "maxStressPa": 0,
+          "worstMember": -1
+        },
+        "compressiveSafetyFactor": {
+          "passed": true,
+          "value": 10.09440079913312,
+          "limit": 2,
+          "maxStressPa": 1188777.8421707335,
+          "worstMember": 0
+        },
+        "bucklingSafetyFactor": {
+          "passed": true,
+          "value": 3.7385224418158023,
+          "limit": 2,
+          "worstMember": 3,
+          "compressedMemberCount": 6
+        },
+        "shearSafetyFactor": {
+          "passed": true,
+          "value": 381.4289824661961,
+          "limit": 0,
+          "maxStressPa": 3932.580031809556,
+          "worstMember": 1
+        }
+      },
+      "worstMembers": [
+        {
+          "edgeIndex": 3,
+          "u": 3,
+          "v": 4,
+          "lengthM": 1.079856,
+          "N": -493.74481052091346,
+          "Mmax": 2.8293222148482646e-14,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 1.0074606053894288,
+          "sfTension": 999999,
+          "sfCompression": 11.911135716677935,
+          "sfBuckling": 3.7385224418158023,
+          "governingMode": "buckling",
+          "utilization": 0.5349707086494307
+        },
+        {
+          "edgeIndex": 2,
+          "u": 1,
+          "v": 3,
+          "lengthM": 0.736514,
+          "N": -499.2027386945513,
+          "Mmax": 1.021836108219578e-13,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 1.0185972239519556,
+          "sfTension": 999999,
+          "sfCompression": 11.78090781893394,
+          "sfBuckling": 7.948684423435962,
+          "governingMode": "buckling",
+          "utilization": 0.2516139644572106
+        },
+        {
+          "edgeIndex": 0,
+          "u": 0,
+          "v": 1,
+          "lengthM": 0.6759585615257788,
+          "N": -465.50219652399716,
+          "Mmax": 0.6513915465010048,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 1.1887778421707336,
+          "sfTension": 999999,
+          "sfCompression": 10.09440079913312,
+          "sfBuckling": 10.11980972003448,
+          "governingMode": "compression",
+          "utilization": 0.19812964036178893
+        },
+        {
+          "edgeIndex": 4,
+          "u": 1,
+          "v": 5,
+          "lengthM": 0.6759585615257788,
+          "N": -465.5021965239967,
+          "Mmax": 0.6513915465008612,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 1.1887778421706798,
+          "sfTension": 999999,
+          "sfCompression": 10.094400799133576,
+          "sfBuckling": 10.11980972003449,
+          "governingMode": "compression",
+          "utilization": 0.19812964036178
+        },
+        {
+          "edgeIndex": 5,
+          "u": 1,
+          "v": 6,
+          "lengthM": 0.6759585615257788,
+          "N": -465.50219652399727,
+          "Mmax": 0.6513915465008134,
+          "sigmaTensileMPa": 0,
+          "sigmaCompressiveMPa": 1.1887778421706636,
+          "sfTension": 999999,
+          "sfCompression": 10.094400799133714,
+          "sfBuckling": 10.119809720034478,
+          "governingMode": "compression",
+          "utilization": 0.19812964036177727
+        }
+      ]
+    }
+  ],
+  "lateralStabilityAdvisory": {
+    "id": "LC_lateral_5pct",
+    "advisoryOnly": true,
+    "restraintType": "pinned",
+    "notionalForceN": 25.883255757659732,
+    "maxLateralDriftM": 0.2781720136720536,
+    "maxLateralDriftMm": 278.1720136720536,
+    "driftRatio": 0.1390860068360268,
+    "minSafetyFactor": 0.12325122333868564,
+    "plusX": {
+      "maxLateralDriftMm": 278.1720136720536,
+      "maxDispMm": 278.1732828909403,
+      "sfTension": 0.12325122333868567,
+      "sfCompression": 0.6570225282237986,
+      "sfBuckling": 3.7385224418158005,
+      "minSafetyFactor": 0.12325122333868567
+    },
+    "plusY": {
+      "maxLateralDriftMm": 278.1720136720529,
+      "maxDispMm": 278.1732828909396,
+      "sfTension": 0.12325122333868564,
+      "sfCompression": 0.6570225282237985,
+      "sfBuckling": 3.7385224418158005,
+      "minSafetyFactor": 0.12325122333868564
+    }
+  },
+  "fixedBaseReference": {
+    "loadCaseId": "LC2_self_weight_plus_50kg",
+    "maxDispMm": 0.8302084184078118,
+    "deflectionRatio": 0.0009024004547910998,
+    "sfTension": 999999,
+    "sfCompression": 8.588569213310308,
+    "sfBuckling": 3.7385224418158005
+  }
+}

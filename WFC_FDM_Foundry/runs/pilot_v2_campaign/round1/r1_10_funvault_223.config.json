@@ -1,0 +1,19 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r1_10_funvault_223",
+  "wfcSeed": 42,
+  "tilePreset": "funicular_vault",
+  "outerRadiusM": 0.013,
+  "innerRadiusM": 0.007,
+  "qProfile": "funicular_tuned",
+  "columnBoost": 3.5,
+  "collarBoost": 1.3,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true,
+  "gridResolution": [
+    2,
+    2,
+    3
+  ]
+}

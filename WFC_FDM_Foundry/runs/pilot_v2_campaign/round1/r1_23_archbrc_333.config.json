@@ -1,0 +1,19 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r1_23_archbrc_333",
+  "wfcSeed": 42,
+  "tilePreset": "arch_braced",
+  "outerRadiusM": 0.0135,
+  "innerRadiusM": 0.0075,
+  "qProfile": "compression_taper",
+  "columnBoost": 4,
+  "collarBoost": 1.6,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true,
+  "gridResolution": [
+    3,
+    3,
+    3
+  ]
+}

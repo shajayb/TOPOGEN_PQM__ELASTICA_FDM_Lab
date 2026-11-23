@@ -1,0 +1,19 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r1_02_defortho_222",
+  "wfcSeed": 13,
+  "tilePreset": "default_ortho",
+  "outerRadiusM": 0.0165,
+  "innerRadiusM": 0.0105,
+  "qProfile": "column_boosted",
+  "columnBoost": 4,
+  "collarBoost": 1.6,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true,
+  "gridResolution": [
+    2,
+    2,
+    2
+  ]
+}

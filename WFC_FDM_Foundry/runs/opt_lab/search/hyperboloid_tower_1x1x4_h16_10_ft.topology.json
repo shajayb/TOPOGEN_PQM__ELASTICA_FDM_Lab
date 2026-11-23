@@ -1,0 +1,118 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "hyperboloid_tower_1x1x4_h16_10_ft",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.46,
+      -0.46,
+      0
+    ],
+    [
+      0,
+      0,
+      0.140151
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      0,
+      0,
+      0.61035
+    ],
+    [
+      0,
+      0,
+      1.202158
+    ],
+    [
+      0,
+      0,
+      2
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      1,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      4,
+      5
+    ],
+    [
+      1,
+      6
+    ],
+    [
+      1,
+      7
+    ]
+  ],
+  "anchors": [
+    0,
+    7,
+    6,
+    2
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.016,
+    "innerRadiusM": 0.01,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      909.218184,
+      909.218184,
+      1064.013125,
+      839.906499,
+      617.771433,
+      909.218184,
+      909.218184
+    ],
+    "equilibriumResidual": 1.1368683772161603e-13
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T20:29:37.630Z",
+    "name": "hyperboloid_tower_1x1x4_h16_10_ft",
+    "wfcSeed": 42,
+    "algorithm": "wfc",
+    "gridResolution": [
+      1,
+      1,
+      4
+    ],
+    "tilePreset": "hyperboloid_tower",
+    "symmetryXY": true,
+    "qProfile": "funicular_tuned"
+  }
+}

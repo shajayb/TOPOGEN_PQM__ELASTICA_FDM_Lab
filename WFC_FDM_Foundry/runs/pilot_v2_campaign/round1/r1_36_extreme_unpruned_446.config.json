@@ -1,0 +1,20 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r1_36_extreme_unpruned_446",
+  "wfcSeed": 7,
+  "tilePreset": "arch_braced",
+  "outerRadiusM": 0.012,
+  "innerRadiusM": 0.006,
+  "qProfile": "uniform",
+  "columnBoost": 1,
+  "collarBoost": 0.5,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true,
+  "pruneTension": false,
+  "gridResolution": [
+    4,
+    4,
+    6
+  ]
+}

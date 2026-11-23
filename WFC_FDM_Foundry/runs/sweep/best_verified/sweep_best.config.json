@@ -1,0 +1,14 @@
+{
+  "tilePreset": "hyperboloid_tower",
+  "fdmMode": "compression",
+  "wfcSeed": 42,
+  "gridResolution": [
+    1,
+    1,
+    4
+  ],
+  "outerRadiusM": 0.0125,
+  "innerRadiusM": 0.0065,
+  "qProfile": "column_boosted",
+  "name": "sweep_best"
+}

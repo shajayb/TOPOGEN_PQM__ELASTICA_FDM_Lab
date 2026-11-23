@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Viewport | Rhino I/O & Outliner Reference</title>
+
+    <!-- UI Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Rhino3dm WebAssembly -->
+    <script src="https://cdn.jsdelivr.net/npm/rhino3dm@8.4.0/rhino3dm.min.js"></script>
+
+    <!-- Three.js (ES Module Map) -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #ffffff; color: #111827; font-family: sans-serif; }
+        #canvas-container { width: 100%; height: 100vh; }
+        #overlay-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+        .sidebar { max-height: 100vh; overflow-y: auto; background-color: #111827; color: #f3f4f6; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+
+        /* Compact CAD-style controls */
+        .cad-btn {
+            font: 600 10.5px/1.6 system-ui, sans-serif;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border: 1px solid #374151;
+            border-radius: 3px;
+            background: #1f2937;
+            color: #d1d5db;
+            cursor: pointer;
+            transition: background .12s, border-color .12s, color .12s;
+            white-space: nowrap;
+        }
+        .cad-btn:hover:not(:disabled) { background: #374151; border-color: #6b7280; }
+        .cad-btn:disabled { opacity: .35; cursor: default; }
+        .cad-btn.primary { background: #e5e7eb; border-color: #e5e7eb; color: #111827; }
+        .cad-btn.primary:hover:not(:disabled) { background: #ffffff; }
+        .cad-btn.accent { border-color: #ec4899; color: #ec4899; background: transparent; }
+        .cad-btn.accent:hover:not(:disabled) { background: rgba(236,72,153,.15); }
+        .cad-btn.seg-on { background: #e5e7eb; border-color: #e5e7eb; color: #111827; }
+        .cad-btn.on { background: #ec4899; border-color: #ec4899; color: #ffffff; }
+
+        /* Outliner tree */
+        .otl-row { display: flex; align-items: center; gap: 4px; padding: 1px 4px; border-radius: 2px; cursor: pointer; user-select: none; }
+        .otl-row:hover { background: #1f2937; }
+        .otl-row.sel { background: #374151; }
+        .otl-eye { width: 14px; color: #d1d5db; cursor: pointer; text-align: center; flex: none; }
+        .otl-eye.off { color: #4b5563; }
+        .otl-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .otl-badge { font: 700 9px Consolas, monospace; color: #ec4899; width: 12px; text-align: center; flex: none; }
+        .otl-grp .otl-name { font-weight: 700; color: #9ca3af; text-transform: uppercase; font-size: 9.5px; letter-spacing: .06em; }
+        .otl-child { padding-left: 16px; }
+    </style>
+</head>
+<body class="flex flex-row h-screen antialiased">
+
+    <!-- UI Sidebar -->
+    <aside class="w-80 border-r border-gray-800 flex flex-col shadow-2xl sidebar z-20 relative">
+        <div class="p-5 border-b border-gray-800">
+            <h1 class="text-xl font-bold tracking-wide text-gray-100">CAD <span class="text-pink-500">VIEWPORT</span> <span id="build-tag" class="text-[9px] font-normal text-gray-600 align-top">base</span></h1>
+            <p class="text-xs text-gray-500 mt-1">3D Viewer · Rhino (.3dm) I/O · Outliner &amp; Transform Gizmos</p>
+        </div>
+
+        <!-- 1. File Input -->
+        <div class="p-5 border-b border-gray-800">
+            <label class="block text-sm font-medium text-gray-400 mb-2">1. Load Rhino File (.3dm)</label>
+            <input type="file" id="file-input" accept=".3dm" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-gray-100 hover:file:bg-gray-600 cursor-pointer transition-colors" />
+        </div>
+
+        <!-- 2. Layer Selection (appears once a .3dm is loaded) -->
+        <div id="sec-layers" class="p-5 border-b border-gray-800 hidden">
+            <label class="block text-sm font-medium text-gray-400 mb-2">2. Select Layers (Curves)</label>
+            <div id="layer-list" class="space-y-2 text-sm bg-gray-800 p-3 rounded-md min-h-[60px] border border-gray-700 empty:before:content-['No_layers_loaded'] empty:before:text-gray-600 empty:before:italic max-h-40 overflow-y-auto"></div>
+            <button id="btn-import" disabled class="cad-btn w-full mt-3">Import Curves</button>
+            <div id="import-feedback" class="mt-2 text-xs text-center font-medium"></div>
+        </div>
+
+        <!-- 3. Sketch / Curve Tools -->
+        <div class="p-5 border-b border-gray-800">
+            <label class="block text-sm font-medium text-gray-400 mb-2">Sketch &amp; Edit</label>
+            <div class="flex space-x-1 mb-2">
+                <button id="btn-draw-curve" class="cad-btn flex-1">✏ Draw Curve</button>
+                <button id="btn-delete-selected" disabled class="cad-btn flex-1">✕ Delete Selected</button>
+            </div>
+            <p id="sketch-hint" class="hidden text-[10px] text-pink-400 mb-2 leading-tight">Click the grid to add points · double-click or Enter = finish · Esc = cancel</p>
+            <p id="starter-hint" class="text-[10px] text-gray-500 leading-tight">Draw curves on the ground grid or load a .3dm file above. Select curves in the viewport or Outliner to move, rotate, scale, or edit control points.</p>
+        </div>
+
+        <!-- 4. Display -->
+        <div id="sec-display" class="p-5 border-b border-gray-800">
+            <label class="block text-sm font-medium text-gray-400 mb-3">Display</label>
+            <div class="flex space-x-1">
+                <button id="btn-zoom" class="cad-btn flex-1">Zoom Fit</button>
+                <button id="btn-arctic" class="cad-btn flex-1">Arctic</button>
+            </div>
+        </div>
+
+        <!-- 5. Export (appears once there is something to export) -->
+        <div id="sec-export" class="p-5 mt-auto border-t border-gray-800 hidden">
+            <button id="btn-export" disabled class="cad-btn primary w-full">Export .3dm</button>
+        </div>
+    </aside>
+
+    <!-- 3D Viewport -->
+    <main id="canvas-container" class="flex-grow relative">
+        <canvas id="overlay-canvas"></canvas>
+
+        <!-- Outliner (scene tree) -->
+        <div id="outliner" class="absolute top-2 right-2 w-60 bg-gray-900/95 border border-gray-700 rounded shadow-xl z-20 text-[11px] text-gray-200 flex flex-col max-h-[72vh]">
+            <div class="flex items-center justify-between px-2 py-1 border-b border-gray-700 select-none">
+                <span class="font-bold tracking-widest text-[10px] text-gray-400">OUTLINER</span>
+                <button id="outliner-collapse" class="text-gray-400 hover:text-white px-1 leading-none">–</button>
+            </div>
+            <div id="outliner-body" class="flex flex-col min-h-0">
+                <div class="flex space-x-1 p-1.5 border-b border-gray-700">
+                    <button data-gizmo="off"       class="gizbtn cad-btn flex-1 seg-on" title="Select only">Sel</button>
+                    <button data-gizmo="translate" class="gizbtn cad-btn flex-1" title="Move selected curve">Mv</button>
+                    <button data-gizmo="rotate"    class="gizbtn cad-btn flex-1" title="Rotate selected curve">Rot</button>
+                    <button data-gizmo="scale"     class="gizbtn cad-btn flex-1" title="Scale selected curve">Scl</button>
+                    <button data-gizmo="cv"        class="gizbtn cad-btn flex-1" title="Edit control points">CV</button>
+                </div>
+                <div id="outliner-tree" class="overflow-y-auto p-1 flex-1 min-h-0"></div>
+                <div class="px-2 py-1 border-t border-gray-700 text-[9.5px] text-gray-500">units: m · grid 1 m</div>
+            </div>
+        </div>
+
+        <div id="loading-overlay" class="absolute inset-0 bg-white/80 flex items-center justify-center z-30 hidden">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-gray-800"></div>
+        </div>
+    </main>
+
+    <!-- Application Logic -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
+        import { Line2 } from 'three/addons/lines/Line2.js';
+        import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+        import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+
+        // --- Palette ---
+        const INK    = 0x111827;
+        const GREY   = 0x4b5563;
+        const LGREY  = 0x9ca3af;
+        const FILL   = 0xe5e7eb;
+        const ACCENT = 0xec4899;
+
+        const SIDEBAR_W = 320;
+
+        // --- Core State ---
+        let rhino = null;
+        let currentDoc = null;
+        let unitScale = 1.0;                 // file units → meters (display space)
+        let curvePool = [];                  // [{ name, geom (rhino, file units), displayPts: Vector3[] (meters), source, visible, ctrlPts }]
+        let meshPool = [];                   // [{ name, mesh: THREE.Mesh, positions: Float32Array, indices: Uint32Array, visible }]
+        let modelBox = new THREE.Box3();     // bbox of scene objects, model coords (Z-up)
+
+        // --- Three.js Initialization ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+        const cssSize = () => ({ w: window.innerWidth - SIDEBAR_W, h: window.innerHeight });
+
+        const camera = new THREE.PerspectiveCamera(45, cssSize().w / cssSize().h, 0.1, 10000);
+        camera.position.set(20, 20, 20);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(cssSize().w, cssSize().h);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        // Annotation overlay (2D)
+        const overlay = document.getElementById('overlay-canvas');
+        const octx = overlay.getContext('2d');
+
+        function sizeOverlay() {
+            const { w, h } = cssSize();
+            const dpr = window.devicePixelRatio;
+            overlay.width = Math.round(w * dpr);
+            overlay.height = Math.round(h * dpr);
+            overlay.style.width = w + 'px';
+            overlay.style.height = h + 'px';
+            octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        sizeOverlay();
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x9ca3af, 0.9);
+        scene.add(hemiLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(50, 100, 50);
+        scene.add(dirLight);
+
+        // Ground grid: 100 m × 100 m, 1 m cells — scene units are METERS
+        const gridHelper = new THREE.GridHelper(100, 100, 0xd1d5db, 0xf3f4f6);
+        scene.add(gridHelper);
+
+        // Z-up model space displayed Y-up
+        const mainGroup = new THREE.Group();
+        mainGroup.rotation.x = -Math.PI / 2;
+        scene.add(mainGroup);
+
+        const curveGroup  = new THREE.Group(); // imported and sketched curves
+        const meshGroup   = new THREE.Group(); // general 3D meshes
+        const sketchGroup = new THREE.Group(); // live curve-drawing preview
+        mainGroup.add(curveGroup, meshGroup, sketchGroup);
+
+        // --- Shared materials (never disposed by clearGroup) ---
+        const matSurface = new THREE.MeshPhysicalMaterial({
+            color: FILL, roughness: 0.85, metalness: 0.05, side: THREE.DoubleSide,
+            polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+        });
+        const matArctic = new THREE.MeshStandardMaterial({
+            color: 0xffffff, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide,
+            polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+        });
+
+        const fatMaterials = [];
+        function makeFatMaterial(color, widthPx) {
+            const { w, h } = cssSize();
+            const m = new LineMaterial({ color, linewidth: widthPx });
+            m.resolution.set(w, h);
+            fatMaterials.push(m);
+            return m;
+        }
+        const matCurveLine = makeFatMaterial(INK, 1.5);
+        matCurveLine.transparent = true;
+        const matEdgeLine  = makeFatMaterial(GREY, 1.5);
+        const matSketch    = makeFatMaterial(ACCENT, 2.5);
+        const matDot       = new THREE.MeshBasicMaterial({ color: ACCENT, depthTest: false });
+
+        function makeFatLine(points, material) {
+            const geo = new LineGeometry();
+            const arr = [];
+            points.forEach(p => arr.push(p.x, p.y, p.z));
+            geo.setPositions(arr);
+            const line = new Line2(geo, material);
+            line.computeLineDistances();
+            return line;
+        }
+
+        function clearGroup(group) {
+            while (group.children.length > 0) {
+                const child = group.children[0];
+                if (child.geometry) child.geometry.dispose();
+                group.remove(child);
+            }
+        }
+
+        // --- Camera helpers ---
+        let camTween = null;
+        const smooth = x => x * x * (3 - 2 * x);
+
+        function frameBoxParams(boxWorld) {
+            const center = boxWorld.getCenter(new THREE.Vector3());
+            const size = boxWorld.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
+            const fov = camera.fov * (Math.PI / 180);
+            const dist = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 1.5;
+            camera.near = Math.max(dist / 1000, 0.001);
+            camera.far = Math.max(10000, dist * 100);
+            camera.updateProjectionMatrix();
+            return { center, dist };
+        }
+
+        function zoomToBox(boxWorld) {
+            if (boxWorld.isEmpty()) return;
+            const { center, dist } = frameBoxParams(boxWorld);
+            camera.position.copy(center).add(new THREE.Vector3(dist * 0.55, dist * 0.5, dist * 0.85));
+            controls.target.copy(center);
+            controls.update();
+        }
+
+        function tweenToBox(boxWorld, dur = 1.6) {
+            if (boxWorld.isEmpty()) return;
+            const { center, dist } = frameBoxParams(boxWorld);
+            const dir = camera.position.clone().sub(controls.target).normalize();
+            if (dir.lengthSq() < 1e-9) dir.set(0.5, 0.5, 0.7).normalize();
+            camTween = {
+                t: 0, dur,
+                fromPos: camera.position.clone(),
+                toPos: center.clone().add(dir.multiplyScalar(dist)),
+                fromTg: controls.target.clone(),
+                toTg: center.clone()
+            };
+        }
+
+        function modelBoxToWorld(boxModel) {
+            mainGroup.updateMatrixWorld(true);
+            return boxModel.clone().applyMatrix4(mainGroup.matrixWorld);
+        }
+
+        // --- Rhino WASM Setup ---
+        const loadingOverlay = document.getElementById('loading-overlay');
+        let rhinoReady;
+        async function initRhino() {
+            loadingOverlay.classList.remove('hidden');
+            try {
+                rhino = await rhino3dm();
+            } catch (err) {
+                console.error('Failed to load Rhino WASM:', err);
+            }
+            loadingOverlay.classList.add('hidden');
+        }
+        rhinoReady = initRhino();
+
+        function getUnitScale(unitSystem) {
+            switch (unitSystem) {
+                case rhino.UnitSystem.Millimeters: return 0.001;
+                case rhino.UnitSystem.Centimeters: return 0.01;
+                case rhino.UnitSystem.Meters: return 1.0;
+                case rhino.UnitSystem.Inches: return 0.0254;
+                case rhino.UnitSystem.Feet: return 0.3048;
+                default: return 1.0;
+            }
+        }
+
+        // --- UI Elements ---
+        const fileInput = document.getElementById('file-input');
+        const layerList = document.getElementById('layer-list');
+        const btnImport = document.getElementById('btn-import');
+        const btnExport = document.getElementById('btn-export');
+        const feedback = document.getElementById('import-feedback');
+        const outlinerTree = document.getElementById('outliner-tree');
+        const btnDrawCurve = document.getElementById('btn-draw-curve');
+        const btnDeleteSelected = document.getElementById('btn-delete-selected');
+        const sketchHint = document.getElementById('sketch-hint');
+        const btnArctic = document.getElementById('btn-arctic');
+
+        // --- I/O: load + layer list ---
+        function loadBuffer(arrayBuffer) {
+            const buffer = new Uint8Array(arrayBuffer);
+            if (currentDoc) currentDoc.delete();
+            currentDoc = rhino.File3dm.fromByteArray(buffer);
+            if (!currentDoc) { feedback.textContent = 'Failed to parse .3dm'; return []; }
+            try { unitScale = getUnitScale(currentDoc.settings().modelUnitSystem); }
+            catch (e) { unitScale = 1.0; }
+
+            layerList.innerHTML = '';
+            const names = [];
+            for (let i = 0; i < currentDoc.layers().count; i++) {
+                const layer = currentDoc.layers().get(i);
+                names.push(layer.name);
+                const div = document.createElement('div');
+                div.className = 'flex items-center space-x-2';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = layer.index !== undefined ? layer.index : i;
+                cb.checked = true;
+                cb.className = 'w-4 h-4 accent-pink-500';
+                const label = document.createElement('label');
+                label.textContent = layer.name;
+                div.appendChild(cb);
+                div.appendChild(label);
+                layerList.appendChild(div);
+            }
+            btnImport.disabled = false;
+            feedback.textContent = '';
+            refreshPoolUI();
+            return names;
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => loadBuffer(ev.target.result);
+            reader.readAsArrayBuffer(file);
+        });
+
+        // --- Scene / Pool Management ---
+        function recomputeModelBox() {
+            modelBox.makeEmpty();
+            curvePool.forEach(c => c.displayPts.forEach(p => modelBox.expandByPoint(p)));
+            meshPool.forEach(m => {
+                if (m.mesh && m.mesh.geometry) {
+                    m.mesh.geometry.computeBoundingBox();
+                    if (m.mesh.geometry.boundingBox) modelBox.union(m.mesh.geometry.boundingBox);
+                }
+            });
+        }
+
+        // --- Selection & Outliner Visibility State ---
+        let selectedIdx = -1; // index into curvePool
+        const groupVis = { curves: true, meshes: true, grid: true };
+
+        function renderCurves() {
+            clearGroup(curveGroup);
+            curvePool.forEach((c, i) => {
+                // geometry local to the centroid so transform gizmos pivot there
+                const centroid = new THREE.Vector3();
+                c.displayPts.forEach(p => centroid.add(p));
+                centroid.divideScalar(Math.max(c.displayPts.length, 1));
+                c.centroid = centroid;
+                c.localPts = c.displayPts.map(p => p.clone().sub(centroid));
+                const mat = (i === selectedIdx) ? matSketch : matCurveLine;
+                const line = makeFatLine(c.localPts, mat);
+                line.position.copy(centroid);
+                line.userData.poolIndex = i;
+                c.line = line;
+                line.visible = (c.visible !== false) && groupVis.curves;
+                curveGroup.add(line);
+            });
+        }
+
+        function refreshPoolUI() {
+            const fileLoaded = !!currentDoc;
+            const hasCurves = curvePool.length > 0;
+            const hasMeshes = meshPool.length > 0;
+            const hasAny = hasCurves || hasMeshes;
+            const hasSel = !!curvePool[selectedIdx];
+
+            btnExport.disabled = !hasAny;
+            btnDeleteSelected.disabled = !hasSel;
+
+            const show = (id, on) => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('hidden', !on);
+            };
+            show('sec-layers', fileLoaded);
+            show('starter-hint', !hasAny);
+            show('sec-export', hasAny);
+        }
+
+        function selectCurve(idx) {
+            selectedIdx = curvePool[idx] ? idx : -1;
+            renderCurves();
+            refreshPoolUI();
+            refreshOutliner();
+            syncGizmo();
+        }
+
+        function deselect() {
+            selectedIdx = -1;
+            renderCurves();
+            refreshPoolUI();
+            refreshOutliner();
+            syncGizmo();
+        }
+
+        function deleteSelectedCurve() {
+            if (!curvePool[selectedIdx]) return;
+            const removed = curvePool.splice(selectedIdx, 1)[0];
+            try { if (removed.geom) removed.geom.delete(); } catch (e) { /* wasm cleanup */ }
+            selectedIdx = -1;
+            renderCurves();
+            recomputeModelBox();
+            refreshPoolUI();
+            refreshOutliner();
+            syncGizmo();
+        }
+        btnDeleteSelected.addEventListener('click', deleteSelectedCurve);
+
+        // ============================================================
+        //  OUTLINER — scene tree with per-object / per-group visibility
+        // ============================================================
+
+        const outlinerCollapse = document.getElementById('outliner-collapse');
+        const outlinerBody = document.getElementById('outliner-body');
+        outlinerCollapse.addEventListener('click', () => {
+            const hidden = outlinerBody.classList.toggle('hidden');
+            outlinerCollapse.textContent = hidden ? '+' : '–';
+        });
+
+        const eyeChar = v => v ? '●' : '○';
+
+        function refreshOutliner() {
+            const rows = [];
+            const grp = (key, label, on) =>
+                rows.push(`<div class="otl-row otl-grp"><span class="otl-eye ${on ? '' : 'off'}" data-eye="g:${key}">${eyeChar(on)}</span><span class="otl-name">${label}</span></div>`);
+            const child = (key, label, on, sel, badge) =>
+                rows.push(`<div class="otl-row otl-child ${sel ? 'sel' : ''}" data-node="${key}"><span class="otl-eye ${on ? '' : 'off'}" data-eye="${key}">${eyeChar(on)}</span><span class="otl-name">${label}</span>${badge !== undefined ? `<span class="otl-badge">${badge}</span>` : ''}</div>`);
+
+            grp('curves', `Curves (${curvePool.length})`, groupVis.curves);
+            curvePool.forEach((c, i) => child(`curve:${i}`, c.name, c.visible !== false, i === selectedIdx));
+            if (meshPool.length) {
+                grp('meshes', `Meshes (${meshPool.length})`, groupVis.meshes);
+                meshPool.forEach((m, i) => child(`mesh:${i}`, m.name || `Mesh ${i + 1}`, m.visible !== false, false));
+            }
+            grp('grid', 'Grid (1 m)', groupVis.grid);
+            outlinerTree.innerHTML = rows.join('');
+        }
+
+        function applyOutlinerVisibility() {
+            curvePool.forEach(c => { if (c.line) c.line.visible = (c.visible !== false) && groupVis.curves; });
+            meshPool.forEach(m => { if (m.mesh) m.mesh.visible = (m.visible !== false) && groupVis.meshes; });
+            gridHelper.visible = groupVis.grid;
+        }
+
+        outlinerTree.addEventListener('click', (e) => {
+            const eyeEl = e.target.closest('[data-eye]');
+            if (eyeEl) {
+                const key = eyeEl.dataset.eye;
+                if (key.startsWith('g:')) {
+                    const gk = key.slice(2);
+                    groupVis[gk] = !groupVis[gk];
+                } else {
+                    const [t, is] = key.split(':');
+                    const i = parseInt(is, 10);
+                    if (t === 'curve' && curvePool[i]) curvePool[i].visible = curvePool[i].visible === false;
+                    if (t === 'mesh' && meshPool[i]) meshPool[i].visible = meshPool[i].visible === false;
+                }
+                applyOutlinerVisibility();
+                refreshOutliner();
+                e.stopPropagation();
+                return;
+            }
+            const row = e.target.closest('[data-node]');
+            if (row) {
+                const [t, is] = row.dataset.node.split(':');
+                if (t === 'curve') selectCurve(parseInt(is, 10));
+            }
+        });
+
+        // ============================================================
+        //  TRANSFORM GIZMO — move / rotate / scale curves, edit CVs
+        // ============================================================
+
+        let gizmoMode = 'off'; // 'off' | 'translate' | 'rotate' | 'scale' | 'cv'
+        const tControls = new TransformControls(camera, renderer.domElement);
+        tControls.setSize(0.8);
+        scene.add(tControls);
+        const cvGroup = new THREE.Group();
+        mainGroup.add(cvGroup);
+        let cvHandles = [];
+
+        tControls.addEventListener('dragging-changed', (e) => {
+            controls.enabled = !e.value;
+            if (!e.value) {
+                if (gizmoMode === 'cv') bakeCVEdit();
+                else bakeObjectTransform();
+            }
+        });
+        tControls.addEventListener('objectChange', () => {
+            if (gizmoMode === 'cv') liveCVUpdate();
+        });
+
+        function sampleAtNormalizedLength(pts, u) {
+            const cum = [0];
+            for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + pts[i].distanceTo(pts[i - 1]));
+            const total = cum[cum.length - 1];
+            if (total < 1e-12) return pts[0].clone();
+            const s = Math.min(Math.max(u, 0), 1) * total;
+            let k = 0;
+            while (k < cum.length - 2 && cum[k + 1] < s) k++;
+            const seg = cum[k + 1] - cum[k];
+            const f = seg > 1e-15 ? (s - cum[k]) / seg : 0;
+            return pts[k].clone().lerp(pts[k + 1], f);
+        }
+
+        // Bake the gizmo transform into the curve data (points + rhino NURBS)
+        function bakeObjectTransform() {
+            const c = curvePool[selectedIdx];
+            if (!c || !c.line) return;
+            c.line.updateMatrix();
+            const m = c.line.matrix.clone();
+            c.displayPts = c.localPts.map(p => p.clone().applyMatrix4(m));
+            if (c.ctrlPts) {
+                const c0 = c.centroid;
+                c.ctrlPts = c.ctrlPts.map(q => q.clone().sub(c0).applyMatrix4(m));
+            }
+            try { if (c.geom) c.geom.delete(); } catch (e) { /* wasm cleanup */ }
+            c.geom = makeRhinoCurveFromPoints(c.displayPts);
+            renderCurves();
+            recomputeModelBox();
+            syncGizmo();
+        }
+
+        function ensureCtrlPts(c) {
+            if (c.ctrlPts && c.ctrlPts.length >= 2) return;
+            // imported curve: derive editable points along its arc (CR approximation)
+            const n = 10;
+            c.ctrlPts = [];
+            for (let i = 0; i < n; i++) c.ctrlPts.push(sampleAtNormalizedLength(c.displayPts, i / (n - 1)));
+            c.cvDerived = true;
+        }
+
+        function buildCVHandles() {
+            clearGroup(cvGroup);
+            cvHandles = [];
+            const c = curvePool[selectedIdx];
+            if (!c) return;
+            ensureCtrlPts(c);
+            const r = Math.max(modelBox.getSize(new THREE.Vector3()).length() * 0.008, 0.05);
+            const geo = new THREE.SphereGeometry(r, 10, 10);
+            c.ctrlPts.forEach((q, i) => {
+                const h = new THREE.Mesh(geo, matDot);
+                h.position.copy(q);
+                h.userData.cvIndex = i;
+                h.renderOrder = 998;
+                cvGroup.add(h);
+                cvHandles.push(h);
+            });
+        }
+
+        function liveCVUpdate() {
+            const c = curvePool[selectedIdx];
+            const h = tControls.object;
+            if (!c || !c.line || !h || h.userData.cvIndex === undefined) return;
+            c.ctrlPts[h.userData.cvIndex] = h.position.clone();
+            const cr = new THREE.CatmullRomCurve3(c.ctrlPts, false, 'centripetal');
+            c.displayPts = cr.getPoints(Math.max(60, c.ctrlPts.length * 12));
+            const arr = [];
+            c.displayPts.forEach(p => arr.push(p.x - c.centroid.x, p.y - c.centroid.y, p.z - c.centroid.z));
+            c.line.geometry.setPositions(arr);
+        }
+
+        function bakeCVEdit() {
+            const c = curvePool[selectedIdx];
+            if (!c) return;
+            try { if (c.geom) c.geom.delete(); } catch (e) { /* wasm cleanup */ }
+            c.geom = makeRhinoCurveFromPoints(c.displayPts);
+            recomputeModelBox();
+        }
+
+        function syncGizmo() {
+            tControls.detach();
+            clearGroup(cvGroup);
+            cvHandles = [];
+            const c = curvePool[selectedIdx];
+            if (!c || gizmoMode === 'off') return;
+            if (gizmoMode === 'cv') {
+                buildCVHandles(); // click a handle in the viewport to move it
+            } else {
+                tControls.setMode(gizmoMode);
+                tControls.attach(c.line);
+            }
+        }
+
+        function setGizmoMode(mode) {
+            gizmoMode = mode;
+            document.querySelectorAll('.gizbtn').forEach(b => b.classList.toggle('seg-on', b.dataset.gizmo === mode));
+            syncGizmo();
+        }
+        document.querySelectorAll('.gizbtn').forEach(b => b.addEventListener('click', () => setGizmoMode(b.dataset.gizmo)));
+
+        // Viewport picking: click a curve to select it, a CV handle to grab it
+        const pickRay = new THREE.Raycaster();
+        const mouseNdc = new THREE.Vector2();
+        let downXY = null;
+        renderer.domElement.addEventListener('pointerdown', (e) => {
+            if (e.button === 0) downXY = { x: e.clientX, y: e.clientY };
+        });
+        renderer.domElement.addEventListener('pointerup', (e) => {
+            if (e.button !== 0 || !downXY) return;
+            const moved = Math.hypot(e.clientX - downXY.x, e.clientY - downXY.y);
+            downXY = null;
+            if (moved > 5 || sketchMode || tControls.dragging || tControls.axis) return;
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouseNdc.set(
+                ((e.clientX - rect.left) / rect.width) * 2 - 1,
+                -((e.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            pickRay.setFromCamera(mouseNdc, camera);
+            if (gizmoMode === 'cv' && cvHandles.length) {
+                const hit = pickRay.intersectObjects(cvHandles, false)[0];
+                if (hit) { tControls.setMode('translate'); tControls.attach(hit.object); return; }
+            }
+            try {
+                const lines = curvePool.map(c => c.line).filter(l => l && l.visible);
+                const hits = pickRay.intersectObjects(lines, false);
+                if (hits.length) { selectCurve(hits[0].object.userData.poolIndex); return; }
+            } catch (err) { /* Line2 raycast can be touchy at grazing angles */ }
+            if (gizmoMode !== 'cv') deselect();
+        });
+
+        // --- Import curves from selected layers ---
+        function importCurves() {
+            if (!currentDoc) return 0;
+            curvePool = [];
+
+            const selectedLayers = Array.from(layerList.querySelectorAll('input:checked')).map(cb => parseInt(cb.value, 10));
+            const objects = currentDoc.objects();
+
+            for (let i = 0; i < objects.count; i++) {
+                const obj = objects.get(i);
+                const attr = obj.attributes();
+                if (!selectedLayers.includes(attr.layerIndex)) continue;
+
+                const geom = obj.geometry();
+                if (!geom || geom.objectType !== rhino.ObjectType.Curve) continue;
+
+                const nurbs = geom.toNurbsCurve();
+                if (!nurbs) continue;
+
+                const dom = nurbs.domain;
+                const steps = Math.min(240, Math.max(60, nurbs.points().count * 4));
+                const pts = [];
+                for (let j = 0; j <= steps; j++) {
+                    const t = dom[0] + (dom[1] - dom[0]) * (j / steps);
+                    const p = nurbs.pointAt(t);
+                    pts.push(new THREE.Vector3(p[0] * unitScale, p[1] * unitScale, p[2] * unitScale));
+                }
+                nurbs.delete();
+
+                if (pts.length > 1) {
+                    curvePool.push({
+                        name: attr.name || `Curve ${curvePool.length + 1}`,
+                        geom,
+                        displayPts: pts,
+                        source: 'import',
+                        visible: true
+                    });
+                }
+            }
+
+            selectedIdx = -1;
+            const n = curvePool.length;
+            feedback.textContent = `Extracted ${n} curve(s).`;
+            feedback.className = 'mt-2 text-xs text-center font-medium ' + (n > 0 ? 'text-emerald-400' : 'text-amber-400');
+            renderCurves();
+            recomputeModelBox();
+            refreshPoolUI();
+            refreshOutliner();
+            syncGizmo();
+            if (n > 0 && !modelBox.isEmpty()) zoomToBox(modelBoxToWorld(modelBox));
+            return n;
+        }
+        btnImport.addEventListener('click', () => {
+            loadingOverlay.classList.remove('hidden');
+            setTimeout(() => { importCurves(); loadingOverlay.classList.add('hidden'); }, 10);
+        });
+
+        // ============================================================
+        //  CURVE SKETCHING — click points on the grid plane
+        // ============================================================
+
+        const raycaster = new THREE.Raycaster();
+        const groundPlaneWorld = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // world ground = model XY
+
+        let sketchMode = false;
+        let sketchPts = [];
+        let drawnCount = 0;
+
+        function makeRhinoCurveFromPoints(ptsMeters) {
+            let crv = null;
+            try {
+                const pl = new rhino.Point3dList(ptsMeters.length);
+                ptsMeters.forEach(p => pl.add(p.x / unitScale, p.y / unitScale, p.z / unitScale));
+                crv = rhino.NurbsCurve.create(false, 3, pl); // degree-3 curve
+                pl.delete();
+            } catch (e) { crv = null; }
+            return crv;
+        }
+
+        function groundPointFromEvent(e) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouseNdc.set(
+                ((e.clientX - rect.left) / rect.width) * 2 - 1,
+                -((e.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            raycaster.setFromCamera(mouseNdc, camera);
+            const hit = new THREE.Vector3();
+            if (!raycaster.ray.intersectPlane(groundPlaneWorld, hit)) return null;
+            mainGroup.updateMatrixWorld(true);
+            return hit.applyMatrix4(mainGroup.matrixWorld.clone().invert()); // → model coords (Z-up)
+        }
+
+        function updateSketchPreview() {
+            clearGroup(sketchGroup);
+            sketchPts.forEach(p => {
+                const dot = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8),
+                    new THREE.MeshBasicMaterial({ color: ACCENT, depthTest: false }));
+                dot.position.copy(p);
+                dot.renderOrder = 999;
+                sketchGroup.add(dot);
+            });
+            if (sketchPts.length >= 2) {
+                const cr = new THREE.CatmullRomCurve3(sketchPts, false, 'centripetal');
+                sketchGroup.add(makeFatLine(cr.getPoints(Math.max(40, sketchPts.length * 10)), matSketch));
+            }
+        }
+
+        function commitCurveFromPoints(ptsV3, label) {
+            const cr = new THREE.CatmullRomCurve3(ptsV3, false, 'centripetal');
+            const dense = cr.getPoints(Math.max(60, ptsV3.length * 12));
+            const geom = makeRhinoCurveFromPoints(dense);
+            if (!geom) return -1;
+            curvePool.push({
+                name: label,
+                geom,
+                displayPts: dense,
+                source: 'drawn',
+                visible: true,
+                ctrlPts: ptsV3.map(p => p.clone()) // sketch points double as CVs
+            });
+            const idx = curvePool.length - 1;
+            renderCurves();
+            recomputeModelBox();
+            refreshPoolUI();
+            refreshOutliner();
+            return idx;
+        }
+
+        function startSketch() {
+            finishSketch(false);
+            setGizmoMode('off');
+            sketchMode = true;
+            sketchPts = [];
+            controls.enabled = false;
+            container.style.cursor = 'crosshair';
+            sketchHint.classList.remove('hidden');
+            btnDrawCurve.classList.add('on');
+            // top-down view over the working area for planar sketching
+            const c = controls.target.clone();
+            const d = Math.max(30, camera.position.distanceTo(c));
+            camTween = {
+                t: 0, dur: 0.8,
+                fromPos: camera.position.clone(),
+                toPos: new THREE.Vector3(c.x, c.y + d, c.z + d * 0.02),
+                fromTg: controls.target.clone(),
+                toTg: c
+            };
+        }
+
+        function finishSketch(commit = true) {
+            if (!sketchMode) return;
+            sketchMode = false;
+            controls.enabled = true;
+            container.style.cursor = 'default';
+            sketchHint.classList.add('hidden');
+            btnDrawCurve.classList.remove('on');
+            clearGroup(sketchGroup);
+
+            // drop consecutive duplicates (double-click fires two pointerdowns)
+            const pts = [];
+            sketchPts.forEach(p => {
+                if (!pts.length || pts[pts.length - 1].distanceToSquared(p) > 1e-8) pts.push(p);
+            });
+            sketchPts = [];
+            if (!commit || pts.length < 2) return;
+
+            drawnCount++;
+            commitCurveFromPoints(pts, `Curve ${drawnCount} (drawn)`);
+        }
+
+        btnDrawCurve.addEventListener('click', () => sketchMode ? finishSketch(true) : startSketch());
+
+        renderer.domElement.addEventListener('pointerdown', (e) => {
+            if (!sketchMode || e.button !== 0) return;
+            const p = groundPointFromEvent(e);
+            if (p) { sketchPts.push(p); updateSketchPreview(); }
+        });
+        renderer.domElement.addEventListener('dblclick', () => { if (sketchMode) finishSketch(true); });
+        window.addEventListener('keydown', (e) => {
+            if (sketchMode) {
+                if (e.key === 'Enter') finishSketch(true);
+                if (e.key === 'Escape') finishSketch(false);
+                return;
+            }
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdx >= 0 && document.activeElement === document.body) {
+                deleteSelectedCurve();
+            }
+        });
+
+        // ============================================================
+        //  DISPLAY — Zoom Fit & Arctic mode
+        // ============================================================
+
+        document.getElementById('btn-zoom').addEventListener('click', () => {
+            zoomToBox(modelBoxToWorld(modelBox));
+        });
+
+        let arcticOn = false;
+
+        function setArctic(on) {
+            arcticOn = on;
+            meshGroup.children.forEach(m => { if (m.isMesh && !m.isLineSegments2) m.material = on ? matArctic : matSurface; });
+            hemiLight.intensity = on ? 1.35 : 0.9;
+            dirLight.intensity = on ? 0.45 : 0.9;
+            btnArctic.textContent = on ? 'Arctic ✓' : 'Arctic';
+            btnArctic.classList.toggle('seg-on', on);
+        }
+        btnArctic.addEventListener('click', () => setArctic(!arcticOn));
+
+        function renderFrame() {
+            renderer.render(scene, camera);
+        }
+
+        // --- Overlay drawing (Units HUD) ---
+        function drawOverlay() {
+            const { w, h } = cssSize();
+            octx.clearRect(0, 0, w, h);
+            octx.font = '10px Consolas, monospace';
+            octx.fillStyle = '#9ca3af';
+            octx.fillText('units: m · grid 1 m', 10, h - 8);
+        }
+
+        // --- Render loop ---
+        const clock = new THREE.Clock();
+        function updateCamTween(dt) {
+            if (!camTween) return;
+            camTween.t += dt;
+            const s = smooth(Math.min(1, camTween.t / camTween.dur));
+            camera.position.lerpVectors(camTween.fromPos, camTween.toPos, s);
+            controls.target.lerpVectors(camTween.fromTg, camTween.toTg, s);
+            if (camTween.t >= camTween.dur) camTween = null;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1);
+            updateCamTween(dt);
+            controls.update();
+            renderFrame();
+            drawOverlay();
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            const { w, h } = cssSize();
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            sizeOverlay();
+            fatMaterials.forEach(m => m.resolution.set(w, h));
+        });
+
+        // ============================================================
+        //  EXPORT — Scene curves & meshes → .3dm
+        // ============================================================
+
+        function downloadBlob(blob, name) {
+            const url = URL.createObjectURL(blob);
+            const aEl = document.createElement('a');
+            aEl.href = url; aEl.download = name;
+            document.body.appendChild(aEl);
+            aEl.click();
+            document.body.removeChild(aEl);
+            URL.revokeObjectURL(url);
+        }
+
+        function addRhinoMesh(doc, attr, positions, indices) {
+            const rMesh = new rhino.Mesh();
+            const vl = rMesh.vertices();
+            for (let i = 0; i < positions.length; i += 3) {
+                vl.add(positions[i] / unitScale, positions[i + 1] / unitScale, positions[i + 2] / unitScale);
+            }
+            const fl = rMesh.faces();
+            for (let i = 0; i < indices.length; i += 3) {
+                fl.addTriFace(indices[i], indices[i + 1], indices[i + 2]);
+            }
+            try { rMesh.normals().computeNormals(); } catch (e) { try { rMesh.computeNormals(); } catch (e2) {} }
+            try { rMesh.compact(); } catch (e) {}
+            doc.objects().add(rMesh, attr);
+            rMesh.delete();
+        }
+
+        function buildExportDoc() {
+            const doc = new rhino.File3dm();
+            // scene units are meters; preserve source units when a file was imported
+            try {
+                doc.settings().modelUnitSystem = currentDoc
+                    ? currentDoc.settings().modelUnitSystem
+                    : rhino.UnitSystem.Meters;
+            } catch (e) { /* unit assignment best-effort */ }
+
+            const mkLayer = (name, color) => {
+                const idx = doc.layers().count;
+                const layer = new rhino.Layer();
+                layer.name = name;
+                layer.color = color;
+                doc.layers().add(layer);
+                layer.delete();
+                const attr = new rhino.ObjectAttributes();
+                attr.layerIndex = idx;
+                return attr;
+            };
+
+            if (curvePool.length) {
+                const attrCurves = mkLayer('Curves', { r: 17, g: 24, b: 39, a: 255 });
+                curvePool.forEach(c => { if (c.geom) doc.objects().add(c.geom, attrCurves); });
+                attrCurves.delete();
+            }
+
+            if (meshPool.length) {
+                const attrMeshes = mkLayer('Meshes', { r: 75, g: 85, b: 99, a: 255 });
+                meshPool.forEach(m => {
+                    if (m.positions && m.indices) addRhinoMesh(doc, attrMeshes, m.positions, m.indices);
+                });
+                attrMeshes.delete();
+            }
+
+            return doc;
+        }
+
+        function buildExportBytes() {
+            const doc = buildExportDoc();
+            const bytes = doc.toByteArray();
+            doc.delete();
+            return bytes;
+        }
+
+        btnExport.addEventListener('click', () => {
+            const bytes = buildExportBytes();
+            downloadBlob(new Blob([bytes], { type: 'application/octet-stream' }), `Export_${Date.now()}.3dm`);
+        });
+
+        // --- General-purpose helper to add a 3D mesh to the scene & outliner ---
+        function addSceneMesh(positions, indices, name = null) {
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+            geo.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+            geo.computeVertexNormals();
+            const mesh = new THREE.Mesh(geo, arcticOn ? matArctic : matSurface);
+            meshGroup.add(mesh);
+            const entry = {
+                name: name || `Mesh ${meshPool.length + 1}`,
+                mesh,
+                positions: new Float32Array(positions),
+                indices: new Uint32Array(indices),
+                visible: true
+            };
+            meshPool.push(entry);
+            recomputeModelBox();
+            refreshPoolUI();
+            refreshOutliner();
+            return meshPool.length - 1;
+        }
+
+        // --- Headless test & API hooks ---
+        window.__app = {
+            ready: rhinoReady,
+            get rhino() { return rhino; },
+            scene,
+            camera,
+            renderer,
+            controls,
+            mainGroup,
+            curveGroup,
+            meshGroup,
+            loadBuffer,
+            importCurves,
+            exportBytes: buildExportBytes,
+            addCurveFromPoints: (arr, label = null) => {
+                const pts = arr.map(a => new THREE.Vector3(a[0], a[1], a[2]));
+                drawnCount++;
+                return commitCurveFromPoints(pts, label || `Curve ${drawnCount} (drawn)`);
+            },
+            addSceneMesh,
+            curvePool: () => curvePool,
+            meshPool: () => meshPool,
+            selectCurve,
+            deselect,
+            deleteSelectedCurve,
+            selected: () => selectedIdx,
+            setGizmoMode,
+            gizmo: () => ({ mode: gizmoMode, attached: !!tControls.object, cvHandles: cvHandles.length }),
+            tControls,
+            bakeObjectTransform,
+            groupVis,
+            refreshOutliner,
+            refreshPoolUI,
+            setArctic,
+            arctic: () => arcticOn,
+            zoomFit: () => zoomToBox(modelBoxToWorld(modelBox)),
+            step: (dt = 1 / 60) => {
+                updateCamTween(dt);
+                controls.update();
+                renderFrame();
+                drawOverlay();
+            },
+            snapshot: (scale = 0.5) => {
+                const c = renderer.domElement;
+                const s = document.createElement('canvas');
+                s.width = Math.round(c.width * scale);
+                s.height = Math.round(c.height * scale);
+                const sx = s.getContext('2d');
+                sx.fillStyle = '#ffffff';
+                sx.fillRect(0, 0, s.width, s.height);
+                sx.drawImage(c, 0, 0, s.width, s.height);
+                sx.drawImage(overlay, 0, 0, s.width, s.height);
+                return s.toDataURL('image/jpeg', 0.75);
+            }
+        };
+
+        refreshPoolUI();
+        refreshOutliner();
+    </script>
+</body>
+</html>

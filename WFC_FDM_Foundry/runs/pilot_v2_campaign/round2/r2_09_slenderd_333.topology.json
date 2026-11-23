@@ -1,0 +1,239 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r2_09_slenderd_333",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.224889,
+      -0.224889,
+      0.580571
+    ],
+    [
+      0.039175,
+      0.039175,
+      0.703928
+    ],
+    [
+      -0.281025,
+      0.264082,
+      0.673049
+    ],
+    [
+      -0.401826,
+      0.396318,
+      0.220533
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ],
+    [
+      -0.180475,
+      0.134299,
+      1.219705
+    ],
+    [
+      0.219063,
+      0.219063,
+      0.407908
+    ],
+    [
+      0.378346,
+      0.378346,
+      0.139724
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      0.264083,
+      -0.281027,
+      0.673042
+    ],
+    [
+      0.396319,
+      -0.401826,
+      0.220532
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ],
+    [
+      0.1343,
+      -0.180476,
+      1.2197
+    ],
+    [
+      -0.043064,
+      -0.043063,
+      1.95
+    ],
+    [
+      -0.080508,
+      -0.080508,
+      1.003428
+    ],
+    [
+      -0.382663,
+      -0.382663,
+      0.192638
+    ],
+    [
+      -0.46,
+      -0.46,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      15
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      14
+    ],
+    [
+      15,
+      16
+    ],
+    [
+      1,
+      9
+    ],
+    [
+      1,
+      14
+    ],
+    [
+      9,
+      12
+    ],
+    [
+      9,
+      10
+    ],
+    [
+      12,
+      13
+    ],
+    [
+      13,
+      14
+    ],
+    [
+      5,
+      13
+    ],
+    [
+      10,
+      11
+    ],
+    [
+      1,
+      6
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      6,
+      7
+    ],
+    [
+      7,
+      8
+    ],
+    [
+      2,
+      5
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ]
+  ],
+  "anchors": [
+    4,
+    8,
+    11,
+    16
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.014,
+    "innerRadiusM": 0.008,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      338.877882,
+      43.763106,
+      290.27195,
+      691.340959,
+      43.125562,
+      283.060121,
+      274.778503,
+      343.03154,
+      201.066266,
+      214.519194,
+      201.068745,
+      712.314997,
+      275.409972,
+      43.125429,
+      311.039083,
+      606.744954,
+      274.780857,
+      343.02842,
+      712.310987
+    ],
+    "equilibriumResidual": 3.5530245276483536e-13
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 4.1e-7,
+    "meanQuadPlanarityErrorM": 1.2e-7,
+    "barTubeQuadCount": 352
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "r2_09_slenderd_333.patterns.svg",
+    "unrolledDataFile": "r2_09_slenderd_333.unrolled.json",
+    "barCount": 19,
+    "unrolledBarCount": 19,
+    "totalUnrolledSurfaceAreaM2": 0.668383,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:18:53.629Z",
+    "name": "r2_09_slenderd_333",
+    "wfcSeed": 7,
+    "algorithm": "wfc",
+    "gridResolution": [
+      3,
+      3,
+      3
+    ],
+    "tilePreset": "slender_diagrid",
+    "symmetryXY": true,
+    "qProfile": "funicular_tuned"
+  }
+}

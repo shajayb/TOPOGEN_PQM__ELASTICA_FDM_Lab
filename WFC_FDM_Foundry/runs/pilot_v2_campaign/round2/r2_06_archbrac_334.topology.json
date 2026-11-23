@@ -1,0 +1,219 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r2_06_archbrac_334",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.46,
+      -0.46,
+      0
+    ],
+    [
+      -0.395583,
+      -0.395586,
+      0.333887
+    ],
+    [
+      -0.259012,
+      -0.259021,
+      1.03088
+    ],
+    [
+      -0.07852,
+      -0.078538,
+      1.93
+    ],
+    [
+      -0.245372,
+      0.260037,
+      0.640479
+    ],
+    [
+      -0.388137,
+      0.393047,
+      0.216703
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ],
+    [
+      0.10558,
+      -0.079585,
+      1.121624
+    ],
+    [
+      0.259815,
+      -0.245132,
+      0.641203
+    ],
+    [
+      0.392986,
+      -0.38807,
+      0.216909
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ],
+    [
+      0.100378,
+      0.100359,
+      0.909929
+    ],
+    [
+      0.253663,
+      0.253652,
+      0.528408
+    ],
+    [
+      0.3901,
+      0.390096,
+      0.180945
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      -0.079689,
+      0.105676,
+      1.121291
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      15
+    ],
+    [
+      3,
+      7
+    ],
+    [
+      4,
+      15
+    ],
+    [
+      11,
+      15
+    ],
+    [
+      4,
+      5
+    ],
+    [
+      5,
+      6
+    ],
+    [
+      7,
+      11
+    ],
+    [
+      11,
+      12
+    ],
+    [
+      7,
+      8
+    ],
+    [
+      8,
+      9
+    ],
+    [
+      9,
+      10
+    ],
+    [
+      12,
+      13
+    ],
+    [
+      13,
+      14
+    ]
+  ],
+  "anchors": [
+    0,
+    6,
+    10,
+    14
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.0145,
+    "innerRadiusM": 0.0085,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      558.830624,
+      263.585086,
+      199.444861,
+      196.523719,
+      196.782807,
+      242.160818,
+      221.540464,
+      281.033006,
+      558.308818,
+      221.83402,
+      252.718709,
+      242.371265,
+      280.706193,
+      557.820656,
+      283.925509,
+      554.187505
+    ],
+    "equilibriumResidual": 2.1254760953771486e-13
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 3.7e-7,
+    "meanQuadPlanarityErrorM": 1.2e-7,
+    "barTubeQuadCount": 256
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "r2_06_archbrac_334.patterns.svg",
+    "unrolledDataFile": "r2_06_archbrac_334.unrolled.json",
+    "barCount": 16,
+    "unrolledBarCount": 16,
+    "totalUnrolledSurfaceAreaM2": 0.626777,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:18:52.194Z",
+    "name": "r2_06_archbrac_334",
+    "wfcSeed": 21,
+    "algorithm": "wfc",
+    "gridResolution": [
+      3,
+      3,
+      4
+    ],
+    "tilePreset": "arch_braced",
+    "symmetryXY": true,
+    "qProfile": "column_boosted"
+  }
+}

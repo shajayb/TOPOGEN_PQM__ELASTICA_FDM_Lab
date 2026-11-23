@@ -1,0 +1,23 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r3_04_minimalf_222",
+  "tilePreset": "minimal_frame",
+  "gridResolution": [
+    2,
+    2,
+    2
+  ],
+  "wfcSeed": 42,
+  "qProfile": "compression_taper",
+  "outerRadiusM": 0.0258,
+  "innerRadiusM": 0.0198,
+  "nSides": 6,
+  "columnBoost": 3.13,
+  "collarBoost": 2.38,
+  "planMargin": 0.07,
+  "targetHeightZ": 1.92,
+  "equalizeEdgeLengths": true,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true
+}

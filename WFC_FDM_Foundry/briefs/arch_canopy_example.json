@@ -1,0 +1,77 @@
+{
+  "$schema": "../schemas/brief.schema.json",
+  "id": "arch-canopy-plaster-2x1x1p2",
+  "name": "Example Brief — 2x1x1.2m Cast Plaster Funicular Arch Canopy",
+  "version": "1.0.0",
+  "description": "2.0m x 1.0m plan, 1.2m tall cast gypsum plaster funicular arch canopy resting on 4 corner ground anchors, resisting self-weight and a 30 kg distributed roof/snow load within L/300 serviceability deflection and brittle plaster strength limits.",
+  "envelope": {
+    "units": "meters",
+    "coordinateSystem": "Z-up",
+    "maxPlanX": 2.0,
+    "maxPlanY": 1.0,
+    "targetHeightZ": 1.2,
+    "minHeightZ": 1.12,
+    "maxHeightZ": 1.26,
+    "planTolerance": 0.03,
+    "groundZ": 0.0,
+    "groundTolerance": 0.02
+  },
+  "funicular": {
+    "mode": "compression",
+    "allowedModes": ["compression", "zero-weight"],
+    "maxEquilibriumResidualNorm": 1e-4
+  },
+  "supports": {
+    "maxAnchors": 4,
+    "minAnchors": 4,
+    "mustBeOnGround": true,
+    "restraintType": "pinned",
+    "note": "Four corner ground anchors at z=0 with pinned restraints (ux=uy=uz=0) transferring outward arch thrust into the base slab."
+  },
+  "material": {
+    "name": "Standard Cast Gypsum Plaster (Plaster of Paris / Hydrocal)",
+    "densityKgM3": 1250,
+    "youngsModulusPa": 5.0e9,
+    "poissonsRatio": 0.24,
+    "compressiveStrengthPa": 12.0e6,
+    "tensileStrengthPa": 2.0e6,
+    "shearStrengthPa": 1.5e6
+  },
+  "loadCases": [
+    {
+      "id": "LC1_self_weight",
+      "name": "Self-Weight Only",
+      "required": true,
+      "gravityMS2": 9.81,
+      "distributedVerticalMassKg": 0,
+      "distribution": "none"
+    },
+    {
+      "id": "LC2_self_weight_plus_30kg_roof",
+      "name": "Self-Weight + 30 kg Distributed Roof/Snow Load",
+      "required": true,
+      "idealTarget": true,
+      "gravityMS2": 9.81,
+      "distributedVerticalMassKg": 30.0,
+      "distribution": "top_zone_nodes",
+      "topZoneFractionZ": 0.75,
+      "note": "30 kg (294.3 N) distributed downward across canopy crown nodes in the upper 25% of height (z >= 0.75 * H), simulating roof cladding or snow accumulation."
+    }
+  ],
+  "acceptanceCriteria": {
+    "maxDeflectionRatio": 0.0033333333,
+    "characteristicLengthDef": "min(planSpan, height)",
+    "maxDeflectionMeters": 0.0033333333,
+    "maxDeflectionHeightRatioMeters": 0.0040000000,
+    "minTensileSafetyFactor": 1.5,
+    "minCompressiveSafetyFactor": 2.0,
+    "minBucklingSafetyFactor": 2.0,
+    "requireSingleConnectedComponent": true,
+    "requireWatertightManifoldMesh": true,
+    "minMemberLengthM": 0.05,
+    "maxSlendernessRatio": 120,
+    "minTubeOuterRadiusM": 0.015,
+    "maxTubeOuterRadiusM": 0.085,
+    "minWallThicknessM": 0.006
+  }
+}

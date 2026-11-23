@@ -1,0 +1,19 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r1_33_hyptower_336",
+  "wfcSeed": 512,
+  "tilePreset": "hyperboloid_tower",
+  "outerRadiusM": 0.015,
+  "innerRadiusM": 0.009,
+  "qProfile": "column_boosted",
+  "columnBoost": 4.2,
+  "collarBoost": 1.6,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true,
+  "gridResolution": [
+    3,
+    3,
+    6
+  ]
+}

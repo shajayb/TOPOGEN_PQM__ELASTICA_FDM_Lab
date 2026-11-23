@@ -1,0 +1,14 @@
+{
+  "tilePreset": "arch_braced",
+  "fdmMode": "compression",
+  "wfcSeed": 42,
+  "gridResolution": [
+    4,
+    2,
+    2
+  ],
+  "outerRadiusM": 0.018,
+  "innerRadiusM": 0.011,
+  "qProfile": "column_boosted",
+  "name": "canopy_best"
+}

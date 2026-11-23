@@ -1,0 +1,19 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r1_31_slendia_335",
+  "wfcSeed": 42,
+  "tilePreset": "slender_diagrid",
+  "outerRadiusM": 0.015,
+  "innerRadiusM": 0.009,
+  "qProfile": "compression_taper",
+  "columnBoost": 4.5,
+  "collarBoost": 2,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true,
+  "gridResolution": [
+    3,
+    3,
+    5
+  ]
+}

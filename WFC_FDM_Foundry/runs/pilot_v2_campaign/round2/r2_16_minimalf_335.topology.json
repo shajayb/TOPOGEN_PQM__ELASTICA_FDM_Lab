@@ -1,0 +1,204 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r2_16_minimalf_335",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.291681,
+      -0.291681,
+      0.42311
+    ],
+    [
+      -0.206188,
+      0,
+      0.880664
+    ],
+    [
+      0,
+      0,
+      1.93
+    ],
+    [
+      0,
+      0.206188,
+      0.880664
+    ],
+    [
+      0.291681,
+      0.291681,
+      0.42311
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      0.206188,
+      0,
+      0.880664
+    ],
+    [
+      0.291681,
+      -0.291681,
+      0.42311
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ],
+    [
+      -0.291681,
+      0.291681,
+      0.42311
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ],
+    [
+      0,
+      -0.206188,
+      0.880664
+    ],
+    [
+      -0.46,
+      -0.46,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      12
+    ],
+    [
+      0,
+      11
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      7,
+      11
+    ],
+    [
+      2,
+      11
+    ],
+    [
+      1,
+      9
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      6
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      7,
+      8
+    ],
+    [
+      6,
+      7
+    ],
+    [
+      4,
+      6
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      4,
+      5
+    ],
+    [
+      3,
+      9
+    ],
+    [
+      9,
+      10
+    ]
+  ],
+  "anchors": [
+    5,
+    8,
+    10,
+    12
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.016,
+    "innerRadiusM": 0.01,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      324.008343,
+      144.593293,
+      144.593293,
+      144.593293,
+      119.906646,
+      144.593293,
+      119.906646,
+      119.906646,
+      119.906646,
+      324.008343,
+      144.593293,
+      144.593293,
+      144.593293,
+      324.008343,
+      144.593293,
+      324.008343
+    ],
+    "equilibriumResidual": 1.3447461319493819e-13
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 3.3e-7,
+    "meanQuadPlanarityErrorM": 1.2e-7,
+    "barTubeQuadCount": 256
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "r2_16_minimalf_335.patterns.svg",
+    "unrolledDataFile": "r2_16_minimalf_335.unrolled.json",
+    "barCount": 16,
+    "unrolledBarCount": 16,
+    "totalUnrolledSurfaceAreaM2": 0.948057,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:18:55.427Z",
+    "name": "r2_16_minimalf_335",
+    "wfcSeed": 21,
+    "algorithm": "wfc",
+    "gridResolution": [
+      3,
+      3,
+      5
+    ],
+    "tilePreset": "minimal_frame",
+    "symmetryXY": true,
+    "qProfile": "compression_taper"
+  }
+}

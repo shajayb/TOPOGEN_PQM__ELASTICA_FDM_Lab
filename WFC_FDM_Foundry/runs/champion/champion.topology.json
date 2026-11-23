@@ -1,0 +1,224 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r2_04_diagridt_335",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.412617,
+      -0.412617,
+      0.207006
+    ],
+    [
+      -0.46,
+      -0.46,
+      0
+    ],
+    [
+      -0.312032,
+      -0.312031,
+      0.641665
+    ],
+    [
+      -0.178381,
+      -0.178379,
+      1.209342
+    ],
+    [
+      0,
+      0.000003,
+      1.95
+    ],
+    [
+      -0.178381,
+      0.178383,
+      1.209343
+    ],
+    [
+      -0.31203,
+      0.312031,
+      0.641672
+    ],
+    [
+      -0.412617,
+      0.412617,
+      0.207009
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ],
+    [
+      0.178381,
+      0.178383,
+      1.209343
+    ],
+    [
+      0.31203,
+      0.312031,
+      0.641671
+    ],
+    [
+      0.412617,
+      0.412617,
+      0.207009
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      0.178381,
+      -0.17838,
+      1.209342
+    ],
+    [
+      0.312032,
+      -0.312031,
+      0.641664
+    ],
+    [
+      0.412617,
+      -0.412617,
+      0.207006
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      4,
+      13
+    ],
+    [
+      4,
+      9
+    ],
+    [
+      4,
+      5
+    ],
+    [
+      5,
+      6
+    ],
+    [
+      6,
+      7
+    ],
+    [
+      7,
+      8
+    ],
+    [
+      9,
+      10
+    ],
+    [
+      10,
+      11
+    ],
+    [
+      11,
+      12
+    ],
+    [
+      13,
+      14
+    ],
+    [
+      14,
+      15
+    ],
+    [
+      15,
+      16
+    ]
+  ],
+  "anchors": [
+    1,
+    8,
+    12,
+    16
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.012,
+    "innerRadiusM": 0.006,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      297.460033,
+      631.460895,
+      223.8699,
+      167.732047,
+      167.731923,
+      167.734489,
+      167.734718,
+      223.874907,
+      297.461149,
+      631.460092,
+      223.874451,
+      297.461014,
+      631.460148,
+      223.869673,
+      297.460019,
+      631.460993
+    ],
+    "equilibriumResidual": 2.2944996429410575e-13
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 5.4e-7,
+    "meanQuadPlanarityErrorM": 1.3e-7,
+    "barTubeQuadCount": 256
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "champion.patterns.svg",
+    "unrolledDataFile": "champion.unrolled.json",
+    "barCount": 16,
+    "unrolledBarCount": 16,
+    "totalUnrolledSurfaceAreaM2": 0.597565,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:18:51.640Z",
+    "name": "r2_04_diagridt_335",
+    "wfcSeed": 77,
+    "algorithm": "wfc",
+    "gridResolution": [
+      3,
+      3,
+      5
+    ],
+    "tilePreset": "diagrid_tower",
+    "symmetryXY": true,
+    "qProfile": "funicular_tuned"
+  }
+}

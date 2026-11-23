@@ -1,0 +1,19 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r1_09_catquad_223",
+  "wfcSeed": 108,
+  "tilePreset": "catenary_quadripod",
+  "outerRadiusM": 0.0125,
+  "innerRadiusM": 0.0065,
+  "qProfile": "compression_taper",
+  "columnBoost": 4.2,
+  "collarBoost": 1.6,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true,
+  "gridResolution": [
+    2,
+    2,
+    3
+  ]
+}

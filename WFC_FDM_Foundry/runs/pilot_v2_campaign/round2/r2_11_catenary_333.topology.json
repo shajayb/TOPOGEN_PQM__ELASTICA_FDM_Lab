@@ -1,0 +1,184 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r2_11_catenary_333",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.46,
+      -0.46,
+      0
+    ],
+    [
+      -0.388526,
+      -0.388526,
+      0.311609
+    ],
+    [
+      -0.231512,
+      -0.231512,
+      0.980693
+    ],
+    [
+      0,
+      0,
+      1.93
+    ],
+    [
+      0.231512,
+      -0.231512,
+      0.980693
+    ],
+    [
+      0.388526,
+      -0.388526,
+      0.311609
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ],
+    [
+      0.231512,
+      0.231512,
+      0.980693
+    ],
+    [
+      0.388526,
+      0.388526,
+      0.311609
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      -0.231512,
+      0.231512,
+      0.980693
+    ],
+    [
+      -0.388526,
+      0.388526,
+      0.311609
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      10
+    ],
+    [
+      3,
+      7
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      4,
+      5
+    ],
+    [
+      5,
+      6
+    ],
+    [
+      7,
+      8
+    ],
+    [
+      8,
+      9
+    ],
+    [
+      10,
+      11
+    ],
+    [
+      11,
+      12
+    ]
+  ],
+  "anchors": [
+    0,
+    6,
+    9,
+    12
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.0155,
+    "innerRadiusM": 0.0095,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      428.203635,
+      194.922777,
+      132.198873,
+      132.198849,
+      132.19885,
+      132.198866,
+      194.922743,
+      428.203624,
+      194.922679,
+      428.203614,
+      194.922697,
+      428.203614
+    ],
+    "equilibriumResidual": 1.4560858868830676e-13
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 5e-7,
+    "meanQuadPlanarityErrorM": 1.3e-7,
+    "barTubeQuadCount": 192
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "r2_11_catenary_333.patterns.svg",
+    "unrolledDataFile": "r2_11_catenary_333.unrolled.json",
+    "barCount": 12,
+    "unrolledBarCount": 12,
+    "totalUnrolledSurfaceAreaM2": 0.762299,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:18:54.189Z",
+    "name": "r2_11_catenary_333",
+    "wfcSeed": 7,
+    "algorithm": "wfc",
+    "gridResolution": [
+      3,
+      3,
+      3
+    ],
+    "tilePreset": "catenary_quadripod",
+    "symmetryXY": true,
+    "qProfile": "compression_taper"
+  }
+}

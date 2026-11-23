@@ -1,0 +1,194 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r2_05_funnelva_333",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.253106,
+      -0.253106,
+      0.983156
+    ],
+    [
+      -0.041283,
+      -0.041283,
+      1.95
+    ],
+    [
+      -0.25304,
+      0.21223,
+      0.98369
+    ],
+    [
+      -0.39597,
+      0.383344,
+      0.308619
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ],
+    [
+      0.21223,
+      -0.25304,
+      0.98369
+    ],
+    [
+      0.383344,
+      -0.39597,
+      0.308619
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ],
+    [
+      0.152592,
+      0.152592,
+      1.223943
+    ],
+    [
+      0.299262,
+      0.299262,
+      0.651477
+    ],
+    [
+      0.408844,
+      0.408844,
+      0.210139
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      -0.396005,
+      -0.396005,
+      0.308331
+    ],
+    [
+      -0.46,
+      -0.46,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      12
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      12,
+      13
+    ],
+    [
+      1,
+      8
+    ],
+    [
+      1,
+      5
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      8,
+      9
+    ],
+    [
+      5,
+      6
+    ],
+    [
+      9,
+      10
+    ],
+    [
+      10,
+      11
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      6,
+      7
+    ]
+  ],
+  "anchors": [
+    4,
+    7,
+    11,
+    13
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.015,
+    "innerRadiusM": 0.009,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      210.243189,
+      141.833463,
+      469.465449,
+      124.484331,
+      141.518268,
+      141.518192,
+      164.549257,
+      209.666501,
+      220.239588,
+      471.780931,
+      209.666374,
+      468.019592,
+      468.019647
+    ],
+    "equilibriumResidual": 2.4629301282796255e-13
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 0.00020819,
+    "meanQuadPlanarityErrorM": 0.00001626,
+    "barTubeQuadCount": 208
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "r2_05_funnelva_333.patterns.svg",
+    "unrolledDataFile": "r2_05_funnelva_333.unrolled.json",
+    "barCount": 13,
+    "unrolledBarCount": 13,
+    "totalUnrolledSurfaceAreaM2": 0.603323,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:18:51.966Z",
+    "name": "r2_05_funnelva_333",
+    "wfcSeed": 21,
+    "algorithm": "wfc",
+    "gridResolution": [
+      3,
+      3,
+      3
+    ],
+    "tilePreset": "funnel_vault",
+    "symmetryXY": true,
+    "qProfile": "funicular_tuned"
+  }
+}

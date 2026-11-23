@@ -1,0 +1,259 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r1_15_minframe_223",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.241731,
+      -0.241731,
+      0.403129
+    ],
+    [
+      -0.102307,
+      -0.102307,
+      1.086937
+    ],
+    [
+      -0.047388,
+      -0.047388,
+      2
+    ],
+    [
+      -0.047388,
+      0.047388,
+      2
+    ],
+    [
+      0.047388,
+      0.047388,
+      2
+    ],
+    [
+      0.102307,
+      0.102307,
+      1.086937
+    ],
+    [
+      0.241731,
+      0.241731,
+      0.403129
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      0.047388,
+      -0.047388,
+      2
+    ],
+    [
+      -0.102307,
+      0.102307,
+      1.086937
+    ],
+    [
+      0.102307,
+      -0.102307,
+      1.086937
+    ],
+    [
+      -0.241731,
+      0.241731,
+      0.403129
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ],
+    [
+      0.241731,
+      -0.241731,
+      0.403129
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ],
+    [
+      -0.46,
+      -0.46,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      15
+    ],
+    [
+      0,
+      13
+    ],
+    [
+      0,
+      11
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      10
+    ],
+    [
+      1,
+      9
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      8
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      9
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      4,
+      5
+    ],
+    [
+      4,
+      8
+    ],
+    [
+      5,
+      6
+    ],
+    [
+      5,
+      10
+    ],
+    [
+      5,
+      9
+    ],
+    [
+      6,
+      13
+    ],
+    [
+      6,
+      11
+    ],
+    [
+      6,
+      7
+    ],
+    [
+      8,
+      10
+    ],
+    [
+      9,
+      11
+    ],
+    [
+      10,
+      13
+    ],
+    [
+      11,
+      12
+    ],
+    [
+      13,
+      14
+    ]
+  ],
+  "anchors": [
+    7,
+    12,
+    14,
+    15
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.0165,
+    "innerRadiusM": 0.0105,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      344.850822,
+      99.915285,
+      99.915285,
+      193.404281,
+      94.749458,
+      94.749458,
+      137.988747,
+      79.958099,
+      79.958099,
+      137.988747,
+      79.958099,
+      137.988747,
+      79.958099,
+      193.404281,
+      94.749458,
+      94.749458,
+      99.915285,
+      99.915285,
+      344.850822,
+      137.988747,
+      193.404281,
+      193.404281,
+      344.850822,
+      344.850822
+    ],
+    "equilibriumResidual": 3.1396384776475357e-13
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 5e-7,
+    "meanQuadPlanarityErrorM": 7e-8,
+    "barTubeQuadCount": 520
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "r1_15_minframe_223.patterns.svg",
+    "unrolledDataFile": "r1_15_minframe_223.unrolled.json",
+    "barCount": 24,
+    "unrolledBarCount": 24,
+    "totalUnrolledSurfaceAreaM2": 1.071239,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:01:29.106Z",
+    "name": "r1_15_minframe_223",
+    "wfcSeed": 56,
+    "algorithm": "wfc",
+    "gridResolution": [
+      2,
+      2,
+      3
+    ],
+    "tilePreset": "minimal_frame",
+    "symmetryXY": true,
+    "qProfile": "compression_taper"
+  }
+}

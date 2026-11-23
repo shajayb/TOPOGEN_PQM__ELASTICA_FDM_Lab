@@ -1,0 +1,77 @@
+{
+  "$schema": "../schemas/brief.schema.json",
+  "id": "pilot-plaster-tower-1x1x2",
+  "name": "Pilot Brief — 1x1x2m Cast Plaster Funicular Network",
+  "version": "1.0.0",
+  "description": "1m x 1m plan, 2m tall funicular tubular network cast in standard gypsum plaster, supported at most 4 ground anchor points, resisting self-weight and ideally a 50 kg vertical distributed load within L/300 deflection and brittle plaster strength limits.",
+  "envelope": {
+    "units": "meters",
+    "coordinateSystem": "Z-up",
+    "maxPlanX": 1.0,
+    "maxPlanY": 1.0,
+    "targetHeightZ": 2.0,
+    "minHeightZ": 1.90,
+    "maxHeightZ": 2.05,
+    "planTolerance": 0.02,
+    "groundZ": 0.0,
+    "groundTolerance": 0.02
+  },
+  "funicular": {
+    "mode": "auto",
+    "allowedModes": ["compression", "tensile", "zero-weight"],
+    "maxEquilibriumResidualNorm": 1e-4
+  },
+  "supports": {
+    "maxAnchors": 4,
+    "minAnchors": 3,
+    "mustBeOnGround": true,
+    "restraintType": "pinned",
+    "note": "Pinned (ux=uy=uz=0) is conservative for cast plaster footing pads; fixed base also reported for reference."
+  },
+  "material": {
+    "name": "Standard Cast Gypsum Plaster (Plaster of Paris / Hydrocal)",
+    "densityKgM3": 1250,
+    "youngsModulusPa": 5.0e9,
+    "poissonsRatio": 0.24,
+    "compressiveStrengthPa": 12.0e6,
+    "tensileStrengthPa": 2.0e6,
+    "shearStrengthPa": 1.5e6
+  },
+  "loadCases": [
+    {
+      "id": "LC1_self_weight",
+      "name": "Self-Weight Only",
+      "required": true,
+      "gravityMS2": 9.81,
+      "distributedVerticalMassKg": 0,
+      "distribution": "none"
+    },
+    {
+      "id": "LC2_self_weight_plus_50kg",
+      "name": "Self-Weight + 50 kg Vertical Distributed Load",
+      "required": true,
+      "idealTarget": true,
+      "gravityMS2": 9.81,
+      "distributedVerticalMassKg": 50.0,
+      "distribution": "top_zone_nodes",
+      "topZoneFractionZ": 0.85,
+      "note": "50 kg (490.5 N) distributed downward across nodes in the top 15% of height (z >= 0.85 * H), simulating a roof/deck/platform load."
+    }
+  ],
+  "acceptanceCriteria": {
+    "maxDeflectionRatio": 0.0033333333,
+    "characteristicLengthDef": "min(planSpan, height)",
+    "maxDeflectionMeters": 0.0033333333,
+    "maxDeflectionHeightRatioMeters": 0.0066666667,
+    "minTensileSafetyFactor": 1.5,
+    "minCompressiveSafetyFactor": 2.0,
+    "minBucklingSafetyFactor": 2.0,
+    "requireSingleConnectedComponent": true,
+    "requireWatertightManifoldMesh": true,
+    "minMemberLengthM": 0.04,
+    "maxSlendernessRatio": 120,
+    "minTubeOuterRadiusM": 0.012,
+    "maxTubeOuterRadiusM": 0.090,
+    "minWallThicknessM": 0.006
+  }
+}

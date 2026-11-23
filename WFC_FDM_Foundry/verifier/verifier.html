@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WFC-FDM Foundry — Independent Cast Plaster 3D FEA Verifier</title>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --panel: rgba(17, 22, 31, 0.94);
+      --border: #243044;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --pass: #22c55e;
+      --fail: #ef4444;
+      --warn: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+    }
+    #app { display: flex; width: 100%; height: 100%; }
+    #viewport { flex: 1; position: relative; overflow: hidden; }
+    #sidebar {
+      width: 370px; height: 100%; overflow-y: auto;
+      background: var(--panel); border-left: 1px solid var(--border);
+      padding: 16px; display: flex; flex-direction: column; gap: 14px;
+    }
+    h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.02em; color: #f8fafc; }
+    .subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .section {
+      background: rgba(11, 14, 20, 0.55);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 11px 12px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--accent);
+    }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    label { font-size: 12px; color: var(--muted); }
+    select, input[type="range"] {
+      background: #0f1520; color: var(--text); border: 1px solid var(--border);
+      border-radius: 5px; padding: 4px 7px; font-size: 12px;
+    }
+    select { flex: 1; max-width: 210px; }
+    input[type="range"] { flex: 1; padding: 0; }
+    button {
+      background: #1e293b; color: #f8fafc; border: 1px solid #334155;
+      border-radius: 6px; padding: 7px 11px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: background 0.15s, border-color 0.15s;
+    }
+    button:hover { background: #273549; border-color: var(--accent); }
+    button.primary {
+      background: linear-gradient(135deg, #0891b2, #0284c7);
+      border-color: #38bdf8; color: #ffffff;
+    }
+    button.primary:hover { filter: brightness(1.1); }
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .dropzone {
+      border: 1.5px dashed #334155; border-radius: 7px;
+      padding: 10px; text-align: center; color: var(--muted);
+      font-size: 11.5px; cursor: pointer; transition: all 0.15s;
+    }
+    .dropzone.dragover { border-color: var(--accent); background: rgba(34, 211, 238, 0.08); color: #fff; }
+    .file-status { font-family: monospace; font-size: 11px; color: #cbd5e1; word-break: break-all; }
+    .badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .badge.pass { background: rgba(34, 197, 94, 0.18); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.45); }
+    .badge.fail { background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.45); }
+    .badge.idle { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .metric {
+      background: rgba(15, 23, 42, 0.75); border: 1px solid #1e293b;
+      border-radius: 6px; padding: 7px 8px;
+    }
+    .metric .k { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric .v { font-family: monospace; font-size: 13px; font-weight: 700; margin-top: 2px; color: #f8fafc; }
+    .metric.ok .v { color: #4ade80; }
+    .metric.bad .v { color: #f87171; }
+    .check-list { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; }
+    .check-item { display: flex; justify-content: space-between; align-items: center; font-family: monospace; }
+    .check-item .tag-pass { color: #4ade80; font-weight: 700; }
+    .check-item .tag-fail { color: #f87171; font-weight: 700; }
+    #hud {
+      position: absolute; top: 14px; left: 14px; pointer-events: none;
+      background: rgba(11, 14, 20, 0.78); border: 1px solid var(--border);
+      border-radius: 8px; padding: 9px 13px; backdrop-filter: blur(6px);
+    }
+    #legend {
+      position: absolute; bottom: 14px; left: 14px; pointer-events: none;
+      background: rgba(11, 14, 20, 0.82); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; width: 250px;
+    }
+    .colorbar {
+      height: 10px; border-radius: 4px; margin: 5px 0;
+      background: linear-gradient(90deg, #2563eb, #22d3ee, #22c55e, #f59e0b, #ef4444);
+    }
+    .legend-labels { display: flex; justify-content: space-between; font-family: monospace; font-size: 10.5px; color: var(--muted); }
+    .toggle-row { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text); cursor: pointer; }
+    input[type="file"] { display: none; }
+    .mono { font-family: monospace; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+<div id="app">
+  <div id="viewport">
+    <div id="hud">
+      <div style="font-weight:700; font-size:13px; color:#f8fafc;">Plaster Space Frame FEA Verifier</div>
+      <div id="hud-sub" style="font-size:11px; color:#94a3b8; margin-top:2px;">Air-Gapped 3D Euler-Bernoulli Solver (Z-up)</div>
+    </div>
+    <div id="legend">
+      <div id="legend-title" style="font-size:11px; font-weight:600; color:#e2e8f0;">Tensile Stress (MPa)</div>
+      <div id="legend-bar" class="colorbar"></div>
+      <div class="legend-labels">
+        <span id="legend-min">0.00</span>
+        <span id="legend-mid">1.00</span>
+        <span id="legend-max">2.00</span>
+      </div>
+    </div>
+  </div>
+
+  <aside id="sidebar">
+    <div class="row">
+      <div>
+        <h1>Plaster FEA Verifier</h1>
+        <div class="subtitle">Independent 6-DOF Space Frame Solver</div>
+      </div>
+      <span id="overall-badge" class="badge idle">IDLE</span>
+    </div>
+
+    <div class="section">
+      <div class="section-title">1. Load Neutral Artifacts</div>
+      <div id="dropzone" class="dropzone">
+        Drop <b>.topology.json</b>, <b>brief.json</b>, or <b>.mesh.obj</b> here
+      </div>
+      <div class="btn-grid">
+        <button id="btn-load-topo">Load Topology JSON</button>
+        <button id="btn-load-brief">Load Brief JSON</button>
+        <button id="btn-load-obj">Load Mesh OBJ</button>
+        <button id="btn-demo">Load Demo Tower</button>
+      </div>
+      <input id="file-topo" type="file" accept=".json" />
+      <input id="file-brief" type="file" accept=".json" />
+      <input id="file-obj" type="file" accept=".obj" />
+      <div class="file-status" id="file-status">Topology: none | Brief: default pilot (1x1x2m)</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">2. FEA Controls</div>
+      <div class="row">
+        <label for="sel-lc">Load Case</label>
+        <select id="sel-lc"></select>
+      </div>
+      <div class="row">
+        <label for="sel-restraint">Support Base</label>
+        <select id="sel-restraint">
+          <option value="pinned">Pinned (ux=uy=uz=0)</option>
+          <option value="fixed">Fixed (6-DOF)</option>
+        </select>
+      </div>
+      <button id="btn-run" class="primary">Run Plaster FEA</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">3. Visualization</div>
+      <div class="row">
+        <label for="sel-color">Color Heatmap</label>
+        <select id="sel-color">
+          <option value="tension">Tensile Stress (MPa)</option>
+          <option value="compression">Compressive Stress (MPa)</option>
+          <option value="axial">Axial Force (Comp / Tens)</option>
+          <option value="util">Utilization Ratio</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="rng-scale">Deflection Scale</label>
+        <input id="rng-scale" type="range" min="0" max="200" step="1" value="50" />
+        <span id="lbl-scale" class="mono" style="width:38px; text-align:right;">50x</span>
+      </div>
+      <label class="toggle-row"><input id="chk-ghost" type="checkbox" checked /> Show Undeformed Ghost</label>
+      <label class="toggle-row"><input id="chk-reactions" type="checkbox" checked /> Show Anchor Reaction Arrows</label>
+      <label class="toggle-row"><input id="chk-loads" type="checkbox" checked /> Show Applied Load Arrows</label>
+      <label class="toggle-row"><input id="chk-obj" type="checkbox" checked /> Show OBJ Mesh Overlay</label>
+    </div>
+
+    <div class="section">
+      <div class="section-title">4. Structural Scorecard</div>
+      <div class="metric-grid" id="scorecard-grid">
+        <div class="metric"><div class="k">Max Deflection</div><div class="v">—</div></div>
+        <div class="metric"><div class="k">Deflection Ratio</div><div class="v">—</div></div>
+        <div class="metric"><div class="k">Tensile SF</div><div class="v">—</div></div>
+        <div class="metric"><div class="k">Compressive SF</div><div class="v">—</div></div>
+        <div class="metric"><div class="k">Buckling SF</div><div class="v">—</div></div>
+        <div class="metric"><div class="k">Plaster Mass</div><div class="v">—</div></div>
+        <div class="metric"><div class="k">Max Tension</div><div class="v">—</div></div>
+        <div class="metric"><div class="k">Eq. Residual</div><div class="v">—</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">5. Fabrication &amp; Topology Checks</div>
+      <div class="check-list" id="fab-checks">
+        <div style="color:var(--muted);">Run FEA to populate checks.</div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ============================================================================
+// Embedded Air-Gapped 3D Euler-Bernoulli Space Frame FEA & Fabrication Engine
+// (Mirrors fea_solver.mjs & fabrication_check.mjs so verifier.html works 100% standalone)
+// ============================================================================
+
+function computeSectionProperties(outerRadiusM, innerRadiusM = 0) {
+  const ro = Number(outerRadiusM);
+  const ri = Math.max(0, Number(innerRadiusM) || 0);
+  const ro2 = ro * ro, ri2 = ri * ri;
+  const ro4 = ro2 * ro2, ri4 = ri2 * ri2;
+  const area = Math.PI * (ro2 - ri2);
+  const I = (Math.PI / 4) * (ro4 - ri4);
+  const J = (Math.PI / 2) * (ro4 - ri4);
+  return { rOuter: ro, rInner: ri, isHollow: ri > 1e-12, area, I, J, rg: Math.sqrt(I / area) };
+}
+
+function resolveEdgeSection(topology, e) {
+  const sec = topology.section || {};
+  const edgeRadii = sec.edgeRadiiM || topology.edgeRadiiM || null;
+  const ro = Array.isArray(edgeRadii) && edgeRadii[e] != null ? Number(edgeRadii[e]) : Number(sec.outerRadiusM ?? 0.035);
+  let ri = 0;
+  if (sec.shape === 'circular_hollow' || (sec.innerRadiusM != null && Number(sec.innerRadiusM) > 0)) {
+    const edgeInner = sec.edgeInnerRadiiM || topology.edgeInnerRadiiM || null;
+    ri = Array.isArray(edgeInner) && edgeInner[e] != null ? Number(edgeInner[e]) : Number(sec.innerRadiusM ?? 0);
+  }
+  return computeSectionProperties(ro, ri);
+}
+
+function computeMemberTriad(p1, p2) {
+  const dx = p2[0] - p1[0], dy = p2[1] - p1[1], dz = p2[2] - p1[2];
+  const L = Math.hypot(dx, dy, dz);
+  if (!(L > 1e-12)) throw new Error('Zero-length member');
+  const ex = [dx / L, dy / L, dz / L];
+  const ref = Math.abs(ex[2]) < 0.999 ? [0, 0, 1] : [0, 1, 0];
+  let eyx = ref[1] * ex[2] - ref[2] * ex[1];
+  let eyy = ref[2] * ex[0] - ref[0] * ex[2];
+  let eyz = ref[0] * ex[1] - ref[1] * ex[0];
+  const eyLen = Math.hypot(eyx, eyy, eyz);
+  const ey = [eyx / eyLen, eyy / eyLen, eyz / eyLen];
+  const ez = [
+    ex[1] * ey[2] - ex[2] * ey[1],
+    ex[2] * ey[0] - ex[0] * ey[2],
+    ex[0] * ey[1] - ex[1] * ey[0],
+  ];
+  const R = [ex[0], ex[1], ex[2], ey[0], ey[1], ey[2], ez[0], ez[1], ez[2]];
+  return { L, ex, ey, ez, R };
+}
+
+function buildLocalStiffnessMatrix(E, G, A, Iy, Iz, J, L) {
+  const k = new Float64Array(144);
+  const set = (r, c, v) => { k[r * 12 + c] = v; };
+  const L2 = L * L, L3 = L2 * L;
+  const ka = (E * A) / L;
+  set(0, 0, ka); set(0, 6, -ka); set(6, 0, -ka); set(6, 6, ka);
+  const kt = (G * J) / L;
+  set(3, 3, kt); set(3, 9, -kt); set(9, 3, -kt); set(9, 9, kt);
+  const az = (12 * E * Iz) / L3, bz = (6 * E * Iz) / L2, cz = (4 * E * Iz) / L, dz = (2 * E * Iz) / L;
+  set(1, 1, az); set(1, 5, bz); set(1, 7, -az); set(1, 11, bz);
+  set(5, 1, bz); set(5, 5, cz); set(5, 7, -bz); set(5, 11, dz);
+  set(7, 1, -az); set(7, 5, -bz); set(7, 7, az); set(7, 11, -bz);
+  set(11, 1, bz); set(11, 5, dz); set(11, 7, -bz); set(11, 11, cz);
+  const ay = (12 * E * Iy) / L3, by = (6 * E * Iy) / L2, cy = (4 * E * Iy) / L, dy = (2 * E * Iy) / L;
+  set(2, 2, ay); set(2, 4, -by); set(2, 8, -ay); set(2, 10, -by);
+  set(4, 2, -by); set(4, 4, cy); set(4, 8, by); set(4, 10, dy);
+  set(8, 2, -ay); set(8, 4, by); set(8, 8, ay); set(8, 10, by);
+  set(10, 2, -by); set(10, 4, dy); set(10, 8, by); set(10, 10, cy);
+  return k;
+}
+
+function transformStiffnessToGlobal(kLocal, R) {
+  const temp = new Float64Array(144);
+  for (let row = 0; row < 12; row++) {
+    const rowOff = row * 12;
+    for (let blk = 0; blk < 4; blk++) {
+      const c0 = blk * 3;
+      const a0 = kLocal[rowOff + c0], a1 = kLocal[rowOff + c0 + 1], a2 = kLocal[rowOff + c0 + 2];
+      temp[rowOff + c0]     = a0 * R[0] + a1 * R[3] + a2 * R[6];
+      temp[rowOff + c0 + 1] = a0 * R[1] + a1 * R[4] + a2 * R[7];
+      temp[rowOff + c0 + 2] = a0 * R[2] + a1 * R[5] + a2 * R[8];
+    }
+  }
+  const kGlobal = new Float64Array(144);
+  for (let blk = 0; blk < 4; blk++) {
+    const r0 = blk * 3;
+    for (let col = 0; col < 12; col++) {
+      const b0 = temp[r0 * 12 + col], b1 = temp[(r0 + 1) * 12 + col], b2 = temp[(r0 + 2) * 12 + col];
+      kGlobal[r0 * 12 + col]       = R[0] * b0 + R[3] * b1 + R[6] * b2;
+      kGlobal[(r0 + 1) * 12 + col] = R[1] * b0 + R[4] * b1 + R[7] * b2;
+      kGlobal[(r0 + 2) * 12 + col] = R[2] * b0 + R[5] * b1 + R[8] * b2;
+    }
+  }
+  return kGlobal;
+}
+
+function transformVec(v, R, transpose = false) {
+  const out = new Float64Array(12);
+  for (let blk = 0; blk < 4; blk++) {
+    const i = blk * 3;
+    const x = v[i], y = v[i + 1], z = v[i + 2];
+    if (!transpose) {
+      out[i]     = R[0] * x + R[1] * y + R[2] * z;
+      out[i + 1] = R[3] * x + R[4] * y + R[5] * z;
+      out[i + 2] = R[6] * x + R[7] * y + R[8] * z;
+    } else {
+      out[i]     = R[0] * x + R[3] * y + R[6] * z;
+      out[i + 1] = R[1] * x + R[4] * y + R[7] * z;
+      out[i + 2] = R[2] * x + R[5] * y + R[8] * z;
+    }
+  }
+  return out;
+}
+
+function solveLinearSystem(A, b, n) {
+  let maxDiag = 0;
+  for (let i = 0; i < n; i++) {
+    const d = Math.abs(A[i * n + i]);
+    if (d > maxDiag) maxDiag = d;
+  }
+  if (!(maxDiag > 0)) return { ok: false, reason: 'Zero stiffness matrix' };
+  const tol = 1e-12 * maxDiag;
+  for (let k = 0; k < n; k++) {
+    let pivotRow = k, maxVal = Math.abs(A[k * n + k]);
+    for (let i = k + 1; i < n; i++) {
+      const val = Math.abs(A[i * n + k]);
+      if (val > maxVal) { maxVal = val; pivotRow = i; }
+    }
+    if (maxVal < tol || !Number.isFinite(maxVal)) {
+      return { ok: false, reason: `Singular/mechanism stiffness matrix at DOF ${k}` };
+    }
+    if (pivotRow !== k) {
+      for (let j = k; j < n; j++) {
+        const t = A[k * n + j]; A[k * n + j] = A[pivotRow * n + j]; A[pivotRow * n + j] = t;
+      }
+      const tb = b[k]; b[k] = b[pivotRow]; b[pivotRow] = tb;
+    }
+    const pivot = A[k * n + k];
+    for (let i = k + 1; i < n; i++) {
+      const a_ik = A[i * n + k];
+      if (a_ik === 0) continue;
+      const factor = a_ik / pivot;
+      A[i * n + k] = 0;
+      for (let j = k + 1; j < n; j++) A[i * n + j] -= factor * A[k * n + j];
+      b[i] -= factor * b[k];
+    }
+  }
+  const x = new Float64Array(n);
+  for (let i = n - 1; i >= 0; i--) {
+    let sum = b[i];
+    for (let j = i + 1; j < n; j++) sum -= A[i * n + j] * x[j];
+    x[i] = sum / A[i * n + i];
+  }
+  return { ok: true, x };
+}
+
+function solveSpaceFrame(topology, material, loadCase, restraintType = 'pinned') {
+  const vertices = topology.vertices || [];
+  const edges = topology.edges || [];
+  const anchors = topology.anchors || [];
+  const nNodes = vertices.length, nEdges = edges.length, nDof = nNodes * 6;
+  const E = Number(material.youngsModulusPa ?? 5.0e9);
+  const nu = Number(material.poissonsRatio ?? 0.24);
+  const G = E / (2 * (1 + nu));
+  const rho = Number(material.densityKgM3 ?? 1250);
+  const fc = Number(material.compressiveStrengthPa ?? 12.0e6);
+  const ft = Number(material.tensileStrengthPa ?? 2.0e6);
+  const g = loadCase.gravityMS2 !== undefined ? Number(loadCase.gravityMS2) : 9.81;
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const [x, y, z] of vertices) {
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+  const spanX = maxX - minX, spanY = maxY - minY, spanZ = maxZ - minZ;
+  const planSpan = Math.max(spanX, spanY);
+  const L_char = planSpan > 1e-6 && spanZ > 1e-6 ? Math.min(planSpan, spanZ) : Math.max(planSpan, spanZ, 1e-6);
+
+  const anchorSet = new Set(anchors);
+  const isFixed = new Uint8Array(nDof);
+  for (const a of anchorSet) {
+    const b = a * 6;
+    isFixed[b] = isFixed[b + 1] = isFixed[b + 2] = 1;
+    if (restraintType === 'fixed') isFixed[b + 3] = isFixed[b + 4] = isFixed[b + 5] = 1;
+  }
+  const dofToFree = new Int32Array(nDof).fill(-1);
+  const freeDofs = [];
+  for (let d = 0; d < nDof; d++) if (!isFixed[d]) { dofToFree[d] = freeDofs.length; freeDofs.push(d); }
+  const nFree = freeDofs.length;
+
+  const Kff = new Float64Array(nFree * nFree);
+  const Fext = new Float64Array(nDof);
+  const elements = new Array(nEdges);
+  let totalVolumeM3 = 0;
+
+  for (let e = 0; e < nEdges; e++) {
+    const [u, v] = edges[e];
+    const sec = resolveEdgeSection(topology, e);
+    const triad = computeMemberTriad(vertices[u], vertices[v]);
+    const kLocal = buildLocalStiffnessMatrix(E, G, sec.area, sec.I, sec.I, sec.J, triad.L);
+    const kGlobal = transformStiffnessToGlobal(kLocal, triad.R);
+    elements[e] = { u, v, sec, triad, kLocal };
+    const vol = sec.area * triad.L;
+    totalVolumeM3 += vol;
+    if (g !== 0) {
+      const w = rho * vol * g;
+      Fext[u * 6 + 2] -= 0.5 * w;
+      Fext[v * 6 + 2] -= 0.5 * w;
+    }
+    const map = [
+      u * 6, u * 6 + 1, u * 6 + 2, u * 6 + 3, u * 6 + 4, u * 6 + 5,
+      v * 6, v * 6 + 1, v * 6 + 2, v * 6 + 3, v * 6 + 4, v * 6 + 5,
+    ];
+    for (let r = 0; r < 12; r++) {
+      const fr = dofToFree[map[r]];
+      if (fr === -1) continue;
+      for (let c = 0; c < 12; c++) {
+        const fcIdx = dofToFree[map[c]];
+        if (fcIdx === -1) continue;
+        Kff[fr * nFree + fcIdx] += kGlobal[r * 12 + c];
+      }
+    }
+  }
+
+  const loadedNodes = [];
+  const distForceN = Number(loadCase.distributedVerticalMassKg || 0) * (g || 9.81);
+  const horizVec = Array.isArray(loadCase.distributedHorizontalVecN) ? loadCase.distributedHorizontalVecN : null;
+  const hasHoriz = horizVec && Math.hypot(horizVec[0] || 0, horizVec[1] || 0, horizVec[2] || 0) > 1e-12;
+  if ((distForceN > 0 || hasHoriz) && loadCase.distribution !== 'none') {
+    const frac = Number(loadCase.topZoneFractionZ ?? 0.85);
+    const zThresh = minZ + frac * spanZ - 1e-9;
+    for (let i = 0; i < nNodes; i++) {
+      if (loadCase.distribution === 'all_free_nodes' ? !anchorSet.has(i) : (!anchorSet.has(i) && vertices[i][2] >= zThresh)) {
+        loadedNodes.push(i);
+      }
+    }
+    if (loadedNodes.length > 0) {
+      if (distForceN > 0) {
+        const fNode = distForceN / loadedNodes.length;
+        for (const idx of loadedNodes) Fext[idx * 6 + 2] -= fNode;
+      }
+      if (hasHoriz) {
+        const hx = (horizVec[0] || 0) / loadedNodes.length;
+        const hy = (horizVec[1] || 0) / loadedNodes.length;
+        const hz = (horizVec[2] || 0) / loadedNodes.length;
+        for (const idx of loadedNodes) { Fext[idx * 6] += hx; Fext[idx * 6 + 1] += hy; Fext[idx * 6 + 2] += hz; }
+      }
+    }
+  }
+
+  const rhs = new Float64Array(nFree);
+  for (let i = 0; i < nFree; i++) rhs[i] = Fext[freeDofs[i]];
+  const solved = solveLinearSystem(Kff, rhs, nFree);
+  if (!solved.ok) return { ok: false, error: solved.reason };
+
+  const uFull = new Float64Array(nDof);
+  for (let i = 0; i < nFree; i++) uFull[freeDofs[i]] = solved.x[i];
+
+  const nodalDisp = [];
+  let maxDispM = 0, maxHorizDispM = 0;
+  for (let i = 0; i < nNodes; i++) {
+    const ux = uFull[i * 6], uy = uFull[i * 6 + 1], uz = uFull[i * 6 + 2];
+    const mag = Math.hypot(ux, uy, uz);
+    const hMag = Math.hypot(ux, uy);
+    if (mag > maxDispM) maxDispM = mag;
+    if (hMag > maxHorizDispM) maxHorizDispM = hMag;
+    nodalDisp.push([ux, uy, uz]);
+  }
+
+  const Ku = new Float64Array(nDof);
+  const members = [];
+  let maxTen = 0, maxComp = 0, minBuckSF = Infinity;
+  let sumBendRatio = 0, loadedMemCount = 0, compCount = 0;
+
+  for (let e = 0; e < nEdges; e++) {
+    const { u, v, sec, triad, kLocal } = elements[e];
+    const uElem = new Float64Array(12);
+    for (let j = 0; j < 6; j++) { uElem[j] = uFull[u * 6 + j]; uElem[6 + j] = uFull[v * 6 + j]; }
+    const uLoc = transformVec(uElem, triad.R, false);
+    const fLoc = new Float64Array(12);
+    for (let r = 0; r < 12; r++) {
+      let s = 0;
+      for (let c = 0; c < 12; c++) s += kLocal[r * 12 + c] * uLoc[c];
+      fLoc[r] = s;
+    }
+    const fGlob = transformVec(fLoc, triad.R, true);
+    for (let j = 0; j < 6; j++) { Ku[u * 6 + j] += fGlob[j]; Ku[v * 6 + j] += fGlob[6 + j]; }
+
+    const N = 0.5 * (fLoc[6] - fLoc[0]);
+    const Mmax = Math.max(Math.hypot(fLoc[4], fLoc[5]), Math.hypot(fLoc[10], fLoc[11]));
+    const sigAx = N / sec.area;
+    const sigBend = (Mmax * sec.rOuter) / sec.I;
+    const sigTen = Math.max(0, sigAx + sigBend);
+    const sigComp = Math.max(0, -sigAx + sigBend);
+    const stressSum = Math.abs(sigAx) + Math.abs(sigBend);
+    if (stressSum > 1e-6) { sumBendRatio += Math.abs(sigBend) / (stressSum + 1e-9); loadedMemCount++; }
+    if (N < -1e-12) compCount++;
+    const Pcr = (Math.PI * Math.PI * E * sec.I) / (triad.L * triad.L);
+    const sfBuck = N < -1e-12 ? Pcr / Math.abs(N) : Infinity;
+    if (sigTen > maxTen) maxTen = sigTen;
+    if (sigComp > maxComp) maxComp = sigComp;
+    if (sfBuck < minBuckSF) minBuckSF = sfBuck;
+    members.push({ u, v, L: triad.L, rOuter: sec.rOuter, N, sigTen, sigComp, sfBuck });
+  }
+
+  const reactions = [];
+  let sumRx = 0, sumRy = 0, sumRz = 0;
+  for (const a of anchorSet) {
+    const b = a * 6;
+    const rx = Ku[b] - Fext[b], ry = Ku[b + 1] - Fext[b + 1], rz = Ku[b + 2] - Fext[b + 2];
+    sumRx += rx; sumRy += ry; sumRz += rz;
+    reactions.push({ node: a, fx: rx, fy: ry, fz: rz });
+  }
+  let sumFx = 0, sumFy = 0, sumFz = 0;
+  for (let i = 0; i < nNodes; i++) { sumFx += Fext[i * 6]; sumFy += Fext[i * 6 + 1]; sumFz += Fext[i * 6 + 2]; }
+  const eqRes = Math.hypot(sumRx + sumFx, sumRy + sumFy, sumRz + sumFz) / Math.max(Math.hypot(sumFx, sumFy, sumFz), 1e-12);
+  const totalMassKg = totalVolumeM3 * rho;
+  const imposedLoadKg = Number(loadCase.distributedVerticalMassKg || 0);
+
+  return {
+    ok: true,
+    totalMassKg,
+    totalVerticalLoadN: totalMassKg * g + distForceN,
+    maxDispM,
+    maxHorizDispM,
+    deflectionRatio: maxDispM / L_char,
+    maxTenPa: maxTen,
+    maxCompPa: maxComp,
+    sfTension: maxTen > 1e-12 ? ft / maxTen : Infinity,
+    sfCompression: maxComp > 1e-12 ? fc / maxComp : Infinity,
+    sfBuckling: minBuckSF,
+    funicularEfficiency: loadedMemCount > 0 ? 1 - sumBendRatio / loadedMemCount : 1.0,
+    compressionDominance: nEdges > 0 ? compCount / nEdges : 0,
+    loadToMassRatio: totalMassKg > 1e-9 ? imposedLoadKg / totalMassKg : 0,
+    eqRes,
+    nodalDisp,
+    members,
+    reactions,
+    loadedNodes,
+    distForcePerNode: loadedNodes.length > 0 ? distForceN / loadedNodes.length : 0,
+    bbox: { minX, maxX, minY, maxY, minZ, maxZ, spanX, spanY, spanZ },
+  };
+}
+
+function computeMinIncidentAngleDeg(verts, edges) {
+  const inc = Array.from({ length: verts.length }, () => []);
+  for (const [u, v] of edges) {
+    const dx = verts[v][0] - verts[u][0], dy = verts[v][1] - verts[u][1], dz = verts[v][2] - verts[u][2];
+    const L = Math.hypot(dx, dy, dz);
+    if (L <= 1e-12) continue;
+    inc[u].push([dx / L, dy / L, dz / L]);
+    inc[v].push([-dx / L, -dy / L, -dz / L]);
+  }
+  let minDeg = Infinity;
+  for (const arr of inc) {
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = i + 1; j < arr.length; j++) {
+        const d = Math.max(-1, Math.min(1, arr[i][0] * arr[j][0] + arr[i][1] * arr[j][1] + arr[i][2] * arr[j][2]));
+        const deg = (Math.acos(d) * 180) / Math.PI;
+        if (deg < minDeg) minDeg = deg;
+      }
+    }
+  }
+  return minDeg === Infinity ? null : minDeg;
+}
+
+function verifyObjText(objText) {
+  const verts = [], faces = [];
+  for (const raw of objText.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith('v ')) {
+      const p = line.split(/\s+/);
+      verts.push([+p[1], +p[2], +p[3]]);
+    } else if (line.startsWith('f ')) {
+      const idx = line.split(/\s+/).slice(1).map((t) => {
+        const v = parseInt(t.split('/')[0], 10);
+        return v < 0 ? verts.length + v : v - 1;
+      });
+      if (idx.length >= 3) faces.push(idx);
+    }
+  }
+  const uEdges = new Map();
+  let vol6 = 0;
+  let quadCount = 0;
+  let maxQuadErr = 0;
+  for (const f of faces) {
+    if (f.length === 4) {
+      quadCount++;
+      const a = verts[f[0]], b = verts[f[1]], c = verts[f[2]], d = verts[f[3]];
+      const d1 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const d2 = [d[0] - b[0], d[1] - b[1], d[2] - b[2]];
+      const nx = d1[1] * d2[2] - d1[2] * d2[1];
+      const ny = d1[2] * d2[0] - d1[0] * d2[2];
+      const nz = d1[0] * d2[1] - d1[1] * d2[0];
+      const nl = Math.hypot(nx, ny, nz);
+      if (nl > 1e-15) {
+        const err = 0.25 * Math.abs(((a[0] - b[0] + c[0] - d[0]) * nx + (a[1] - b[1] + c[1] - d[1]) * ny + (a[2] - b[2] + c[2] - d[2]) * nz) / nl);
+        if (err > maxQuadErr) maxQuadErr = err;
+      }
+    }
+    for (let i = 0; i < f.length; i++) {
+      const a = f[i], b = f[(i + 1) % f.length];
+      const key = a < b ? `${a},${b}` : `${b},${a}`;
+      let e = uEdges.get(key);
+      if (!e) { e = { count: 0, fwd: 0, bwd: 0 }; uEdges.set(key, e); }
+      e.count++;
+      if (a < b) e.fwd++; else e.bwd++;
+    }
+    const v0 = verts[f[0]];
+    for (let i = 1; i < f.length - 1; i++) {
+      const v1 = verts[f[i]], v2 = verts[f[i + 1]];
+      vol6 += v0[0] * (v1[1] * v2[2] - v1[2] * v2[1]) + v0[1] * (v1[2] * v2[0] - v1[0] * v2[2]) + v0[2] * (v1[0] * v2[1] - v1[1] * v2[0]);
+    }
+  }
+  let boundary = 0, nonMan = 0;
+  for (const e of uEdges.values()) {
+    if (e.count === 1) boundary++;
+    else if (e.count > 2 || e.fwd !== 1 || e.bwd !== 1) nonMan++;
+  }
+  const vol = vol6 / 6;
+  return {
+    verts, faces, boundary, nonMan, vol, quadCount, maxQuadErr,
+    watertight: faces.length > 0 && boundary === 0 && nonMan === 0 && vol > 1e-12,
+  };
+}
+
+// ============================================================================
+// Default Pilot Brief & Demo Braced Tower
+// ============================================================================
+
+const DEFAULT_BRIEF = {
+  id: 'pilot-plaster-tower-1x1x2',
+  envelope: { maxPlanX: 1.0, maxPlanY: 1.0, minHeightZ: 1.9, maxHeightZ: 2.05, planTolerance: 0.02, groundZ: 0.0, groundTolerance: 0.02 },
+  supports: { minAnchors: 3, maxAnchors: 4, mustBeOnGround: true, restraintType: 'pinned' },
+  material: {
+    name: 'Cast Gypsum Plaster',
+    densityKgM3: 1250, youngsModulusPa: 5.0e9, poissonsRatio: 0.24,
+    compressiveStrengthPa: 12.0e6, tensileStrengthPa: 2.0e6, shearStrengthPa: 1.5e6,
+  },
+  loadCases: [
+    { id: 'LC1_self_weight', name: 'Self-Weight Only', gravityMS2: 9.81, distributedVerticalMassKg: 0, distribution: 'none' },
+    { id: 'LC2_self_weight_plus_50kg', name: 'Self-Weight + 50 kg Top Load', gravityMS2: 9.81, distributedVerticalMassKg: 50.0, distribution: 'top_zone_nodes', topZoneFractionZ: 0.85 },
+  ],
+  acceptanceCriteria: {
+    maxDeflectionRatio: 0.0033333333, maxDeflectionMeters: 0.0033333333,
+    minTensileSafetyFactor: 1.5, minCompressiveSafetyFactor: 2.0, minBucklingSafetyFactor: 2.0,
+    minMemberLengthM: 0.04, maxSlendernessRatio: 120,
+  },
+};
+
+const DEMO_TOWER = {
+  $schema: 'wfc-fdm-topology/v1',
+  name: 'demo_braced_plaster_tower',
+  units: 'meters',
+  coordinateSystem: 'Z-up',
+  vertices: [
+    [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0],
+    [0.2, 0.2, 1.0], [0.8, 0.2, 1.0], [0.8, 0.8, 1.0], [0.2, 0.8, 1.0],
+    [0.35, 0.35, 2.0], [0.65, 0.35, 2.0], [0.65, 0.65, 2.0], [0.35, 0.65, 2.0],
+  ],
+  edges: [
+    [0, 4], [1, 5], [2, 6], [3, 7],
+    [0, 5], [1, 6], [2, 7], [3, 4],
+    [4, 5], [5, 6], [6, 7], [7, 4],
+    [4, 8], [5, 9], [6, 10], [7, 11],
+    [4, 9], [5, 10], [6, 11], [7, 8],
+    [8, 9], [9, 10], [10, 11], [11, 8], [8, 10],
+  ],
+  anchors: [0, 1, 2, 3],
+  section: { shape: 'circular_solid', outerRadiusM: 0.04, innerRadiusM: 0 },
+};
+
+// ============================================================================
+// Three.js Z-up Scene Setup
+// ============================================================================
+
+const container = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e14);
+
+const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.01, 100);
+camera.up.set(0, 0, 1);
+camera.position.set(2.4, -2.4, 2.0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(container.clientWidth, container.clientHeight);
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0.5, 0.5, 1.0);
+controls.enableDamping = true;
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+dirLight.position.set(4, -3, 6);
+scene.add(dirLight);
+
+// Ground grid in XY plane (Z=0)
+const grid = new THREE.GridHelper(6, 24, 0x334155, 0x1e293b);
+grid.rotation.x = Math.PI / 2;
+scene.add(grid);
+
+const axes = new THREE.AxesHelper(0.35);
+scene.add(axes);
+
+const groupDeformed = new THREE.Group();
+const groupGhost = new THREE.Group();
+const groupArrows = new THREE.Group();
+const groupLoads = new THREE.Group();
+const groupObj = new THREE.Group();
+scene.add(groupDeformed, groupGhost, groupArrows, groupLoads, groupObj);
+
+function clearGroup(g) {
+  while (g.children.length > 0) {
+    const child = g.children.pop();
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
+      else child.material.dispose();
+    }
+  }
+}
+
+function colormapHeat(t) {
+  const c = new THREE.Color();
+  const clamped = Math.max(0, Math.min(1, t));
+  // Blue -> Cyan -> Green -> Orange -> Red
+  c.setHSL((1 - clamped) * 0.65, 0.88, 0.52);
+  return c;
+}
+
+function colormapAxial(val, maxAbs) {
+  const c = new THREE.Color();
+  const n = Math.max(-1, Math.min(1, val / Math.max(maxAbs, 1e-6)));
+  if (n < 0) c.setRGB(0.15, 0.45 + 0.4 * (1 + n), 0.95); // Compression = Blue/Cyan
+  else c.setRGB(0.95, 0.25 + 0.5 * (1 - n), 0.2);       // Tension = Red/Orange
+  return c;
+}
+
+function createCylinderBetween(p1, p2, radius, material) {
+  const v1 = new THREE.Vector3(...p1);
+  const v2 = new THREE.Vector3(...p2);
+  const dir = new THREE.Vector3().subVectors(v2, v1);
+  const len = dir.length();
+  const geo = new THREE.CylinderGeometry(radius, radius, len, 10, 1);
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.position.copy(v1).add(v2).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return mesh;
+}
+
+// ============================================================================
+// Application State & Rendering
+// ============================================================================
+
+let currentTopology = null;
+let currentBrief = structuredClone(DEFAULT_BRIEF);
+let currentObjText = null;
+let currentObjReport = null;
+let lastResult = null;
+
+function populateLoadCaseDropdown() {
+  const sel = document.getElementById('sel-lc');
+  sel.innerHTML = '';
+  const lcs = currentBrief.loadCases || [];
+  lcs.forEach((lc, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${lc.id} (${lc.distributedVerticalMassKg || 0} kg)`;
+    sel.appendChild(opt);
+  });
+  if (lcs.length > 1) sel.value = String(lcs.length - 1);
+  document.getElementById('sel-restraint').value = currentBrief.supports?.restraintType || 'pinned';
+}
+
+function updateFileStatus() {
+  const tName = currentTopology ? `${currentTopology.name || 'loaded'} (${currentTopology.vertices.length}v, ${currentTopology.edges.length}e)` : 'none';
+  const bName = currentBrief.id || 'custom';
+  const oName = currentObjReport ? `OBJ(${currentObjReport.watertight ? 'watertight' : 'OPEN'})` : 'no OBJ';
+  document.getElementById('file-status').textContent = `Topo: ${tName} | Brief: ${bName} | ${oName}`;
+}
+
+function frameCamera(verts) {
+  if (!verts || verts.length === 0) return;
+  let cx = 0, cy = 0, cz = 0;
+  let minZ = Infinity, maxZ = -Infinity, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [x, y, z] of verts) {
+    cx += x; cy += y; cz += z;
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+  cx /= verts.length; cy /= verts.length; cz /= verts.length;
+  const diag = Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) || 2.0;
+  controls.target.set(cx, cy, cz);
+  camera.position.set(cx + diag * 1.15, cy - diag * 1.15, cz + diag * 0.55);
+  controls.update();
+}
+
+function renderObjOverlay() {
+  clearGroup(groupObj);
+  if (!currentObjReport || !document.getElementById('chk-obj').checked) return;
+  const positions = [];
+  for (const f of currentObjReport.faces) {
+    const v0 = currentObjReport.verts[f[0]];
+    for (let i = 1; i < f.length - 1; i++) {
+      const v1 = currentObjReport.verts[f[i]];
+      const v2 = currentObjReport.verts[f[i + 1]];
+      positions.push(...v0, ...v1, ...v2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x94a3b8, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false,
+  });
+  groupObj.add(new THREE.Mesh(geo, mat));
+}
+
+function renderScene() {
+  clearGroup(groupDeformed);
+  clearGroup(groupGhost);
+  clearGroup(groupArrows);
+  clearGroup(groupLoads);
+  if (!currentTopology) return;
+
+  const verts = currentTopology.vertices;
+  const edges = currentTopology.edges;
+  const scale = Number(document.getElementById('rng-scale').value);
+  const colorMode = document.getElementById('sel-color').value;
+  const showGhost = document.getElementById('chk-ghost').checked;
+  const showReactions = document.getElementById('chk-reactions').checked;
+  const showLoads = document.getElementById('chk-loads').checked;
+
+  // Ghost undeformed wireframe
+  if (showGhost) {
+    const pts = [];
+    for (const [u, v] of edges) pts.push(new THREE.Vector3(...verts[u]), new THREE.Vector3(...verts[v]));
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+    groupGhost.add(new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.45 })));
+  }
+
+  // Anchor markers
+  const anchorGeo = new THREE.SphereGeometry(0.042, 14, 14);
+  const anchorMat = new THREE.MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x083344 });
+  for (const a of (currentTopology.anchors || [])) {
+    const m = new THREE.Mesh(anchorGeo, anchorMat);
+    m.position.set(...verts[a]);
+    groupDeformed.add(m);
+  }
+
+  if (!lastResult || !lastResult.ok) {
+    // Draw undeformed neutral members
+    const mat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.6 });
+    for (let e = 0; e < edges.length; e++) {
+      const [u, v] = edges[e];
+      const r = resolveEdgeSection(currentTopology, e).rOuter;
+      groupDeformed.add(createCylinderBetween(verts[u], verts[v], Math.max(r, 0.012), mat));
+    }
+    return;
+  }
+
+  const defVerts = verts.map((p, i) => {
+    const d = lastResult.nodalDisp[i];
+    return [p[0] + d[0] * scale, p[1] + d[1] * scale, p[2] + d[2] * scale];
+  });
+
+  // Determine heatmap range
+  const ftMPa = (currentBrief.material?.tensileStrengthPa ?? 2.0e6) / 1e6;
+  const fcMPa = (currentBrief.material?.compressiveStrengthPa ?? 12.0e6) / 1e6;
+  const minSFt = currentBrief.acceptanceCriteria?.minTensileSafetyFactor ?? 1.5;
+  const minSFc = currentBrief.acceptanceCriteria?.minCompressiveSafetyFactor ?? 2.0;
+
+  let maxVal = 1e-6;
+  if (colorMode === 'tension') maxVal = Math.max(lastResult.maxTenPa / 1e6, ftMPa / minSFt);
+  else if (colorMode === 'compression') maxVal = Math.max(lastResult.maxCompPa / 1e6, fcMPa / minSFc);
+  else if (colorMode === 'axial') maxVal = Math.max(...lastResult.members.map((m) => Math.abs(m.N)), 1);
+  else maxVal = 1.0;
+
+  // Update legend
+  const lTitle = document.getElementById('legend-title');
+  const lMin = document.getElementById('legend-min');
+  const lMid = document.getElementById('legend-mid');
+  const lMax = document.getElementById('legend-max');
+  if (colorMode === 'tension') {
+    lTitle.textContent = 'Tensile Stress (MPa)';
+    lMin.textContent = '0.00'; lMid.textContent = (maxVal * 0.5).toFixed(2); lMax.textContent = maxVal.toFixed(2);
+  } else if (colorMode === 'compression') {
+    lTitle.textContent = 'Compressive Stress (MPa)';
+    lMin.textContent = '0.00'; lMid.textContent = (maxVal * 0.5).toFixed(2); lMax.textContent = maxVal.toFixed(2);
+  } else if (colorMode === 'axial') {
+    lTitle.textContent = 'Axial Force (N) [Blue=Comp, Red=Tens]';
+    lMin.textContent = (-maxVal).toFixed(0); lMid.textContent = '0'; lMax.textContent = (+maxVal).toFixed(0);
+  } else {
+    lTitle.textContent = 'Stress Utilization (1.0 = Limit)';
+    lMin.textContent = '0.00'; lMid.textContent = '0.50'; lMax.textContent = '1.00+';
+  }
+
+  for (const m of lastResult.members) {
+    let col;
+    if (colorMode === 'tension') col = colormapHeat((m.sigTen / 1e6) / maxVal);
+    else if (colorMode === 'compression') col = colormapHeat((m.sigComp / 1e6) / maxVal);
+    else if (colorMode === 'axial') col = colormapAxial(m.N, maxVal);
+    else {
+      const uT = (m.sigTen / 1e6) / (ftMPa / minSFt);
+      const uC = (m.sigComp / 1e6) / (fcMPa / minSFc);
+      col = colormapHeat(Math.max(uT, uC));
+    }
+    const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.45, metalness: 0.1 });
+    groupDeformed.add(createCylinderBetween(defVerts[m.u], defVerts[m.v], Math.max(m.rOuter, 0.012), mat));
+  }
+
+  // Anchor reaction arrows
+  if (showReactions) {
+    const maxR = Math.max(...lastResult.reactions.map((r) => Math.hypot(r.fx, r.fy, r.fz)), 1);
+    for (const r of lastResult.reactions) {
+      const mag = Math.hypot(r.fx, r.fy, r.fz);
+      if (mag < 1e-6) continue;
+      const dir = new THREE.Vector3(r.fx, r.fy, r.fz).normalize();
+      const len = 0.2 + 0.35 * (mag / maxR);
+      const origin = new THREE.Vector3(...verts[r.node]).addScaledVector(dir, -len);
+      groupArrows.add(new THREE.ArrowHelper(dir, origin, len, 0x22c55e, 0.09, 0.05));
+    }
+  }
+
+  // Applied top-zone distributed load arrows
+  if (showLoads && lastResult.loadedNodes.length > 0) {
+    for (const idx of lastResult.loadedNodes) {
+      const p = defVerts[idx];
+      const origin = new THREE.Vector3(p[0], p[1], p[2] + 0.32);
+      groupLoads.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), origin, 0.28, 0xf59e0b, 0.08, 0.045));
+    }
+  }
+}
+
+function updateScorecard() {
+  const badge = document.getElementById('overall-badge');
+  const gridEl = document.getElementById('scorecard-grid');
+  const fabEl = document.getElementById('fab-checks');
+
+  if (!lastResult) return;
+  if (!lastResult.ok) {
+    badge.className = 'badge fail';
+    badge.textContent = 'FAIL';
+    fabEl.innerHTML = `<div style="color:#f87171;">Solver Error: ${lastResult.error}</div>`;
+    return;
+  }
+
+  const crit = currentBrief.acceptanceCriteria || {};
+  const env = currentBrief.envelope || {};
+  const sup = currentBrief.supports || {};
+  const r = lastResult;
+
+  const dispOk = r.deflectionRatio <= (crit.maxDeflectionRatio ?? Infinity) && r.maxDispM <= (crit.maxDeflectionMeters ?? Infinity);
+  const sfTOk = r.sfTension >= (crit.minTensileSafetyFactor ?? 1.5);
+  const sfCOk = r.sfCompression >= (crit.minCompressiveSafetyFactor ?? 2.0);
+  const sfBOk = r.sfBuckling >= (crit.minBucklingSafetyFactor ?? 2.0);
+  const eqOk = r.eqRes < 1e-5;
+
+  const fmtSF = (v) => (v === Infinity || v > 9999 ? 'Inf' : v.toFixed(2));
+  const invDefl = r.deflectionRatio > 1e-12 ? `L/${Math.round(1 / r.deflectionRatio)}` : 'L/Inf';
+
+  const rho = Number(currentBrief.material?.densityKgM3 ?? 1250);
+  const meshMassKg = currentObjReport && currentObjReport.vol > 0 ? currentObjReport.vol * rho : null;
+  const minAng = computeMinIncidentAngleDeg(currentTopology.vertices, currentTopology.edges);
+
+  gridEl.innerHTML = `
+    <div class="metric ${dispOk ? 'ok' : 'bad'}"><div class="k">Max Deflection</div><div class="v">${(r.maxDispM * 1000).toFixed(3)} mm</div></div>
+    <div class="metric ${dispOk ? 'ok' : 'bad'}"><div class="k">Deflection Ratio</div><div class="v">${invDefl}</div></div>
+    <div class="metric ${sfTOk ? 'ok' : 'bad'}"><div class="k">Tensile SF</div><div class="v">${fmtSF(r.sfTension)}</div></div>
+    <div class="metric ${sfCOk ? 'ok' : 'bad'}"><div class="k">Compressive SF</div><div class="v">${fmtSF(r.sfCompression)}</div></div>
+    <div class="metric ${sfBOk ? 'ok' : 'bad'}"><div class="k">Buckling SF</div><div class="v">${fmtSF(r.sfBuckling)}</div></div>
+    <div class="metric"><div class="k">Mass (CL / Mesh)</div><div class="v">${r.totalMassKg.toFixed(1)} / ${meshMassKg != null ? meshMassKg.toFixed(1) : '—'} kg</div></div>
+    <div class="metric"><div class="k">Funicularity</div><div class="v">${(r.funicularEfficiency * 100).toFixed(1)}%</div></div>
+    <div class="metric"><div class="k">Load/Mass | Comp</div><div class="v">${r.loadToMassRatio.toFixed(2)} | ${(r.compressionDominance * 100).toFixed(0)}%</div></div>
+    <div class="metric"><div class="k">5% Lat Drift (Adv)</div><div class="v">${r.lateralAdv ? `${(r.lateralAdv.maxDriftM * 1000).toFixed(2)} mm` : '—'}</div></div>
+    <div class="metric ${eqOk ? 'ok' : 'bad'}"><div class="k">Min Angle | EqRes</div><div class="v">${minAng != null ? minAng.toFixed(0) + '°' : '—'} | ${r.eqRes.toExponential(0)}</div></div>
+  `;
+
+  // Fabrication summary checks
+  const aCount = (currentTopology.anchors || []).length;
+  const anchorOk = aCount >= (sup.minAnchors ?? 1) && aCount <= (sup.maxAnchors ?? 99);
+  const planTol = env.planTolerance ?? 0.02;
+  const envOk =
+    (env.maxPlanX == null || r.bbox.spanX <= env.maxPlanX + planTol) &&
+    (env.maxPlanY == null || r.bbox.spanY <= env.maxPlanY + planTol) &&
+    (env.minHeightZ == null || r.bbox.spanZ >= env.minHeightZ) &&
+    (env.maxHeightZ == null || r.bbox.spanZ <= env.maxHeightZ);
+  const minL = Math.min(...r.members.map((m) => m.L));
+  const lenOk = minL >= (crit.minMemberLengthM ?? 0.04);
+  const objOk = currentObjReport ? currentObjReport.watertight : true;
+  const maxAxialN = Math.max(...r.members.map((m) => m.N));
+  const tensileBars = r.members.filter((m) => m.N > (currentBrief.funicular?.maxTensileAxialForceN ?? 0) + 1e-6).length;
+  const reqCompOnly = currentBrief.funicular?.requireCompressionOnly === true;
+  const compOnlyOk = !reqCompOnly || (tensileBars === 0 && r.compressionDominance >= (currentBrief.funicular?.minCompressionDominance ?? 1.0) - 1e-9);
+  const minGrid = currentBrief.topology?.minGridResolution;
+  const gridVal = currentTopology.metadata?.gridResolution;
+  const gridOk = !minGrid || (Array.isArray(gridVal) && gridVal.length === 3 && gridVal[0] >= minGrid[0] && gridVal[1] >= minGrid[1] && gridVal[2] >= minGrid[2]);
+  const maxPqLim = currentBrief.geometry?.maxQuadPlanarityErrorM;
+  const pqOk = maxPqLim == null || (currentObjReport != null && currentObjReport.quadCount > 0 && currentObjReport.maxQuadErr <= maxPqLim + 1e-12);
+
+  const rowHtml = (label, ok, detail) =>
+    `<div class="check-item"><span>${label}: ${detail}</span><span class="${ok ? 'tag-pass' : 'tag-fail'}">${ok ? 'PASS' : 'FAIL'}</span></div>`;
+
+  fabEl.innerHTML = [
+    minGrid ? rowHtml('Voxel Grid', gridOk, `${gridVal ? gridVal.join('x') : 'N/A'} (min ${minGrid.join('x')})`) : '',
+    reqCompOnly ? rowHtml('Comp-Only', compOnlyOk, `maxN=${maxAxialN.toFixed(2)}N, tensBars=${tensileBars}`) : '',
+    rowHtml('Anchors', anchorOk, `${aCount} (max ${sup.maxAnchors ?? '-'})`),
+    rowHtml('Envelope', envOk, `${r.bbox.spanX.toFixed(2)}x${r.bbox.spanY.toFixed(2)}x${r.bbox.spanZ.toFixed(2)}m`),
+    rowHtml('Min Length', lenOk, `${(minL * 1000).toFixed(0)} mm (minAng=${minAng != null ? minAng.toFixed(1) + '°' : '—'})`),
+    currentObjReport
+      ? rowHtml('OBJ Mesh', objOk && pqOk, `bnd=${currentObjReport.boundary}, pqErr=${(currentObjReport.maxQuadErr * 1000).toFixed(3)}mm`)
+      : `<div class="check-item" style="color:var(--muted);"><span>OBJ Mesh: not loaded</span><span>—</span></div>`,
+    r.lateralAdv
+      ? `<div class="check-item" style="color:#94a3b8;"><span>5% Lat Advisory: drift=${(r.lateralAdv.maxDriftM * 1000).toFixed(2)}mm, SF=${fmtSF(r.lateralAdv.minSF)}</span><span>ADV</span></div>`
+      : '',
+  ].join('');
+
+  const allOk = dispOk && sfTOk && sfCOk && sfBOk && eqOk && anchorOk && envOk && lenOk && objOk && compOnlyOk && gridOk && pqOk;
+  badge.className = `badge ${allOk ? 'pass' : 'fail'}`;
+  badge.textContent = allOk ? 'PASS' : 'FAIL';
+}
+
+function runFea() {
+  if (!currentTopology) return;
+  const lcIdx = Number(document.getElementById('sel-lc').value) || 0;
+  const lc = (currentBrief.loadCases || [])[lcIdx] || { id: 'default', gravityMS2: 9.81 };
+  const restraint = document.getElementById('sel-restraint').value;
+  lastResult = solveSpaceFrame(currentTopology, currentBrief.material || {}, lc, restraint);
+  if (lastResult.ok && lastResult.totalVerticalLoadN > 1e-6) {
+    const h5 = 0.05 * lastResult.totalVerticalLoadN;
+    const dist = lc.distribution && lc.distribution !== 'none' ? lc.distribution : 'top_zone_nodes';
+    const fx = solveSpaceFrame(currentTopology, currentBrief.material || {}, { ...lc, distribution: dist, distributedHorizontalVecN: [h5, 0, 0] }, restraint);
+    const fy = solveSpaceFrame(currentTopology, currentBrief.material || {}, { ...lc, distribution: dist, distributedHorizontalVecN: [0, h5, 0] }, restraint);
+    if (fx.ok && fy.ok) {
+      lastResult.lateralAdv = {
+        maxDriftM: Math.max(fx.maxHorizDispM, fy.maxHorizDispM),
+        minSF: Math.min(fx.sfTension, fx.sfCompression, fx.sfBuckling, fy.sfTension, fy.sfCompression, fy.sfBuckling),
+      };
+    }
+  }
+  document.getElementById('hud-sub').textContent = `${currentTopology.name || 'candidate'} | ${lc.id} (${restraint})`;
+  updateScorecard();
+  renderScene();
+}
+
+// ============================================================================
+// File Loading & Drag-Drop Handlers
+// ============================================================================
+
+async function handleFile(file) {
+  const text = await file.text();
+  if (file.name.toLowerCase().endsWith('.obj')) {
+    currentObjText = text;
+    currentObjReport = verifyObjText(text);
+    renderObjOverlay();
+    updateFileStatus();
+    if (lastResult) updateScorecard();
+    return;
+  }
+  const data = JSON.parse(text);
+  if (Array.isArray(data.vertices) && Array.isArray(data.edges)) {
+    currentTopology = data;
+    updateFileStatus();
+    frameCamera(currentTopology.vertices);
+    runFea();
+  } else if (data.envelope || data.loadCases || data.material) {
+    currentBrief = data;
+    populateLoadCaseDropdown();
+    updateFileStatus();
+    if (currentTopology) runFea();
+  } else {
+    alert('Unrecognized JSON format. Expected wfc-fdm-topology/v1 or Foundry brief JSON.');
+  }
+}
+
+document.getElementById('btn-load-topo').onclick = () => document.getElementById('file-topo').click();
+document.getElementById('btn-load-brief').onclick = () => document.getElementById('file-brief').click();
+document.getElementById('btn-load-obj').onclick = () => document.getElementById('file-obj').click();
+document.getElementById('btn-demo').onclick = () => {
+  currentTopology = structuredClone(DEMO_TOWER);
+  updateFileStatus();
+  frameCamera(currentTopology.vertices);
+  runFea();
+};
+document.getElementById('btn-run').onclick = runFea;
+
+for (const id of ['file-topo', 'file-brief', 'file-obj']) {
+  document.getElementById(id).addEventListener('change', (e) => {
+    for (const f of e.target.files) handleFile(f);
+    e.target.value = '';
+  });
+}
+
+const dropzone = document.getElementById('dropzone');
+for (const target of [dropzone, container]) {
+  target.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  target.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  target.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    for (const f of e.dataTransfer.files) handleFile(f);
+  });
+}
+
+document.getElementById('rng-scale').addEventListener('input', (e) => {
+  document.getElementById('lbl-scale').textContent = `${e.target.value}x`;
+  renderScene();
+});
+document.getElementById('sel-color').addEventListener('change', renderScene);
+document.getElementById('chk-ghost').addEventListener('change', renderScene);
+document.getElementById('chk-reactions').addEventListener('change', renderScene);
+document.getElementById('chk-loads').addEventListener('change', renderScene);
+document.getElementById('chk-obj').addEventListener('change', renderObjOverlay);
+
+window.addEventListener('resize', () => {
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+});
+
+populateLoadCaseDropdown();
+updateFileStatus();
+// Load demo tower on startup so viewport is immediately rich & interactive
+currentTopology = structuredClone(DEMO_TOWER);
+updateFileStatus();
+frameCamera(currentTopology.vertices);
+runFea();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

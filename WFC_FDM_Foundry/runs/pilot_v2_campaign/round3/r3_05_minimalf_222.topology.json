@@ -1,0 +1,139 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "r3_05_minimalf_222",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.415,
+      -0.415,
+      0
+    ],
+    [
+      -0.240187,
+      -0.240187,
+      1.915
+    ],
+    [
+      -0.240187,
+      0.240187,
+      1.915
+    ],
+    [
+      0.240187,
+      0.240187,
+      1.915
+    ],
+    [
+      0.415,
+      0.415,
+      0
+    ],
+    [
+      -0.415,
+      0.415,
+      0
+    ],
+    [
+      0.240187,
+      -0.240187,
+      1.915
+    ],
+    [
+      0.415,
+      -0.415,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      6
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      5
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      3,
+      6
+    ],
+    [
+      6,
+      7
+    ]
+  ],
+  "anchors": [
+    0,
+    4,
+    5,
+    7
+  ],
+  "section": {
+    "shape": "circular_hollow",
+    "outerRadiusM": 0.0258,
+    "innerRadiusM": 0.0198,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      83.616188,
+      30.428878,
+      30.428878,
+      83.616188,
+      30.428878,
+      83.616188,
+      30.428878,
+      83.616188
+    ],
+    "equilibriumResidual": 5.788170923939303e-14
+  },
+  "geometry": {
+    "tubeTopology": true,
+    "longitudinalSubdivLevels": 1,
+    "pqOptimizationApplied": true,
+    "maxQuadPlanarityErrorM": 2.1e-7,
+    "meanQuadPlanarityErrorM": 8e-8,
+    "barTubeQuadCount": 128
+  },
+  "fabrication": {
+    "unrolledPatternsFile": "r3_05_minimalf_222.patterns.svg",
+    "unrolledDataFile": "r3_05_minimalf_222.unrolled.json",
+    "barCount": 8,
+    "unrolledBarCount": 8,
+    "totalUnrolledSurfaceAreaM2": 1.503353,
+    "hasSelfIntersection": false
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T23:38:51.506Z",
+    "name": "r3_05_minimalf_222",
+    "wfcSeed": 49,
+    "algorithm": "wfc",
+    "gridResolution": [
+      2,
+      2,
+      2
+    ],
+    "tilePreset": "minimal_frame",
+    "symmetryXY": true,
+    "qProfile": "compression_taper"
+  }
+}

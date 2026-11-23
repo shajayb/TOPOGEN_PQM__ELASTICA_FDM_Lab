@@ -1,0 +1,23 @@
+# Dependencies & CMake / Native Build Outputs
+node_modules/
+**/node_modules/
+**/build/
+**/*.obj.d
+**/*.pdb
+**/*.ilk
+**/*.exp
+**/*.lib
+**/*.exe
+
+# Rendered Video Blobs & Raw Frame Dumps (>100 MB GitHub limit)
+*.mp4
+video_build/frames*/
+video_build/raw*/
+WFC_FDM_Foundry/video_build/frames*/
+WFC_FDM_Foundry/video_build/raw*/
+
+# OS / Editor Temp Files
+.DS_Store
+Thumbs.db
+WFC_FDM_Foundry/runs/.bench_cache.json
+WFC_FDM_Foundry/runs/_tmp*

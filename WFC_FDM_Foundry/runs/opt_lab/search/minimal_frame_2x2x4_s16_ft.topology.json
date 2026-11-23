@@ -1,0 +1,123 @@
+{
+  "$schema": "wfc-fdm-topology/v1",
+  "name": "minimal_frame_2x2x4_s16_ft",
+  "units": "meters",
+  "coordinateSystem": "Z-up",
+  "vertices": [
+    [
+      -0.46,
+      -0.46,
+      0
+    ],
+    [
+      -0.421368,
+      -0.421368,
+      2
+    ],
+    [
+      -0.421368,
+      0.421368,
+      2
+    ],
+    [
+      0.421368,
+      0.421368,
+      2
+    ],
+    [
+      0.46,
+      0.46,
+      0
+    ],
+    [
+      -0.46,
+      0.46,
+      0
+    ],
+    [
+      0.421368,
+      -0.421368,
+      2
+    ],
+    [
+      0.46,
+      -0.46,
+      0
+    ]
+  ],
+  "edges": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      6
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      5
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      3,
+      6
+    ],
+    [
+      6,
+      7
+    ]
+  ],
+  "anchors": [
+    0,
+    4,
+    5,
+    7
+  ],
+  "section": {
+    "shape": "circular_solid",
+    "outerRadiusM": 0.016,
+    "innerRadiusM": 0,
+    "nSides": 8
+  },
+  "fdm": {
+    "mode": "compression",
+    "forceDensities": [
+      70.370997,
+      3.225872,
+      3.225872,
+      70.370997,
+      3.225872,
+      70.370997,
+      3.225872,
+      70.370997
+    ],
+    "equilibriumResidual": 6.700230446782875e-14
+  },
+  "metadata": {
+    "source": "WFC_FDM_Foundry/index_WFC.html",
+    "exportedAt": "2026-11-21T20:29:50.863Z",
+    "name": "minimal_frame_2x2x4_s16_ft",
+    "wfcSeed": 42,
+    "algorithm": "wfc",
+    "gridResolution": [
+      2,
+      2,
+      4
+    ],
+    "tilePreset": "minimal_frame",
+    "symmetryXY": true,
+    "qProfile": "funicular_tuned"
+  }
+}

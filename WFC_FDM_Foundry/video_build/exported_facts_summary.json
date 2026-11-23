@@ -1,0 +1,157 @@
+{
+  "championSource": "runs/pilot_v2_campaign/champion/champion.topology.json",
+  "campaignEvaluated": 72,
+  "campaignPassed": 58,
+  "paretoCount": 11,
+  "r1PassPct": 24.3,
+  "finalPassPct": 75,
+  "exploredGrids": [
+    {
+      "gk": "2x2x2",
+      "gr": [
+        2,
+        2,
+        2
+      ],
+      "total": 14,
+      "passed": 10
+    },
+    {
+      "gk": "2x2x3",
+      "gr": [
+        2,
+        2,
+        3
+      ],
+      "total": 12,
+      "passed": 9
+    },
+    {
+      "gk": "2x2x4",
+      "gr": [
+        2,
+        2,
+        4
+      ],
+      "total": 9,
+      "passed": 8
+    },
+    {
+      "gk": "3x3x3",
+      "gr": [
+        3,
+        3,
+        3
+      ],
+      "total": 8,
+      "passed": 6
+    },
+    {
+      "gk": "3x3x4",
+      "gr": [
+        3,
+        3,
+        4
+      ],
+      "total": 8,
+      "passed": 6
+    },
+    {
+      "gk": "3x3x5",
+      "gr": [
+        3,
+        3,
+        5
+      ],
+      "total": 7,
+      "passed": 6
+    },
+    {
+      "gk": "3x3x6",
+      "gr": [
+        3,
+        3,
+        6
+      ],
+      "total": 6,
+      "passed": 6
+    },
+    {
+      "gk": "4x4x6",
+      "gr": [
+        4,
+        4,
+        6
+      ],
+      "total": 8,
+      "passed": 7
+    }
+  ],
+  "baseline": {
+    "stem": "smoke_v2",
+    "source": "runs/pilot_v2_campaign/smoke/smoke_v2.topology.json",
+    "grid": "2x2x3",
+    "preset": "pilot_champion",
+    "massKg": 27.88,
+    "areaM2": 4.05,
+    "nNodes": 36,
+    "nBars": 111,
+    "compDomPct": 96.4
+  },
+  "altCandidate": {
+    "stem": "r1_26_diagrid_334",
+    "source": "runs/pilot_v2_campaign/round1/r1_26_diagrid_334.topology.json",
+    "grid": "3x3x4",
+    "preset": "diagrid_tower",
+    "massKg": 2.63,
+    "areaM2": 0.271,
+    "nBars": 26,
+    "reason": "Lateral Drift 397 mm (Reject)"
+  },
+  "champion": {
+    "stem": "r2_04_diagridt_335",
+    "source": "runs/pilot_v2_campaign/champion/champion.topology.json",
+    "grid": "3x3x5",
+    "preset": "diagrid_tower",
+    "section": "Hollow 12.0 / 6.0 mm",
+    "nNodes": 17,
+    "nBars": 16,
+    "nAnchors": 4,
+    "massKg": 3.49,
+    "meshMassKg": 4.16,
+    "areaM2": 0.5976,
+    "dispMm": 0.171,
+    "minSF": 9.38,
+    "sfC": 29.57,
+    "sfB": 9.38,
+    "latDispMm": 0.672,
+    "latMinSF": 7.66,
+    "funEffPct": 99.6,
+    "compDomPct": 100,
+    "tensileBars": 0,
+    "maxWarpMm": 0.0005,
+    "subdivLevels": 1,
+    "objVerts": 274,
+    "objFaces": 288,
+    "unrollCutSegs": 320,
+    "unrollFoldSegs": 352
+  },
+  "exploreTitles": [
+    "smoke_v2 (2x2x3, pilot_champion)",
+    "r1_35_defortho_446 (4x4x6, default_ortho)",
+    "r1_15_minframe_223 (2x2x3, minimal_frame)",
+    "r1_03_spacefrm_222 (2x2x2, space_frame)",
+    "r1_26_diagrid_334 (3x3x4, diagrid_tower)",
+    "r2_18_funnelva_224 (2x2x4, funnel_vault)",
+    "r2_17_funnelva_223 (2x2x3, funnel_vault)",
+    "r2_14_archbrac_222 (2x2x2, arch_braced)",
+    "r2_10_spacefra_336 (3x3x6, space_frame)",
+    "r2_06_archbrac_334 (3x3x4, arch_braced)",
+    "r2_03_diagridt_336 (3x3x6, diagrid_tower)",
+    "r2_01_funnelva_446 (4x4x6, funnel_vault)",
+    "r3_01_minimalf_334 (3x3x4, minimal_frame)",
+    "r3_12_catenary_333 (3x3x3, catenary_quadripod)",
+    "r3_09_slenderd_446 (4x4x6, slender_diagrid)",
+    "r2_04_diagridt_335 (3x3x5, diagrid_tower)"
+  ]
+}

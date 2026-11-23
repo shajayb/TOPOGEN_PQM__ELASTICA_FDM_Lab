@@ -1,0 +1,19 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r1_14_spacefrm_223",
+  "wfcSeed": 21,
+  "tilePreset": "space_frame",
+  "outerRadiusM": 0.0135,
+  "innerRadiusM": 0.0075,
+  "qProfile": "height_graded",
+  "columnBoost": 3.2,
+  "collarBoost": 1.5,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true,
+  "gridResolution": [
+    2,
+    2,
+    3
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r2_04_diagridt_335",
+  "tilePreset": "diagrid_tower",
+  "gridResolution": [
+    3,
+    3,
+    5
+  ],
+  "wfcSeed": 77,
+  "qProfile": "funicular_tuned",
+  "outerRadiusM": 0.012,
+  "innerRadiusM": 0.006,
+  "columnBoost": 3.4,
+  "collarBoost": 1.6,
+  "targetHeightZ": 1.95,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true
+}

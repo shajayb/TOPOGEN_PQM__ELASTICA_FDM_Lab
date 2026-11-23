@@ -1,0 +1,378 @@
+/**
+ * WFC-FDM Foundry — Student-Editable Workbench Stylesheet (ui/styles/workbench.css)
+ *
+ * Customize studio background, accent colors, panel widths, or CAD button styling
+ * by editing the `:root` CSS custom properties below!
+ */
+
+:root {
+    --bg-studio: #ffffff;
+    --fg-studio: #111827;
+    --panel-bg: rgba(17, 24, 39, 0.96);
+    --panel-hud-bg: rgba(17, 24, 39, 0.94);
+    --panel-border: #374151;
+    --panel-text: #f3f4f6;
+    --panel-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.55);
+
+    --accent-pink: #ec4899;
+    --accent-pink-soft: rgba(236, 72, 153, 0.15);
+    --accent-cyan: #06b6d4;
+    --accent-cyan-bright: #22d3ee;
+    --accent-cyan-soft: rgba(6, 182, 212, 0.08);
+    --accent-emerald: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-rose: #f43f5e;
+
+    --sidebar-width: 386px;
+    --sidebar-min-width: 340px;
+    --sidebar-max-width: 620px;
+    --telemetry-width: 356px;
+    --display-hud-width: 320px;
+
+    --font-ui: system-ui, -apple-system, sans-serif;
+    --font-mono: Consolas, ui-monospace, monospace;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: var(--bg-studio);
+    color: var(--fg-studio);
+    font-family: var(--font-ui);
+}
+
+#canvas-container {
+    width: 100vw;
+    height: 100vh;
+}
+
+#overlay-canvas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Floating, Resizable, Minimisable Left Algorithmic UI Panel */
+.floating-sidebar {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-min-width);
+    max-width: var(--sidebar-max-width);
+    max-height: calc(100vh - 38px);
+    background-color: var(--panel-bg);
+    backdrop-filter: blur(8px);
+    color: var(--panel-text);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    box-shadow: var(--panel-shadow);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#sidebar-collapsible {
+    overflow: hidden;
+    min-height: 0;
+}
+
+.floating-sidebar.minimized {
+    height: auto !important;
+    max-height: none !important;
+}
+
+.sidebar-scroll-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.sidebar-resize-handle-e {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 40;
+}
+
+.sidebar-resize-handle-e:hover {
+    background: rgba(236, 72, 153, 0.45);
+}
+
+.sidebar-resize-handle-se {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+    z-index: 41;
+    background: linear-gradient(135deg, transparent 50%, #6b7280 50%);
+    border-bottom-right-radius: 7px;
+}
+
+.sidebar-resize-handle-se:hover {
+    background: linear-gradient(135deg, transparent 50%, var(--accent-pink) 50%);
+}
+
+/* Floating, Draggable, Resizable, Minimisable Analytical Telemetry HUD Panel */
+.floating-telemetry {
+    position: fixed;
+    top: 12px;
+    left: 410px;
+    width: var(--telemetry-width);
+    min-width: 280px;
+    max-width: 560px;
+    max-height: calc(100vh - 24px);
+    background-color: var(--panel-hud-bg);
+    backdrop-filter: blur(8px);
+    color: var(--panel-text);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    box-shadow: var(--panel-shadow);
+    z-index: 28;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.floating-telemetry.minimized {
+    height: auto !important;
+    max-height: none !important;
+}
+
+/* Floating, Draggable, Resizable, Minimisable Viewport Display HUD Panel */
+.floating-display-hud {
+    position: fixed;
+    bottom: 28px;
+    left: 410px;
+    width: var(--display-hud-width);
+    min-width: 240px;
+    max-width: 520px;
+    background-color: var(--panel-hud-bg);
+    backdrop-filter: blur(8px);
+    color: var(--panel-text);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    box-shadow: var(--panel-shadow);
+    z-index: 29;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.floating-display-hud.minimized {
+    height: auto !important;
+    max-height: none !important;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 3px;
+}
+
+/* Compact CAD-style controls */
+.cad-btn {
+    font: 600 10.5px/1.5 var(--font-ui);
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    background: #1f2937;
+    color: #d1d5db;
+    cursor: pointer;
+    transition: background .12s, border-color .12s, color .12s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cad-btn:hover:not(:disabled) {
+    background: #374151;
+    border-color: #6b7280;
+}
+
+.cad-btn:disabled {
+    opacity: .35;
+    cursor: default;
+}
+
+.cad-btn.primary {
+    background: #e5e7eb;
+    border-color: #e5e7eb;
+    color: #111827;
+}
+.cad-btn.primary:hover:not(:disabled) {
+    background: #ffffff;
+}
+
+.cad-btn.accent {
+    border-color: var(--accent-pink);
+    color: var(--accent-pink);
+    background: transparent;
+}
+.cad-btn.accent:hover:not(:disabled) {
+    background: var(--accent-pink-soft);
+}
+
+.cad-btn.cyan {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan-bright);
+    background: var(--accent-cyan-soft);
+}
+.cad-btn.cyan:hover:not(:disabled) {
+    background: rgba(6, 182, 212, 0.2);
+}
+
+.cad-btn.seg-on {
+    background: #e5e7eb;
+    border-color: #e5e7eb;
+    color: #111827;
+}
+
+.cad-btn.on {
+    background: var(--accent-pink);
+    border-color: var(--accent-pink);
+    color: #ffffff;
+}
+
+/* Outliner tree */
+.otl-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    cursor: pointer;
+    user-select: none;
+}
+.otl-row:hover {
+    background: #1f2937;
+}
+.otl-row.sel {
+    background: #374151;
+}
+.otl-eye {
+    width: 14px;
+    color: #d1d5db;
+    cursor: pointer;
+    text-align: center;
+    flex: none;
+}
+.otl-eye.off {
+    color: #4b5563;
+}
+.otl-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.otl-badge {
+    font: 700 9px var(--font-mono);
+    color: var(--accent-pink);
+    width: 12px;
+    text-align: center;
+    flex: none;
+}
+.otl-grp .otl-name {
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+    font-size: 9.5px;
+    letter-spacing: .06em;
+}
+.otl-child {
+    padding-left: 16px;
+}
+
+/* Goldilocks 3-Layer Progressive Disclosure (H1 · Use vs H2 · Guide vs H3 · Telemetry) */
+body.goldilocks-h1 .goldilocks-guide-prose {
+    display: none !important;
+}
+body.goldilocks-h2 .goldilocks-guide-prose,
+body.goldilocks-h3 .goldilocks-guide-prose {
+    display: block !important;
+}
+
+[data-tip] {
+    position: relative;
+}
+[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    width: max-content;
+    max-width: 245px;
+    background: rgba(9, 13, 22, 0.96);
+    color: #e2e8f0;
+    border: 1px solid #38bdf8;
+    border-radius: 4px;
+    padding: 5px 8px;
+    font: 500 9.5px/1.35 var(--font-ui);
+    white-space: normal;
+    z-index: 9999;
+    pointer-events: none;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.65);
+}
+
+/* Adjacency Matrix Table */
+.adj-cell {
+    width: 24px;
+    height: 22px;
+    text-align: center;
+    cursor: pointer;
+    font: 700 10px var(--font-mono);
+    border: 1px solid var(--panel-border);
+    user-select: none;
+    transition: background .1s, color .1s, box-shadow .1s, transform .1s;
+}
+.adj-cell.allowed {
+    background: rgba(236, 72, 153, 0.25);
+    color: #f472b6;
+    border-color: #be185d;
+}
+.adj-cell.denied {
+    background: #111827;
+    color: #4b5563;
+}
+.adj-cell:hover {
+    filter: brightness(1.25);
+}
+.adj-cell.substep-ok {
+    background: rgba(16, 185, 129, 0.45) !important;
+    color: #a7f3d0 !important;
+    border-color: var(--accent-emerald) !important;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.9);
+    transform: scale(1.08);
+    z-index: 5;
+    position: relative;
+}
+.adj-cell.substep-fail {
+    background: rgba(244, 63, 94, 0.45) !important;
+    color: #fecdd3 !important;
+    border-color: var(--accent-rose) !important;
+    box-shadow: 0 0 8px rgba(244, 63, 94, 0.9);
+    transform: scale(1.08);
+    z-index: 5;
+    position: relative;
+}
+.adj-hdr-active {
+    color: var(--accent-amber) !important;
+    text-decoration: underline;
+    font-weight: 800 !important;
+}

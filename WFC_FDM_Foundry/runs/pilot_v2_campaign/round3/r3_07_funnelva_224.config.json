@@ -1,0 +1,23 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r3_07_funnelva_224",
+  "tilePreset": "funnel_vault",
+  "gridResolution": [
+    2,
+    2,
+    4
+  ],
+  "wfcSeed": 42,
+  "qProfile": "funicular_tuned",
+  "outerRadiusM": 0.019,
+  "innerRadiusM": 0.013,
+  "nSides": 8,
+  "columnBoost": 3.4,
+  "collarBoost": 1.6,
+  "planMargin": 0.055,
+  "targetHeightZ": 1.915,
+  "equalizeEdgeLengths": false,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true
+}

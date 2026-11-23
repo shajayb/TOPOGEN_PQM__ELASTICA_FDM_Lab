@@ -1,0 +1,21 @@
+{
+  "brief": "WFC_FDM_Foundry/briefs/pilot_v2_pq_unrolled.json",
+  "name": "r3_09_slenderd_446",
+  "wfcSeed": 7,
+  "tilePreset": "slender_diagrid",
+  "outerRadiusM": 0.012,
+  "innerRadiusM": 0.006,
+  "nSides": 6,
+  "qProfile": "funicular_tuned",
+  "columnBoost": 3.4,
+  "collarBoost": 1.6,
+  "longitudinalSubdivLevels": 1,
+  "pqOptimization": true,
+  "unrollPatterns": true,
+  "equalizeEdgeLengths": true,
+  "gridResolution": [
+    4,
+    4,
+    6
+  ]
+}

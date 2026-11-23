@@ -1,0 +1,300 @@
+{
+  "verifier": "WFC_FDM_Foundry/verifier (3D Euler-Bernoulli Space Frame FEA)",
+  "timestamp": "2026-11-21T23:41:59.620Z",
+  "candidateName": "r1_25_defortho_333",
+  "briefId": "pilot-v2-pq-unrolled-plaster-tower",
+  "passed": false,
+  "failureReasons": [
+    "fabrication.members",
+    "LC1_self_weight: Singular or mechanism stiffness matrix at reduced DOF 24 (pivot 1.696e-10, maxDiag 1.908e+7)",
+    "LC2_self_weight_plus_50kg: Singular or mechanism stiffness matrix at reduced DOF 24 (pivot 1.696e-10, maxDiag 1.908e+7)"
+  ],
+  "failureDiagnostics": [
+    "fabrication.members: maxSlenderness=212.9 (limit 120, slenderEdges=3, worstEdge=0), minLen=0.2568 m (shortEdges=0), rViolation=0, wallViolation=0",
+    "LC1_self_weight: Singular or mechanism stiffness matrix at reduced DOF 24 (pivot 1.696e-10, maxDiag 1.908e+7)",
+    "LC2_self_weight_plus_50kg: Singular or mechanism stiffness matrix at reduced DOF 24 (pivot 1.696e-10, maxDiag 1.908e+7)"
+  ],
+  "geometry": {
+    "nNodes": 6,
+    "nEdges": 5,
+    "nAnchors": 3,
+    "totalVolumeM3": 0.0032009105023125027,
+    "totalMassKg": 4.001138127890629,
+    "centerlineMassKg": 4.001138127890629,
+    "meshVolumeM3": 0.00471989617251975,
+    "meshMassKg": 5.899870215649687,
+    "effectiveMassKg": 5.899870215649687,
+    "elementCount": 5,
+    "longitudinalSubdivLevels": 1,
+    "gridResolution": [
+      3,
+      3,
+      3
+    ]
+  },
+  "kpis": {
+    "sourceLoadCaseId": "LC2_self_weight_plus_50kg",
+    "funicularEfficiency": null,
+    "compressionDominance": null,
+    "minCompressionDominanceAcrossLCs": null,
+    "maxAxialForceN": null,
+    "tensileBarCount": 0,
+    "tensileMemberIndices": [],
+    "elementCount": 5,
+    "totalUnrolledSurfaceAreaM2": 0.6379532927210001,
+    "maxQuadPlanarityErrorM": 1.9872250581639926e-7,
+    "meanQuadPlanarityErrorM": 2.9221887995262197e-8,
+    "longitudinalSubdivLevels": 1,
+    "gridResolution": [
+      3,
+      3,
+      3
+    ],
+    "imposedLoadKg": 0,
+    "centerlineMassKg": 4.001138127890629,
+    "meshMassKg": 5.899870215649687,
+    "loadToMassRatio": 0,
+    "loadToMeshMassRatio": 0,
+    "minIncidentAngleDeg": 89.66494339037986
+  },
+  "fabrication": {
+    "passed": false,
+    "checks": {
+      "connectivity": {
+        "passed": true,
+        "required": true,
+        "componentCount": 1,
+        "isolatedNodeCount": 0,
+        "largestComponentSize": 6
+      },
+      "voxelGrid": {
+        "passed": true,
+        "required": true,
+        "gridResolution": [
+          3,
+          3,
+          3
+        ],
+        "minGridResolution": [
+          2,
+          2,
+          2
+        ],
+        "maxGridResolution": [
+          4,
+          4,
+          6
+        ],
+        "hasValidGrid": true,
+        "minGridOk": true,
+        "maxGridOk": true,
+        "symmetryXYRequired": true,
+        "symmetryXY": true,
+        "symOk": true
+      },
+      "anchors": {
+        "passed": true,
+        "count": 3,
+        "minAnchors": 3,
+        "maxAnchors": 4,
+        "anchorCountOk": true,
+        "mustBeOnGround": true,
+        "groundZ": 0,
+        "groundTolerance": 0.02,
+        "maxAnchorGroundOffsetM": 0,
+        "offGroundAnchors": [],
+        "anchorGroundOk": true
+      },
+      "envelope": {
+        "passed": true,
+        "planX": 0.92,
+        "planY": 0,
+        "heightZ": 2,
+        "minZ": 0,
+        "maxZ": 2,
+        "limits": {
+          "maxPlanX": 1,
+          "maxPlanY": 1,
+          "planTolerance": 0.02,
+          "minHeightZ": 1.9,
+          "maxHeightZ": 2.05
+        },
+        "planXOk": true,
+        "planYOk": true,
+        "minHeightOk": true,
+        "maxHeightOk": true,
+        "aboveGroundOk": true
+      },
+      "members": {
+        "passed": false,
+        "edgeCount": 5,
+        "minMemberLengthM": 0.25684839174112034,
+        "shortestEdge": 1,
+        "maxMemberLengthM": 2.0087973059370623,
+        "minMemberLengthLimitM": 0.04,
+        "shortEdgeCount": 0,
+        "maxSlendernessRatio": 212.93208856557732,
+        "mostSlenderEdge": 0,
+        "maxSlendernessLimit": 120,
+        "slenderEdgeCount": 3,
+        "minOuterRadiusM": 0.016,
+        "maxOuterRadiusM": 0.016,
+        "radiusLimitsM": [
+          0.012,
+          0.09
+        ],
+        "radiusViolationCount": 0,
+        "hasHollowMembers": true,
+        "minWallThicknessM": 0.006,
+        "minWallThicknessLimitM": 0.006,
+        "wallViolationCount": 0,
+        "minIncidentAngleDeg": 89.66494339037986,
+        "minIncidentAngleNode": 2,
+        "minIncidentAngleEdges": [
+          1,
+          2
+        ],
+        "minIncidentAngleLimitDeg": null,
+        "angleOk": true
+      },
+      "funicularMetadata": {
+        "passed": true,
+        "mode": "compression",
+        "equilibriumResidual": 4.0194366942304644e-14,
+        "maxAllowedResidual": 0.0001,
+        "resOk": true,
+        "modeOk": true
+      },
+      "mesh": {
+        "passed": true,
+        "required": true,
+        "provided": true,
+        "meshMassKg": 5.899870215649687,
+        "vertexCount": 94,
+        "faceCount": 104,
+        "triCount": 24,
+        "quadCount": 80,
+        "ngonCount": 0,
+        "undirectedEdgeCount": 196,
+        "matchedTwinEdges": 196,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "inconsistentOrientationEdges": 0,
+        "degenerateFaces": 0,
+        "signedVolumeM3": 0.00471989617251975,
+        "maxQuadPlanarityErrorM": 1.9872250581639926e-7,
+        "meanQuadPlanarityErrorM": 2.9221887995262197e-8,
+        "worstPlanarityQuadFace": 11,
+        "warpedQuadCount": 0,
+        "warpedQuads": [],
+        "boundingBox": {
+          "min": [
+            -0.475918,
+            -0.016,
+            -0.001618
+          ],
+          "max": [
+            0.475918,
+            0.016,
+            2.016
+          ],
+          "span": [
+            0.951836,
+            0.032,
+            2.017618
+          ]
+        },
+        "isClosed": true,
+        "isManifold": true,
+        "hasPositiveVolume": true,
+        "isWatertightManifold": true
+      },
+      "pqGeometry": {
+        "passed": true,
+        "required": true,
+        "quadCount": 80,
+        "maxQuadPlanarityErrorM": 1.9872250581639926e-7,
+        "meanQuadPlanarityErrorM": 2.9221887995262197e-8,
+        "maxQuadPlanarityErrorLimitM": 0.0005,
+        "warpedQuadCount": 0,
+        "worstPlanarityQuadFace": 11,
+        "tubeTopology": true,
+        "requireTubeTopology": true,
+        "longitudinalSubdivLevels": 1,
+        "minLongitudinalSubdivLevels": 1,
+        "pqOptimizationApplied": true,
+        "requirePQOptimization": true,
+        "meshQuadsPresentOk": true,
+        "planarityOk": true,
+        "tubeTopologyOk": true,
+        "subdivLevelsOk": true,
+        "pqOptOk": true
+      },
+      "unrolledPatterns": {
+        "passed": true,
+        "svgProvided": true,
+        "svgValid": true,
+        "svgGroupCount": 5,
+        "svgCoveredBars": 5,
+        "jsonProvided": true,
+        "expectedBarCount": 5,
+        "unrolledBarCount": 5,
+        "barCountMatches": true,
+        "edgeCoverageOk": true,
+        "totalQuad2DCount": 80,
+        "totalUnrolledSurfaceAreaM2": 0.6379532927210001,
+        "reportedTotalUnrolledSurfaceAreaM2": 0.637953,
+        "areaConsistent": true,
+        "underSubdividedBarCount": 0,
+        "underSubdividedBars": [],
+        "nonConvexQuadCount": 0,
+        "nonConvexQuads": [],
+        "selfIntersectingBarCount": 0,
+        "selfIntersectingBars": [],
+        "invalidBboxBarCount": 0,
+        "overlappingBboxCount": 0,
+        "overlappingBboxes": [],
+        "required": true
+      }
+    }
+  },
+  "loadCases": [
+    {
+      "id": "LC1_self_weight",
+      "name": "Self-Weight Only",
+      "required": true,
+      "passed": false,
+      "isMechanism": true,
+      "error": "Singular or mechanism stiffness matrix at reduced DOF 24 (pivot 1.696e-10, maxDiag 1.908e+7)",
+      "criteria": {
+        "solvable": {
+          "passed": false,
+          "reason": "Singular or mechanism stiffness matrix at reduced DOF 24 (pivot 1.696e-10, maxDiag 1.908e+7)"
+        }
+      }
+    },
+    {
+      "id": "LC2_self_weight_plus_50kg",
+      "name": "Self-Weight + 50 kg Vertical Distributed Load",
+      "required": true,
+      "passed": false,
+      "isMechanism": true,
+      "error": "Singular or mechanism stiffness matrix at reduced DOF 24 (pivot 1.696e-10, maxDiag 1.908e+7)",
+      "criteria": {
+        "solvable": {
+          "passed": false,
+          "reason": "Singular or mechanism stiffness matrix at reduced DOF 24 (pivot 1.696e-10, maxDiag 1.908e+7)"
+        }
+      }
+    }
+  ],
+  "lateralStabilityAdvisory": null,
+  "fixedBaseReference": {
+    "loadCaseId": "LC2_self_weight_plus_50kg",
+    "maxDispMm": 0.1412444929838689,
+    "deflectionRatio": 0.00015352662280855315,
+    "sfTension": 999999,
+    "sfCompression": 34.061275085538796,
+    "sfBuckling": 3.116168735841017
+  }
+}
