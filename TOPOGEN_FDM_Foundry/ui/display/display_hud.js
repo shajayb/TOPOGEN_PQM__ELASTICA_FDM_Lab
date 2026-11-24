@@ -66,10 +66,29 @@ export function applyOutlinerVisibility() {
     const unrollShowOn = !!faceLoopState.showUnrolled3D;
 
     if (appState.fdmNodePickMeshes && appState.fdmNodePickMeshes.length > 0) {
+        const isElastica = (activeTabId === 'tab-elastica');
+        const showElasticaLeaves = isElastica && !!appState.elasticaState?.showLeaves;
+        const hasCustomElastica = showElasticaLeaves && (appState.elasticaSourceSet?.size > 0 || appState.elasticaSinkSet?.size > 0);
+        const autoLeaves = (showElasticaLeaves && !hasCustomElastica && appState.lastElasticaData?.leaves)
+            ? new Set(appState.lastElasticaData.leaves)
+            : null;
         for (const sph of appState.fdmNodePickMeshes) {
+            if (sph.userData.fdmOrigScale === undefined) sph.userData.fdmOrigScale = sph.scale.x;
             sph.visible = true;
-            if (sph.userData.fdmOrigScale !== undefined) sph.scale.setScalar(sph.userData.fdmOrigScale);
-            sph.material = sph.userData.isFixedAnchor ? sharedMaterials.anchorSphere : sharedMaterials.freeNodeSphere;
+            if (isElastica) {
+                // On Elastica tab, never color FDM anchors green (green is reserved for Elastica Source nodes)
+                sph.material = sharedMaterials.freeNodeSphere;
+                const idx = sph.userData.fdmNodeIndex;
+                const isLeafHighlight = showElasticaLeaves && (
+                    hasCustomElastica
+                        ? (appState.elasticaSourceSet.has(idx) || appState.elasticaSinkSet.has(idx))
+                        : (autoLeaves && autoLeaves.has(idx))
+                );
+                sph.scale.setScalar(isLeafHighlight ? sph.userData.fdmOrigScale * 0.65 : sph.userData.fdmOrigScale);
+            } else {
+                sph.scale.setScalar(sph.userData.fdmOrigScale);
+                sph.material = sph.userData.isFixedAnchor ? sharedMaterials.anchorSphere : sharedMaterials.freeNodeSphere;
+            }
         }
     }
 

@@ -319,7 +319,10 @@ export function renderElastica3D() {
     const data = appState.lastElasticaData;
     const st = appState.elasticaState;
     const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
-    if (!data) return;
+    if (!data) {
+        if (actions.applyOutlinerVisibility) actions.applyOutlinerVisibility();
+        return;
+    }
 
     // 1. Highlight Source / Sink / V=1 nodes (sized relative to fdmNodePickMeshes baseR)
     if (st.showLeaves && src && src.vertices) {
@@ -685,6 +688,7 @@ export function initTabElastica() {
     $('chk-elastica-show-leaves')?.addEventListener('change', e => {
         st.showLeaves = e.target.checked;
         renderElastica3D();
+        if (actions.applyOutlinerVisibility) actions.applyOutlinerVisibility();
     });
     $('chk-elastica-show-skeletal')?.addEventListener('change', e => {
         st.showSkeletalPaths = e.target.checked;
