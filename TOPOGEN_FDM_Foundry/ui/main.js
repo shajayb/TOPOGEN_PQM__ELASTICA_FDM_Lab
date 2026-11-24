@@ -112,6 +112,7 @@ import {
     generateElasticaFromUI,
     toggleElasticaUnroll3DFromUI
 } from './tabs/tab_elastica.js';
+import { initMcpUiBridge } from './bridge/mcp_ui_bridge.js';
 
 // 1. Mount dynamic HTML templates into shell containers synchronously before event wiring
 mountTelemetryHud();
@@ -310,3 +311,6 @@ const workbenchApi = {
 
 window.WFC_WORKBENCH = workbenchApi;
 window.__app = workbenchApi;
+
+// 6. Connect same-origin MCP UI Bridge (silent no-op on static servers)
+workbenchApi.mcpUiBridge = initMcpUiBridge();
