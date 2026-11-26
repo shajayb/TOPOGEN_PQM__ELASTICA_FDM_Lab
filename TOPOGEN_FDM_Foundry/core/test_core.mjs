@@ -308,5 +308,32 @@ test('7. core/index: generateCandidate(pilot_champion, [2,2,3], seed=42) produce
     assert(Number.isFinite(res.metrics.totalUnrolledSurfaceAreaM2) && res.metrics.totalUnrolledSurfaceAreaM2 > 0, 'Invalid unrolled surface area');
 });
 
+// ---------------------------------------------------------------------------
+// Test 8: core/pq_solidifier — Uncapped bisector-stitched tubes stay fast (no hull fallback)
+// ---------------------------------------------------------------------------
+test('8. core/pq_solidifier: capLeafEnds:false accepts valid manifold bisector mesh without hull fallback', () => {
+    const verts = [
+        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 0, z: 1 },
+        { x: 1, y: 0, z: 1 },
+        { x: 0, y: 1, z: 1 }
+    ];
+    const edges = [[0, 1], [1, 2], [1, 3]];
+    const s = solidifyGraph(verts, edges, {
+        nSides: 8,
+        radius: 0.06,
+        longitudinalSubdivLevels: 1,
+        pqOptimization: true,
+        stitchAtBisectors: true,
+        miterClamp: false,
+        capLeafEnds: false
+    });
+    assert(s && s.verification && s.verification.isValid === true, 'Uncapped bisector mesh should be valid manifold');
+    assert(s.verification.nonManifoldEdges === 0, `Expected 0 non-manifold edges, got ${s.verification.nonManifoldEdges}`);
+    assert(s.verification.boundaryEdges === 24, `Expected 3 uncapped 8-sided leaf rings (24 bnd edges), got ${s.verification.boundaryEdges}`);
+    assert(s.triangles.length === 0, `Expected 0 triangles, got ${s.triangles.length}`);
+    assert(s.miterClampApplied === false, 'Should return bisector-stitched mesh, not convex-hull fallback');
+});
+
 console.log(`\nCore Suite Summary: ${passed}/${passed + failed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

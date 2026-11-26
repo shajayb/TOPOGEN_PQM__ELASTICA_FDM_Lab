@@ -1033,11 +1033,14 @@ function solidifyGraph(graphVertices, graphEdges, options = {}) {
         if (bisected.triangles && bisected.triangles.length > 0) {
             applyCatmullClarkToPQStrips(bisected, 1, applyPQ, { pqIterations, pqCoupling, maxQuadPlanarityErrorM });
         }
-        if (bisected.verification && bisected.verification.isWatertight && bisected.triangles.length === 0) {
+        const bisectedOk = bisected.verification
+            && bisected.triangles.length === 0
+            && (capLeafEnds ? bisected.verification.isWatertight : bisected.verification.isValid);
+        if (bisectedOk) {
             return bisected;
         }
         const hullFallback = solidifyGraph(graphVertices, graphEdges, Object.assign({}, options, { stitchAtBisectors: false }));
-        if (hullFallback.verification && hullFallback.verification.isWatertight) {
+        if (hullFallback.verification && (capLeafEnds ? hullFallback.verification.isWatertight : hullFallback.verification.isValid)) {
             return hullFallback;
         }
         return bisected;

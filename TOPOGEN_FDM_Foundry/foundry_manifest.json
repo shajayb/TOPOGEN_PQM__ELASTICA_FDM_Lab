@@ -35,7 +35,7 @@
   },
   "seals": {
     "algorithm": "sha256-sorted-path-and-bytes-v1",
-    "codeSurfaceSha256": "109cf62a15a5761fbd88b3e37ed067b45f4ad227031ab9410e54bf7f039f8dbb",
+    "codeSurfaceSha256": "7af2c9562dd8413391198e0e2bee792131d05b06731d35837bba49c92babf481",
     "codeFileCount": 45,
     "codeFiles": {
       "agent/broker.mjs": "660f28b4029b5740d9917efe59d363c6e91384e6b10096c66ccdf42acc51762b",
@@ -59,9 +59,9 @@
       "core/math_tiles.mjs": "ad19080d980d4d10c01d8e7ea2c3765cbc673a955062ad07f28f5d8b117ba720",
       "core/mesh_skeletonizer.mjs": "a3f49f043b7570365b8bf979ebcebb42269186656f375820bfb1536ffbde51f2",
       "core/pq_face_loops.mjs": "e825e409162fdf82ee842cd4d24b67588ecaedea799677a21105355ada360537",
-      "core/pq_solidifier.mjs": "16c7a8ff6faaf23e19934be2a6a1a6ace1bf87c801f7ef0c3e7d5b07a2930f56",
+      "core/pq_solidifier.mjs": "50a3708fd79470e983edcaa14be14534004c6f5ac0631c532fe78f7c57bff3a9",
       "core/pq_subdivision.mjs": "c0f93a7dbd8ae71351ba8ab0bd724e74b281cb5d54ae498cc017b236ba6340eb",
-      "core/test_core.mjs": "3d43384504302c7f8c1dac6bce32202fe44970d394381a7d52b9ebfcae415136",
+      "core/test_core.mjs": "cd74fcb0da1366d4bf34d1fe6e2fc699ea53069bf7d2f2c2a549ea39aac8a961",
       "core/unroll_patterns.mjs": "16d7aa0011e05b9f3037aa82958cc2207407fcd4acfb565ceae88be964990b2d",
       "core/wfc_graph.mjs": "669545ed843d67aa74f11003b72c37e93c2443efaabc25a379c114de8dc3b44a",
       "index_TOPOGEN_PQM_ELASTICA_FDM.html": "be426b2c40c2bca36cad876059abddbb8834bf252c07dffd13a95b35ef2ffe09",
@@ -69,7 +69,7 @@
       "scripts/foundry_mode_guard.mjs": "5ff4e4ed7fcfc9f48a475abd0a2ef22c47964a3db2a5235002b7373df021e6b3",
       "scripts/foundry_mode_guard.ps1": "049dd4ecfb1d383608a3afdd4433ec3cab5501cf746fd2321219bf283c62abe3",
       "ui/bridge/mcp_ui_bridge.js": "fdf5990cde2562ff0425d41f8995d1855b32fd3d200989964b9a510d0bb8dec5",
-      "ui/display/display_hud.js": "db6b9e0be269a747f5a8ba75de7f0534c408c502ec3804eb84138ef429ab2861",
+      "ui/display/display_hud.js": "0ea768ceefc4535c3bf554a1541cce7237d30cdd7232513055a8ad4358fa7a8a",
       "ui/display/telemetry_hud.js": "d81a5014b1e1dd44886f885e868d4074bc6e0a941fd95e874aaf069bf2a73334",
       "ui/display/viewport_scene.js": "747523112f87ef1358ed7c1bbb2316a60b479e4c5a401867ad7200de5ef40580",
       "ui/main.js": "5044cf04e6aa7902ba6d805f538a1404e71ff37ec82c3c215ad3c9d08a1df6f7",
@@ -79,7 +79,7 @@
       "ui/tabs/tab2_network_loader.js": "8bccc31c60088fbeddda3c7731f2f03d2d25bbbd9678388cd654b405dcc17f4d",
       "ui/tabs/tab2_topo.js": "44c94fa8687def32cbe62a9830cc091195ca8bd05946f8e71f726271a1db38be",
       "ui/tabs/tab3_fdm.js": "60a366630bb8a6f667f3084e16099c7b404a4844d26a0795a4a2e994c40fce8d",
-      "ui/tabs/tab4_pq_mesh.js": "26d8211aa1219ec32d7e8c05d510beb41f9250d44fa64cf76db7a6e8a319b1f5",
+      "ui/tabs/tab4_pq_mesh.js": "a0f53ea540df8ad81005d3177268e9e1331b8512ad9f57b2d6838929cdf6d3bc",
       "ui/tabs/tab5_fea.js": "f68ee63725c8973606598ef1264bd01d91664300beeec724d056be0e02afdfce",
       "ui/tabs/tab6_io.js": "3a2cd2c6f2e90cdcbe02193b77595d700d39595955545df8c7e84c9496757928",
       "ui/tabs/tab_elastica.js": "ab8eb1058c65be302dea19ad156b3b0d0fd20d9d97645770a94a2aa715c6541f"
@@ -96,6 +96,6 @@
       "verifier/verify.mjs": "4214962fa8dcd0a07729693d4c251a1397a2a5ff3c82355378a9d0ed8e8eb462"
     },
     "airGapPassed": true,
-    "sealedAtUtc": "2026-11-26T09:55:57Z"
+    "sealedAtUtc": "2026-11-26T18:13:57Z"
   }
 }

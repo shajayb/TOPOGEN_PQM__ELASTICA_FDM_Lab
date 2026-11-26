@@ -631,11 +631,20 @@ export function initDisplayHud() {
             if (!Number.isFinite(v)) return;
             appState.tubeState.radius = v;
             if (actions.syncTubeWallRadiiUI) actions.syncTubeWallRadiiUI();
+            if (actions.scheduleInteractiveTubeSolidify) {
+                actions.scheduleInteractiveTubeSolidify({ preview: true });
+                return;
+            }
             if (compactRadiusTimer) clearTimeout(compactRadiusTimer);
             compactRadiusTimer = setTimeout(() => {
                 if (actions.solidifyActiveGraph) actions.solidifyActiveGraph({ keepCamera: true });
                 if (actions.updateSimUI) actions.updateSimUI();
             }, 35);
+        });
+        rngCompactTubeRadius.addEventListener('change', () => {
+            if (actions.scheduleInteractiveTubeSolidify) {
+                actions.scheduleInteractiveTubeSolidify({ commit: true });
+            }
         });
     }
 
