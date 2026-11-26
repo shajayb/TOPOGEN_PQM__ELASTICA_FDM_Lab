@@ -5,25 +5,28 @@ Every algorithm and UI panel is organized into small, zero-build-step JavaScript
 
 ---
 
-## 1. Desktop MCP Setup, Launching TOPOGEN & Connecting to Chrome Tabs
+## 1. Desktop MCP Setup, Launching TOPOGEN in External Chrome & Connecting via MCP Bridge
 
-### First-Time Desktop MCP Binding (Full Foundry Repo `origin`)
+> **CRITICAL — External Desktop Google Chrome ONLY (Never Antigravity's Built-In Browser)**:
+> Always launch TOPOGEN in the user's **external Desktop Google Chrome** and connect to it through the **Desktop MCP bridge** (`topogen_ui_launch` / `topogen_ui_tabs` + `topogen_ui_connect`). **NEVER** open TOPOGEN in Antigravity's built-in `browser` subagent / embedded webview pane (`browserKind: "webview"`), which Bridge v2 excludes from auto-routing and which stalls on file uploads.
+
+### First-Time Desktop MCP Binding & External Chrome Launch (Full Foundry Repo `origin`)
 Register `topogen_fdm_foundry` once in `~/.gemini/config/mcp_config.json` (Antigravity) or `~/.codex/config.toml` (Codex) — sessionless, discovering the active `:8787` daemon automatically via `%LOCALAPPDATA%\Topogen\Foundry\<ecosystem>\latest-session.json`:
 
 ```bash
 # 1. Bind Desktop MCP once per machine (then refresh topogen_fdm_foundry in Antigravity MCP settings):
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mcp --bind --ecosystem antigravity
 
-# 2. Launch 3D Workbench in Google Chrome & pair to your active conversation (auto-starts :8787):
+# 2. Launch 3D Workbench in EXTERNAL Desktop Google Chrome & pair to your conversation (auto-starts :8787):
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>
 
-# Or via Desktop MCP tools (preferred, unsandboxed):
+# Or via Desktop MCP tools (preferred, unsandboxed — confirms browserKind: "chrome", never "webview"):
 #   topogen_inspect({})                                                 -> verify daemon & surfaceDrift: null
-#   topogen_ui_launch({ conversationId: "<Conversation ID>" })          -> open & pair Chrome Workbench
-#   topogen_ui_tabs({ conversationId: "<Conversation ID>" })            -> list open Chrome tabs
+#   topogen_ui_launch({ conversationId: "<Conversation ID>" })          -> open & pair external Desktop Chrome
+#   topogen_ui_tabs({ conversationId: "<Conversation ID>" })            -> list open external Chrome tabs
 #   topogen_ui_connect({ conversationId: "<Conversation ID>", clientId }) -> bind an already-open Chrome tab
 
-# 3. Inspect connected Chrome tabs & control the paired Workbench tab from CLI:
+# 3. Inspect connected external Chrome tabs & drive the paired Workbench tab from CLI:
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs tabs
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui inspect --conv <Conversation ID>
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui configure --conv <Conversation ID> --preset pilot_champion --grid 2x2x3

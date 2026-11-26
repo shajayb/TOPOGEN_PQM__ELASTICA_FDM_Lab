@@ -23,18 +23,25 @@ node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mcp --print-config --ecosystem antigr
 - `mcp.mjs --ecosystem antigravity` resolves the live `:8787` daemon atomically via `%LOCALAPPDATA%\Topogen\Foundry\antigravity\latest-session.json` (Windows) or `~/.local/share/Topogen/Foundry/antigravity/latest-session.json` (macOS/Linux), and **auto-launches** `foundry_server.mjs --no-browser --mcp-auto` if the daemon is not yet running.
 - After **first-time binding** or any Mode B edit to `agent/tools.mjs` / `agent/mcp.mjs`, **refresh `topogen_fdm_foundry` in Antigravity's MCP settings** (or open a new chat) so `tools/list` reloads.
 
-### B. Connecting at the Start of Every Session
+### B. Connecting at the Start of Every Session — **EXTERNAL Desktop Chrome ONLY (NEVER AGY's Built-In Browser)**
+
+> **CRITICAL RULE — EXTERNAL GOOGLE CHROME + MCP BRIDGE ONLY**:
+> - **ALWAYS** launch TOPOGEN in the user's **external Desktop Google Chrome** window and drive it exclusively through the **Desktop MCP UI bridge** (`topogen_ui_*` tools over `/api/ui-bridge/*`).
+> - **NEVER** launch, open, or preview TOPOGEN inside **Antigravity's built-in / in-app browser** (`browser` subagent / embedded webview pane) unless the user explicitly asks for the internal webview. Bridge v2 classifies internal panes as `browserKind: "webview"` and blocks auto-routing to them; hidden webviews also linger as zombie pollers and stall on file uploads.
+
 1. **Health & Drift Check**: Call `topogen_inspect({})` (or `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs inspect`). Confirm `ok: true` and `surfaceDrift: null` (if `surfaceDrift` is non-null, follow its remediation message before calling new tools).
-2. **Launch a Paired Chrome Workbench Tab** *(preferred, unsandboxed via Desktop MCP)*:
+2. **Launch TOPOGEN in External Desktop Google Chrome & Pair via MCP Bridge** *(preferred, unsandboxed via Desktop MCP)*:
    ```json
    topogen_ui_launch({ "conversationId": "<Conversation ID>", "surface": "workbench" })
    ```
-   *(CLI equivalent: `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>`)*
-   - **Never** claim Chrome opened until the response returns `ok: true`, a non-empty `clientId`, and `browserKind: "chrome"`.
-3. **Connect to an Already-Open Chrome Tab** *(e.g. after manual `F5` or when the user says "connect to TOPOGEN in Chrome")*:
+   *(CLI equivalent from an unsandboxed desktop shell: `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>`)*
+   - This spawns/reuses a real **external Desktop Google Chrome** tab (`http://127.0.0.1:8787/index_TOPOGEN_PQM_ELASTICA_FDM.html?conv=<Conversation ID>`) via `agent/chrome-launcher.mjs` (with `mcp.mjs` L6 unsandboxed fallback) and pairs it automatically to your conversation.
+   - **Never** claim Chrome opened until the response returns `ok: true`, a non-empty `clientId`, and **`browserKind: "chrome"`** *(never `"webview"` or `"headless"`)*.
+3. **Connect to an Already-Open External Chrome Tab via MCP Bridge** *(e.g. if the user opened Chrome manually, pressed `F5`, or says "connect to TOPOGEN in Chrome")*:
    - Call `topogen_ui_tabs({ "conversationId": "<Conversation ID>" })` to list connected tabs (`clientId`, `browserKind`, `surface`, `visible`, `focused`, `conversationId`).
-   - Bind explicitly with `topogen_ui_connect({ "conversationId": "<Conversation ID>", "clientId": "<target>" })` (or `{ "conversationId": "<Conversation ID>", "claimFocusedChrome": true }` when a single Chrome tab is focused).
-   - Users can also click the top-right **Chrome · Paired** pill (`#mcp-bridge-hud`) in the Workbench UI to Pair, Unpair, or Copy Tab ID.
+   - Select the tab with **`browserKind: "chrome"`** and bind explicitly with `topogen_ui_connect({ "conversationId": "<Conversation ID>", "clientId": "<target>" })` (or `{ "conversationId": "<Conversation ID>", "claimFocusedChrome": true }` when a single external Chrome tab is focused).
+   - Once paired, drive the live external Chrome window strictly with `topogen_ui_inspect`, `topogen_ui_load_file`, `topogen_ui_configure`, `topogen_ui_run_step`, `topogen_ui_reload`, and `topogen_ui_export` (always passing `conversationId`).
+   - Users can also click the top-right **Chrome · Paired** pill (`#mcp-bridge-hud`) in external Chrome to Pair, Unpair, or Copy Tab ID.
 4. **Full Foundry (`origin`) vs. Lab-Only (`lab`) Repos**:
    - `origin` (`TOPOGEN_PQM_ELASTICA_FDM_FEA_FOUNDRY.git`, `master`) includes `foundry_server.mjs` (`:8787`), `foundry_launcher.html`, `foundry_runner.mjs`, `launcher_ui/**`, and `workers/**` — required for full live Desktop MCP & campaign orchestration.
    - `lab` (`TOPOGEN_PQM__ELASTICA_FDM_Lab.git`, `main` / `lab-elastica`) is the app-only Lab Workbench snapshot (no Foundry launcher/server/workers); run standalone via `node TOPOGEN_FDM_Foundry/serve_lab.mjs 8000` (`http://127.0.0.1:8000/index_TOPOGEN_PQM_ELASTICA_FDM.html`).
