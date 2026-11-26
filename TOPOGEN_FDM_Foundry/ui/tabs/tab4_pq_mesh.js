@@ -341,9 +341,71 @@ export function computeUnrolledSheetGridLayout(sheets, startX, tMinY, tMaxY, gap
     return { nCols, nRows, sheetTransforms };
 }
 
+export function buildUnrolledPatternsDataForUI(solid = appState.lastSolidData, graph = null) {
+    if (!solid || !solid.vertices || solid.vertices.length === 0) return null;
+    const { faceLoopState, tubeState, currentTilePreset } = appState;
+    const activeGraph = graph || (actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null);
+    const hasGraphEdges = Boolean(activeGraph && Array.isArray(activeGraph.edges) && activeGraph.edges.length > 0);
+
+    if (hasGraphEdges) {
+        const res = CORE.buildUnrolledPatterns(activeGraph, solid, {
+            name: `unroll3d_${currentTilePreset}`,
+            outerRadiusM: tubeState.radius,
+            nSides: tubeState.nSides,
+            longitudinalSubdivLevels: tubeState.longitudinalSubdivLevels,
+            laserBedWidthM: 0.60,
+            laserBedHeightM: 0.90,
+            laserSheetGapM: 0.08
+        });
+        if (res && res.unrolledJson && Array.isArray(res.unrolledJson.bars) && res.unrolledJson.bars.length > 0) {
+            return { unrolledJson: res.unrolledJson, patternsSvg: res.patternsSvg || null, source: 'graph' };
+        }
+    }
+
+    if (!faceLoopState.loops || faceLoopState.loops.length === 0) {
+        walkAndRefreshFaceLoops(solid);
+    } else {
+        for (const lp of faceLoopState.loops) {
+            if (!lp.unrolled2D) lp.unrolled2D = CORE.unrollFaceLoop2D(solid.vertices, solid.quads, lp);
+        }
+    }
+    if (!faceLoopState.loops || faceLoopState.loops.length === 0) return null;
+
+    // Direct face-loop sheet packing for Host Mesh Mode (mesh tiles without graph edges)
+    const bedW = 0.60, bedH = 0.90, gap = 0.06;
+    const bars = [];
+    const sheets = [{ sheetIndex: 0, widthM: bedW, heightM: bedH, bbox2D: [0, 0, bedW, bedH] }];
+    let curX = gap, curY = gap, rowH = 0, sIdx = 0;
+    faceLoopState.loops.forEach((lp, lIdx) => {
+        const u2d = lp.unrolled2D;
+        if (!u2d || !u2d.quads2D || u2d.quads2D.length === 0) return;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const q2 of u2d.quads2D) {
+            for (const p of q2.pts) {
+                if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+            }
+        }
+        const w = Math.max(1e-4, maxX - minX), h = Math.max(1e-4, maxY - minY);
+        if (curX + w + gap > bedW && curX > gap) { curX = gap; curY += rowH + gap; rowH = 0; }
+        if (curY + h + gap > bedH && curY > gap) {
+            sIdx++;
+            sheets.push({ sheetIndex: sIdx, widthM: bedW, heightM: bedH, bbox2D: [0, 0, bedW, bedH] });
+            curX = gap; curY = gap; rowH = 0;
+        }
+        const dx = curX - minX, dy = curY - minY;
+        const quads2D = u2d.quads2D.map(q2 => q2.pts.map(p => [p.x + dx, p.y + dy]));
+        bars.push({ edgeIndex: lIdx, sheetIndex: sIdx, quads2D });
+        curX += w + gap;
+        if (h > rowH) rowH = h;
+    });
+    if (bars.length === 0) return null;
+    return { unrolledJson: { bars, sheets }, patternsSvg: null, source: 'face_loops' };
+}
+
 export function renderUnrolledStrips3D() {
     clearGroup(viewport.unroll3DGroup);
-    const { faceLoopState, lastSolidData, tubeState, currentTilePreset, arcticOn } = appState;
+    const { faceLoopState, lastSolidData, arcticOn } = appState;
     if (!faceLoopState.showUnrolled3D || !lastSolidData || !lastSolidData.vertices || lastSolidData.vertices.length === 0) {
         viewport.unroll3DGroup.visible = false;
         return;
@@ -358,51 +420,9 @@ export function renderUnrolledStrips3D() {
     const startX = tMaxX + 0.45;
     const zPlane = 0.006;
 
-    const activeUnrollGraph = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
-    const hasGraphEdges = Boolean(activeUnrollGraph && Array.isArray(activeUnrollGraph.edges) && activeUnrollGraph.edges.length > 0);
-    if (hasGraphEdges || (faceLoopState.loops && faceLoopState.loops.length > 0)) {
-        let unrolledJson = null;
-        if (hasGraphEdges) {
-            ({ unrolledJson } = CORE.buildUnrolledPatterns(activeUnrollGraph, lastSolidData, {
-                name: `unroll3d_${currentTilePreset}`,
-                outerRadiusM: tubeState.radius,
-                nSides: tubeState.nSides,
-                longitudinalSubdivLevels: tubeState.longitudinalSubdivLevels,
-                laserBedWidthM: 0.60,
-                laserBedHeightM: 0.90,
-                laserSheetGapM: 0.08
-            }));
-        } else {
-            // Direct face-loop sheet packing for Host Mesh Mode (mesh tiles without graph edges)
-            const bedW = 0.60, bedH = 0.90, gap = 0.06;
-            const bars = [];
-            const sheets = [{ sheetIndex: 0, widthM: bedW, heightM: bedH, bbox2D: [0, 0, bedW, bedH] }];
-            let curX = gap, curY = gap, rowH = 0, sIdx = 0;
-            faceLoopState.loops.forEach((lp, lIdx) => {
-                const u2d = lp.unrolled2D;
-                if (!u2d || !u2d.quads2D || u2d.quads2D.length === 0) return;
-                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-                for (const q2 of u2d.quads2D) {
-                    for (const p of q2.pts) {
-                        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-                        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-                    }
-                }
-                const w = Math.max(1e-4, maxX - minX), h = Math.max(1e-4, maxY - minY);
-                if (curX + w + gap > bedW && curX > gap) { curX = gap; curY += rowH + gap; rowH = 0; }
-                if (curY + h + gap > bedH && curY > gap) {
-                    sIdx++;
-                    sheets.push({ sheetIndex: sIdx, widthM: bedW, heightM: bedH, bbox2D: [0, 0, bedW, bedH] });
-                    curX = gap; curY = gap; rowH = 0;
-                }
-                const dx = curX - minX, dy = curY - minY;
-                const quads2D = u2d.quads2D.map(q2 => q2.pts.map(p => [p.x + dx, p.y + dy]));
-                bars.push({ edgeIndex: lIdx, sheetIndex: sIdx, quads2D });
-                curX += w + gap;
-                if (h > rowH) rowH = h;
-            });
-            unrolledJson = { bars, sheets };
-        }
+    const unrollPack = buildUnrolledPatternsDataForUI(lastSolidData);
+    if (unrollPack && unrollPack.unrolledJson) {
+        const unrolledJson = unrollPack.unrolledJson;
         faceLoopState.unrolledBedLayout = { unrolledJson, startX, tMinY, tMaxY, zPlane };
         const bars = (unrolledJson && unrolledJson.bars) ? unrolledJson.bars : [];
         const sheets = (unrolledJson && unrolledJson.sheets && unrolledJson.sheets.length > 0)

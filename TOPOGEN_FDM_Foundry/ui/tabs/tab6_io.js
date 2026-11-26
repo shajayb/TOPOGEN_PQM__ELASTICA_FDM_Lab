@@ -30,7 +30,7 @@ import {
     syncGizmo
 } from '../display/viewport_scene.js';
 import { applyOutlinerVisibility, refreshOutliner } from '../display/display_hud.js';
-import { computeUnrolledSheetGridLayout } from './tab4_pq_mesh.js';
+import { computeUnrolledSheetGridLayout, buildUnrolledPatternsDataForUI } from './tab4_pq_mesh.js';
 
 export function mountTab6Io() {
     const pane = $('tab-io');
@@ -441,52 +441,49 @@ export function buildExportDoc() {
     attrPqMesh.delete();
 
     const attrUnrolls = mkLayer('05_Unrolls_Laser_Sheets', { r: 168, g: 85, b: 247, a: 255 });
-    if (postFdmGraph && solidForExport) {
-        const { unrolledJson } = CORE.buildUnrolledPatterns(postFdmGraph, solidForExport, {
-            name: `unroll3dm_${currentTilePreset}`,
-            outerRadiusM: tubeState.radius,
-            nSides: tubeState.nSides,
-            longitudinalSubdivLevels: tubeState.longitudinalSubdivLevels,
-            laserBedWidthM: 0.60,
-            laserBedHeightM: 0.90,
-            laserSheetGapM: 0.08
-        });
-        let tMaxX = 0.5, tMinY = -0.5, tMaxY = 0.5;
-        for (const v of solidForExport.vertices) {
-            if (v.x > tMaxX) tMaxX = v.x;
-            if (v.y < tMinY) tMinY = v.y;
-            if (v.y > tMaxY) tMaxY = v.y;
-        }
-        const startX = tMaxX + 0.45;
-        const sheets = (unrolledJson && unrolledJson.sheets && unrolledJson.sheets.length > 0) ? unrolledJson.sheets : [{ sheetIndex: 0, bbox2D: [0, 0, 0.60, 0.90] }];
-        const { sheetTransforms } = computeUnrolledSheetGridLayout(sheets, startX, tMinY, tMaxY);
-        const zPlane = 0.002;
-
-        for (const bar of (unrolledJson.bars || [])) {
-            const qs = bar.quads2D || [];
-            if (qs.length === 0) continue;
-            const st = sheetTransforms[bar.sheetIndex || 0] || sheetTransforms[0];
-            const rMesh = new rhino.Mesh();
-            const vl = rMesh.vertices(), fl = rMesh.faces();
-            for (let qi = 0; qi < qs.length; qi++) {
-                const q = qs[qi], base = qi * 4;
-                for (let k = 0; k < 4; k++) vl.add(q[k][0] + st.dx, q[k][1] + st.dy, zPlane);
-                fl.addQuadFace(base, base + 1, base + 2, base + 3);
+    if (solidForExport) {
+        const unrollPack = buildUnrolledPatternsDataForUI(solidForExport, postFdmGraph);
+        const unrolledJson = unrollPack ? unrollPack.unrolledJson : null;
+        if (unrolledJson && Array.isArray(unrolledJson.bars) && unrolledJson.bars.length > 0) {
+            let tMaxX = -Infinity, tMinY = Infinity, tMaxY = -Infinity;
+            for (const v of solidForExport.vertices) {
+                if (v.x > tMaxX) tMaxX = v.x;
+                if (v.y < tMinY) tMinY = v.y;
+                if (v.y > tMaxY) tMaxY = v.y;
             }
-            try { rMesh.normals().computeNormals(); } catch (e) {}
-            try { rMesh.compact(); } catch (e) {}
-            attrUnrolls.name = `Unroll_Bar_${bar.edgeIndex}_Sheet_${(bar.sheetIndex || 0) + 1}`;
-            doc.objects().add(rMesh, attrUnrolls);
-            rMesh.delete();
-        }
-        for (const st of sheetTransforms) {
-            const { minX: x0, maxX: x1, minY: y0, maxY: y1 } = st;
-            const corners = [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
-            for (let c = 0; c < 4; c++) {
-                attrUnrolls.name = `Laser_Sheet_${st.sheetIndex + 1}_Border`;
-                const rLine = new rhino.LineCurve(corners[c], corners[(c + 1) % 4]);
-                doc.objects().add(rLine, attrUnrolls);
-                rLine.delete();
+            if (!Number.isFinite(tMaxX)) { tMaxX = 0.5; tMinY = -0.5; tMaxY = 0.5; }
+            const startX = tMaxX + 0.45;
+            const sheets = (unrolledJson.sheets && unrolledJson.sheets.length > 0)
+                ? unrolledJson.sheets : [{ sheetIndex: 0, widthM: 0.60, heightM: 0.90, bbox2D: [0, 0, 0.60, 0.90] }];
+            const { sheetTransforms } = computeUnrolledSheetGridLayout(sheets, startX, tMinY, tMaxY);
+            const zPlane = 0.002;
+
+            for (const bar of unrolledJson.bars) {
+                const qs = bar.quads2D || [];
+                if (qs.length === 0) continue;
+                const st = sheetTransforms[bar.sheetIndex || 0] || sheetTransforms[0];
+                const rMesh = new rhino.Mesh();
+                const vl = rMesh.vertices(), fl = rMesh.faces();
+                for (let qi = 0; qi < qs.length; qi++) {
+                    const q = qs[qi], base = qi * 4;
+                    for (let k = 0; k < 4; k++) vl.add(q[k][0] + st.dx, q[k][1] + st.dy, zPlane);
+                    fl.addQuadFace(base, base + 1, base + 2, base + 3);
+                }
+                try { rMesh.normals().computeNormals(); } catch (e) {}
+                try { rMesh.compact(); } catch (e) {}
+                attrUnrolls.name = `Unroll_Strip_${bar.edgeIndex}_Sheet_${(bar.sheetIndex || 0) + 1}`;
+                doc.objects().add(rMesh, attrUnrolls);
+                rMesh.delete();
+            }
+            for (const st of sheetTransforms) {
+                const { minX: x0, maxX: x1, minY: y0, maxY: y1 } = st;
+                const corners = [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
+                for (let c = 0; c < 4; c++) {
+                    attrUnrolls.name = `Laser_Sheet_${st.sheetIndex + 1}_Border`;
+                    const rLine = new rhino.LineCurve(corners[c], corners[(c + 1) % 4]);
+                    doc.objects().add(rLine, attrUnrolls);
+                    rLine.delete();
+                }
             }
         }
     }

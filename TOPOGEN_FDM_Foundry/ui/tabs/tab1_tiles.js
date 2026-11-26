@@ -260,14 +260,21 @@ export function appendTileInstance3D(targetGroup, tileDef, center, scale = 1.0, 
         targetGroup.add(tileMesh);
 
         if (wire.length > 0) {
-            const wLines = makeFatLineSegments(
-                new Float32Array(wire),
-                makeFatMaterial(0x1e293b, Math.max(0.75, edgePx * 0.75), {
-                    disposeOnClear: true,
-                    transparent: true,
-                    opacity: 0.35
-                })
-            );
+            let wLines;
+            if (wire.length > 600) {
+                const wGeo = new THREE.BufferGeometry();
+                wGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wire), 3));
+                wLines = new THREE.LineSegments(wGeo, sharedMaterials.quadWire);
+            } else {
+                wLines = makeFatLineSegments(
+                    new Float32Array(wire),
+                    makeFatMaterial(0x1e293b, Math.max(0.75, edgePx * 0.75), {
+                        disposeOnClear: true,
+                        transparent: true,
+                        opacity: 0.35
+                    })
+                );
+            }
             wLines.userData.tileRole = 'mesh';
             targetGroup.add(wLines);
         }
@@ -1162,8 +1169,8 @@ export function initTab1Tiles() {
     ['rng-tile-voxel-size', 'num-tile-voxel-size'].forEach(id => {
         const el = $(id);
         if (!el) return;
-        el.addEventListener('input', (e) => { if (actions.setVoxelSize) actions.setVoxelSize(parseFloat(e.target.value), { zoom: false }); });
-        el.addEventListener('change', (e) => { if (actions.setVoxelSize) actions.setVoxelSize(parseFloat(e.target.value), { zoom: true }); });
+        el.addEventListener('input', (e) => { if (actions.setVoxelSize) actions.setVoxelSize(parseFloat(e.target.value), { zoom: false, interactive: true }); });
+        el.addEventListener('change', (e) => { if (actions.setVoxelSize) actions.setVoxelSize(parseFloat(e.target.value), { zoom: true, forceRebuild: true }); });
     });
 
     const chkSkelMesh = $('chk-skeletonize-mesh');

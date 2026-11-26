@@ -65,6 +65,7 @@ let _dirtyFrames = 15;
 let _rafId = null;
 let _loopStarted = false;
 let _renderClock = null;
+let _inRenderTick = false;
 
 function needsContinuousRender() {
     return Boolean(
@@ -82,16 +83,22 @@ function _renderTick() {
     if (typeof document !== 'undefined' && document.hidden) return;
     if (!viewport.renderer || !viewport.scene || !viewport.camera) return;
 
-    const dt = _renderClock ? Math.min(_renderClock.getDelta(), 0.1) : (1 / 60);
-    const updateActive = actions.update ? Boolean(actions.update(dt)) : false;
-    if (actions.tickFEAAnimation) actions.tickFEAAnimation(dt);
-    updateCamTween(dt);
-    if (viewport.controls) viewport.controls.update();
-    renderFrame();
-    drawOverlay();
+    _inRenderTick = true;
+    let updateActive = false;
+    try {
+        const dt = _renderClock ? Math.min(_renderClock.getDelta(), 0.1) : (1 / 60);
+        updateActive = actions.update ? Boolean(actions.update(dt)) : false;
+        if (actions.tickFEAAnimation) actions.tickFEAAnimation(dt);
+        updateCamTween(dt);
+        if (viewport.controls) viewport.controls.update();
+        renderFrame();
+        drawOverlay();
+    } finally {
+        _inRenderTick = false;
+    }
 
     if (_dirtyFrames > 0) _dirtyFrames--;
-    if (_dirtyFrames > 0 || updateActive || needsContinuousRender()) {
+    if (_rafId === null && (_dirtyFrames > 0 || updateActive || needsContinuousRender())) {
         _rafId = requestAnimationFrame(_renderTick);
     }
 }
@@ -99,7 +106,7 @@ function _renderTick() {
 export function requestRender(frames = 15) {
     const n = Math.max(1, Math.round(Number(frames) || 1));
     if (n > _dirtyFrames) _dirtyFrames = n;
-    if (!_loopStarted) return;
+    if (!_loopStarted || _inRenderTick) return;
     if (typeof document !== 'undefined' && document.hidden) return;
     if (_rafId === null) {
         if (_renderClock) _renderClock.getDelta(); // reset idle dt spike
@@ -275,6 +282,10 @@ export function modelBoxToWorld(boxModel) {
 export function expandBoxFromGroup(box, grp) {
     if (!grp || !grp.visible || grp.children.length === 0) return false;
     let added = false;
+    const hasGroupTransform =
+        grp.scale.x !== 1 || grp.scale.y !== 1 || grp.scale.z !== 1 ||
+        grp.position.x !== 0 || grp.position.y !== 0 || grp.position.z !== 0;
+    if (hasGroupTransform) grp.updateMatrix();
     grp.traverse(obj => {
         if (!obj.visible || !obj.geometry) return;
         obj.geometry.computeBoundingBox();
@@ -286,12 +297,14 @@ export function expandBoxFromGroup(box, grp) {
                 for (let i = 0; i < obj.count; i++) {
                     obj.getMatrixAt(i, tmpM);
                     tmpV.setFromMatrixPosition(tmpM);
+                    if (hasGroupTransform) tmpV.applyMatrix4(grp.matrix);
                     box.expandByPoint(tmpV);
                 }
                 added = true;
             } else {
                 obj.updateMatrix();
                 b.applyMatrix4(obj.matrix);
+                if (hasGroupTransform) b.applyMatrix4(grp.matrix);
                 box.union(b);
                 added = true;
             }
@@ -300,7 +313,7 @@ export function expandBoxFromGroup(box, grp) {
     return added;
 }
 
-export function recomputeModelBox() {
+export function recomputeModelBox(opts = {}) {
     const { modelBox, pointPool, simLinePool, curvePool, activeTabId, lastFDMResult, lastSolidData, lastFEAResult, lastHostGraph, tilePreviewBounds, loadedFileNetworkGraph, GRID_X, GRID_Y, GRID_Z, VOXEL_SIZE } = appState;
     modelBox.makeEmpty();
     let hasFocused = false;
@@ -357,7 +370,7 @@ export function recomputeModelBox() {
         modelBox.expandByPoint(new THREE.Vector3(-halfX, -halfY, 0));
         modelBox.expandByPoint(new THREE.Vector3(halfX, halfY, GRID_Z * VOXEL_SIZE));
     }
-    updateBoundingBox3D();
+    if (!opts.skipBBox) updateBoundingBox3D();
     requestRender();
 }
 

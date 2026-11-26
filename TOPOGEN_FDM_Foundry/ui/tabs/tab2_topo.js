@@ -240,16 +240,92 @@ export function clearActiveAnalysisOverlaysForTopo() {
     $$('.tile-preset-btn').forEach(b => b.classList.toggle('seg-on', b.dataset.tilePreset === 'active_topo'));
 }
 
+let _voxelScaleBase = null;
+let _voxelSizeRafId = null;
+let _voxelSizeCommitTimer = null;
+let _pendingVoxelSize = null;
+let _gridResRafId = null;
+let _pendingGridRes = null;
+
+function hasActiveAnalysisOverlays() {
+    return Boolean(
+        appState.lastHostGraph ||
+        appState.lastFDMResult ||
+        appState.lastSolidData ||
+        appState.lastFEAResult ||
+        (viewport.fdmGroup && viewport.fdmGroup.children.length > 0) ||
+        (viewport.tubeGroup && viewport.tubeGroup.children.length > 0) ||
+        (viewport.unroll3DGroup && viewport.unroll3DGroup.children.length > 0) ||
+        (viewport.feaGroup && viewport.feaGroup.children.length > 0)
+    );
+}
+
 export function setVoxelSize(newSizeM, opts = {}) {
     const parsed = Number(newSizeM);
     if (!Number.isFinite(parsed) || parsed <= 0.01) return appState.VOXEL_SIZE;
-    appState.VOXEL_SIZE = Math.max(0.05, Math.min(20.0, parsed));
+    const clamped = Math.max(0.05, Math.min(20.0, parsed));
+    const unchanged = Math.abs(clamped - appState.VOXEL_SIZE) < 1e-6;
+    if (unchanged && opts.zoom === false && !opts.forceRebuild) return appState.VOXEL_SIZE;
+
+    appState.VOXEL_SIZE = clamped;
     appState.GRID_ORIGIN.set(-(appState.GRID_X * appState.VOXEL_SIZE) * 0.5, -(appState.GRID_Y * appState.VOXEL_SIZE) * 0.5, 0);
     syncVoxelAndEnvelopeUI();
-    clearActiveAnalysisOverlaysForTopo();
-    draw();
+
+    const hasLoadedNet = Boolean(appState.loadedFileNetworkGraph && appState.loadedFileNetworkGraph.edges && appState.loadedFileNetworkGraph.edges.length > 0);
+    if (opts.interactive && !hasLoadedNet && _voxelScaleBase > 0 && viewport.meshGroup) {
+        if (hasActiveAnalysisOverlays()) clearActiveAnalysisOverlaysForTopo();
+        const ratio = appState.VOXEL_SIZE / _voxelScaleBase;
+        viewport.meshGroup.scale.setScalar(ratio);
+        if (viewport.graphGroup) viewport.graphGroup.scale.setScalar(ratio);
+        if (viewport.voxelGroup) viewport.voxelGroup.scale.setScalar(ratio);
+        recomputeModelBox();
+        const outFooter = $('outliner-footer');
+        if (outFooter) outFooter.textContent = `units: m · voxel ${Number(appState.VOXEL_SIZE.toFixed(2))} m · ${appState.GRID_X}×${appState.GRID_Y}×${appState.GRID_Z}`;
+        if (viewport.requestRender) viewport.requestRender();
+        if (_voxelSizeCommitTimer) clearTimeout(_voxelSizeCommitTimer);
+        _voxelSizeCommitTimer = setTimeout(() => {
+            _voxelSizeCommitTimer = null;
+            if (_voxelScaleBase !== null && Math.abs(appState.VOXEL_SIZE - _voxelScaleBase) > 1e-6) {
+                draw({ skipTileInspector: true });
+            }
+        }, 180);
+        return appState.VOXEL_SIZE;
+    }
+
+    if (_voxelSizeCommitTimer) {
+        clearTimeout(_voxelSizeCommitTimer);
+        _voxelSizeCommitTimer = null;
+    }
+    if (hasActiveAnalysisOverlays()) clearActiveAnalysisOverlaysForTopo();
+    draw({ skipTileInspector: true });
     if (opts.zoom !== false) zoomToBox(modelBoxToWorld(appState.modelBox));
     return appState.VOXEL_SIZE;
+}
+
+function scheduleVoxelSizeInteractive(newSizeM) {
+    _pendingVoxelSize = newSizeM;
+    if (_voxelSizeRafId !== null) return;
+    _voxelSizeRafId = requestAnimationFrame(() => {
+        _voxelSizeRafId = null;
+        if (_pendingVoxelSize !== null) {
+            const val = _pendingVoxelSize;
+            _pendingVoxelSize = null;
+            setVoxelSize(val, { zoom: false, interactive: true });
+        }
+    });
+}
+
+function scheduleGridResolution(nx, ny, nz) {
+    _pendingGridRes = [nx, ny, nz];
+    if (_gridResRafId !== null) return;
+    _gridResRafId = requestAnimationFrame(() => {
+        _gridResRafId = null;
+        if (_pendingGridRes) {
+            const [gx, gy, gz] = _pendingGridRes;
+            _pendingGridRes = null;
+            setGridResolution(gx, gy, gz);
+        }
+    });
 }
 
 export function setGridResolution(nx, ny = nx, nz = nx, opts = {}) {
@@ -1044,8 +1120,14 @@ export function buildWeldedGraph({ weldTol = 1e-4, mergeCollinear = appState.mer
     return { vertices: finalVerts, edges: finalEdges, valences, rawVertexCount, rawEdgeCount, weldTol, collinearMerged: mergeCollinear, boundingBox };
 }
 
-export function draw() {
-    if (actions.renderTileInspector3D) actions.renderTileInspector3D();
+export function draw(opts = {}) {
+    if (!opts.skipTileInspector && appState.activeTabId === 'tab-tiles' && appState.tileViewMode === 'inspector' && actions.renderTileInspector3D) {
+        actions.renderTileInspector3D();
+    }
+    if (viewport.meshGroup) viewport.meshGroup.scale.set(1, 1, 1);
+    if (viewport.graphGroup) viewport.graphGroup.scale.set(1, 1, 1);
+    if (viewport.voxelGroup) viewport.voxelGroup.scale.set(1, 1, 1);
+    _voxelScaleBase = appState.VOXEL_SIZE;
     const { loadedFileNetworkGraph, voxels, TILES, VOXEL_SIZE, GRID_X, GRID_Y, GRID_Z, arcticOn, wireframeOn, showInactiveVoxels, showSuperposition, currentAlgorithm, substepMode, currentSubstep } = appState;
     const hasLoadedNet = !!(loadedFileNetworkGraph && loadedFileNetworkGraph.edges && loadedFileNetworkGraph.edges.length > 0);
 
@@ -1303,7 +1385,7 @@ export function draw() {
         }
     }
 
-    recomputeModelBox();
+    recomputeModelBox({ skipBBox: true });
     applyOutlinerVisibility();
     updateSimUI();
 }
@@ -1408,9 +1490,9 @@ export function initTab2Topo() {
     }
 
     const bindGrid = (id, evName, fn) => { const el = $(id); if (el) el.addEventListener(evName, fn); };
-    bindGrid('rng-grid-x', 'input', (e) => setGridResolution(parseInt(e.target.value, 10), appState.GRID_Y, appState.GRID_Z));
-    bindGrid('rng-grid-y', 'input', (e) => setGridResolution(appState.GRID_X, parseInt(e.target.value, 10), appState.GRID_Z));
-    bindGrid('rng-grid-z', 'input', (e) => setGridResolution(appState.GRID_X, appState.GRID_Y, parseInt(e.target.value, 10)));
+    bindGrid('rng-grid-x', 'input', (e) => scheduleGridResolution(parseInt(e.target.value, 10), appState.GRID_Y, appState.GRID_Z));
+    bindGrid('rng-grid-y', 'input', (e) => scheduleGridResolution(appState.GRID_X, parseInt(e.target.value, 10), appState.GRID_Z));
+    bindGrid('rng-grid-z', 'input', (e) => scheduleGridResolution(appState.GRID_X, appState.GRID_Y, parseInt(e.target.value, 10)));
     bindGrid('num-grid-x', 'change', (e) => setGridResolution(parseInt(e.target.value, 10), appState.GRID_Y, appState.GRID_Z));
     bindGrid('num-grid-y', 'change', (e) => setGridResolution(appState.GRID_X, parseInt(e.target.value, 10), appState.GRID_Z));
     bindGrid('num-grid-z', 'change', (e) => setGridResolution(appState.GRID_X, appState.GRID_Y, parseInt(e.target.value, 10)));
@@ -1426,8 +1508,8 @@ export function initTab2Topo() {
     ['rng-voxel-size', 'num-voxel-size'].forEach(id => {
         const el = $(id);
         if (!el) return;
-        el.addEventListener('input', (e) => setVoxelSize(parseFloat(e.target.value), { zoom: false }));
-        el.addEventListener('change', (e) => setVoxelSize(parseFloat(e.target.value), { zoom: true }));
+        el.addEventListener('input', (e) => scheduleVoxelSizeInteractive(parseFloat(e.target.value)));
+        el.addEventListener('change', (e) => setVoxelSize(parseFloat(e.target.value), { zoom: true, forceRebuild: true }));
     });
     [
         { id: 'num-topo-env-x', getGrid: () => appState.GRID_X },
@@ -1436,12 +1518,16 @@ export function initTab2Topo() {
     ].forEach(({ id, getGrid }) => {
         const el = $(id);
         if (!el) return;
-        const applySpan = (zoom) => {
+        const applySpan = (zoom, interactive) => {
             const span = parseFloat(el.value);
-            if (Number.isFinite(span) && span >= 0.05) setVoxelSize(span / Math.max(1, getGrid()), { zoom });
+            if (Number.isFinite(span) && span >= 0.05) {
+                const nextSize = span / Math.max(1, getGrid());
+                if (interactive) scheduleVoxelSizeInteractive(nextSize);
+                else setVoxelSize(nextSize, { zoom, forceRebuild: true });
+            }
         };
-        el.addEventListener('input', () => applySpan(false));
-        el.addEventListener('change', () => applySpan(true));
+        el.addEventListener('input', () => applySpan(false, true));
+        el.addEventListener('change', () => applySpan(true, false));
     });
 
     const chkMerge = $('chk-merge-collinear');

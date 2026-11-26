@@ -292,7 +292,9 @@ export function switchTab(targetId) {
         pane.classList.toggle('hidden', pane.id !== targetId);
     });
 
-    if (targetId === 'tab-fdm' && actions.ensureFdmTabReady) {
+    if (targetId === 'tab-tiles' && actions.renderTileInspector3D) {
+        actions.renderTileInspector3D();
+    } else if (targetId === 'tab-fdm' && actions.ensureFdmTabReady) {
         actions.ensureFdmTabReady({ keepCamera: true });
     } else if (targetId === 'tab-pq' && actions.ensurePqTabReady) {
         actions.ensurePqTabReady({ keepCamera: true });
