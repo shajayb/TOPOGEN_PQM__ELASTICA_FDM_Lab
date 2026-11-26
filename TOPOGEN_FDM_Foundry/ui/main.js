@@ -23,6 +23,9 @@ import {
     getChain,
     getLoadedChain,
     getActiveStageIndex,
+    setPlaybackCameraMode,
+    getPlaybackCameraMode,
+    buildStageUIOverlay,
     clearChain,
     recordStep,
     stageAssetToRepo,
@@ -179,7 +182,7 @@ const chainTimeline = createChainTimeline({
     container: $('canvas-container') || document.body,
     onSelectStage: async (index) => {
         try {
-            await jumpToStage(index, { captureStages: false });
+            await jumpToStage(index, { captureStages: false, cameraMode: getPlaybackCameraMode() });
         } catch (err) {
             console.error('[chainTimeline jumpToStage]', err);
         }
@@ -394,6 +397,9 @@ const workbenchApi = {
         get: getChain,
         getLoaded: getLoadedChain,
         getActiveStageIndex,
+        setPlaybackCameraMode,
+        getPlaybackCameraMode,
+        buildStageUIOverlay,
         clear: clearChain,
         record: recordStep,
         stageAsset: stageAssetToRepo,

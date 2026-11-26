@@ -479,7 +479,290 @@ export function applyCameraBookmark(bookmark, opts = {}) {
     return getCameraBookmarkState();
 }
 
-export function captureHighResPNG({ width = 1920, height = 1080, bookmark = null, background = null } = {}) {
+function drawRoundedRectPath(ctx, x, y, w, h, r) {
+    const rad = Math.max(0, Math.min(r, Math.min(w, h) * 0.5));
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(x, y, w, h, rad);
+        return;
+    }
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    ctx.lineTo(x + rad, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+    ctx.lineTo(x, y + rad);
+    ctx.quadraticCurveTo(x, y, x + rad, y);
+    ctx.closePath();
+}
+
+function truncateText(ctx, text, maxWidth) {
+    const raw = String(text ?? '');
+    if (ctx.measureText(raw).width <= maxWidth) return raw;
+    let out = raw;
+    while (out.length > 1 && ctx.measureText(`${out}…`).width > maxWidth) {
+        out = out.slice(0, -1);
+    }
+    return `${out}…`;
+}
+
+export function drawStageUIOverlay(ctx, width, height, uiOverlay, fallbackMeta = {}) {
+    if (!ctx || !uiOverlay || typeof uiOverlay !== 'object') return;
+    const s = Math.max(0.65, Math.min(2.0, width / 1920));
+    const margin = Math.round(28 * s);
+    const cardW = Math.round(Math.min(410 * s, width * 0.34));
+    const padX = Math.round(16 * s);
+    const radius = Math.round(10 * s);
+
+    const tabTitle = String(uiOverlay.tabTitle || 'WORKBENCH').trim();
+    const stageCount = Math.max(0, Number(uiOverlay.stageCount) || 0);
+    const stageIdx = Number.isFinite(Number(uiOverlay.stageIndex)) ? Number(uiOverlay.stageIndex) : -1;
+    const stageCounter = stageCount > 0 && stageIdx >= 0
+        ? `STAGE ${stageIdx + 1}/${stageCount}`
+        : (stageIdx >= 0 ? `STAGE ${stageIdx + 1}` : 'STAGE');
+    const stageLabel = String(uiOverlay.stageLabel || uiOverlay.op || 'Procedural Stage').trim();
+    const opTag = uiOverlay.op ? String(uiOverlay.op).trim() : '';
+
+    const rawParams = Array.isArray(uiOverlay.params) ? uiOverlay.params.slice(0, 14) : [];
+    const rawMetrics = Array.isArray(uiOverlay.metrics)
+        ? uiOverlay.metrics.map(m => String(m || '').trim()).filter(Boolean).slice(0, 8)
+        : [];
+
+    const headerH = Math.round(40 * s);
+    const titleH = Math.round(38 * s);
+    const rowH = Math.round(25 * s);
+    const paramsPadY = rawParams.length > 0 ? Math.round(10 * s) : 0;
+    const paramsBlockH = rawParams.length > 0 ? (paramsPadY * 2 + rawParams.length * rowH) : 0;
+
+    // Pre-layout metric chips so we know exact footer height
+    const chipFont = `600 ${Math.round(11 * s)}px Consolas, ui-monospace, monospace`;
+    ctx.font = chipFont;
+    const chipH = Math.round(22 * s);
+    const chipGap = Math.round(6 * s);
+    const chipPadX = Math.round(8 * s);
+    const chipMaxRowW = cardW - padX * 2;
+    const metricRows = [];
+    if (rawMetrics.length > 0) {
+        let curRow = [];
+        let curW = 0;
+        for (const text of rawMetrics) {
+            const w = Math.min(chipMaxRowW, Math.ceil(ctx.measureText(text).width) + chipPadX * 2);
+            if (curRow.length > 0 && curW + chipGap + w > chipMaxRowW) {
+                metricRows.push(curRow);
+                curRow = [{ text, w }];
+                curW = w;
+            } else {
+                curRow.push({ text, w });
+                curW += (curRow.length > 1 ? chipGap : 0) + w;
+            }
+        }
+        if (curRow.length > 0) metricRows.push(curRow);
+    }
+    const metricsBlockH = metricRows.length > 0
+        ? Math.round(12 * s) * 2 + metricRows.length * chipH + (metricRows.length - 1) * chipGap
+        : 0;
+
+    const cardH = Math.min(height - margin * 2 - Math.round(48 * s), headerH + titleH + paramsBlockH + metricsBlockH);
+    const cardX = margin;
+    const cardY = margin;
+
+    ctx.save();
+
+    // 1. Studio-Light floating card shell + subtle shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.14)';
+    ctx.shadowBlur = Math.round(24 * s);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = Math.round(8 * s);
+    drawRoundedRectPath(ctx, cardX, cardY, cardW, cardH, radius);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+    ctx.fill();
+    ctx.restore();
+
+    drawRoundedRectPath(ctx, cardX, cardY, cardW, cardH, radius);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = Math.max(1, Math.round(1.25 * s));
+    ctx.stroke();
+
+    // Clip inner contents cleanly to rounded card
+    ctx.save();
+    drawRoundedRectPath(ctx, cardX, cardY, cardW, cardH, radius);
+    ctx.clip();
+
+    // 2. Card header band (#f1f5f9)
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(cardX, cardY, cardW, headerH);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = Math.max(1, Math.round(1 * s));
+    ctx.beginPath();
+    ctx.moveTo(cardX, cardY + headerH);
+    ctx.lineTo(cardX + cardW, cardY + headerH);
+    ctx.stroke();
+
+    // Tab title pill (left)
+    const pillFont = `700 ${Math.round(11 * s)}px system-ui, -apple-system, sans-serif`;
+    ctx.font = pillFont;
+    const tabPillTxt = tabTitle.toUpperCase();
+    const tabPillW = Math.min(cardW * 0.56, Math.ceil(ctx.measureText(tabPillTxt).width) + Math.round(16 * s));
+    const pillH = Math.round(22 * s);
+    const pillY = cardY + Math.round((headerH - pillH) * 0.5);
+    drawRoundedRectPath(ctx, cardX + padX, pillY, tabPillW, pillH, Math.round(5 * s));
+    ctx.fillStyle = '#eff6ff';
+    ctx.fill();
+    ctx.strokeStyle = '#93c5fd';
+    ctx.lineWidth = Math.max(1, Math.round(1 * s));
+    ctx.stroke();
+    ctx.fillStyle = '#1d4ed8';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillText(truncateText(ctx, tabPillTxt, tabPillW - Math.round(12 * s)), cardX + padX + Math.round(8 * s), pillY + pillH * 0.5 + 0.5);
+
+    // Stage counter pill (right)
+    ctx.font = `700 ${Math.round(10.5 * s)}px Consolas, ui-monospace, monospace`;
+    const cntW = Math.ceil(ctx.measureText(stageCounter).width) + Math.round(14 * s);
+    const cntX = cardX + cardW - padX - cntW;
+    drawRoundedRectPath(ctx, cntX, pillY, cntW, pillH, Math.round(5 * s));
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fill();
+    ctx.fillStyle = '#334155';
+    ctx.textAlign = 'center';
+    ctx.fillText(stageCounter, cntX + cntW * 0.5, pillY + pillH * 0.5 + 0.5);
+
+    // 3. Stage label + op tag row
+    let cursorY = cardY + headerH;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const opMaxW = opTag ? Math.round(120 * s) : 0;
+    ctx.font = `700 ${Math.round(13.5 * s)}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = '#0f172a';
+    const labelMaxW = cardW - padX * 2 - (opTag ? opMaxW + Math.round(8 * s) : 0);
+    ctx.fillText(truncateText(ctx, stageLabel, labelMaxW), cardX + padX, cursorY + titleH * 0.5);
+
+    if (opTag) {
+        ctx.font = `600 ${Math.round(10.5 * s)}px Consolas, ui-monospace, monospace`;
+        ctx.fillStyle = '#64748b';
+        ctx.textAlign = 'right';
+        ctx.fillText(truncateText(ctx, opTag, opMaxW), cardX + cardW - padX, cursorY + titleH * 0.5);
+    }
+    cursorY += titleH;
+
+    // 4. Key/value parameter rows
+    if (rawParams.length > 0) {
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = Math.max(1, Math.round(1 * s));
+        ctx.beginPath();
+        ctx.moveTo(cardX + padX, cursorY);
+        ctx.lineTo(cardX + cardW - padX, cursorY);
+        ctx.stroke();
+
+        cursorY += paramsPadY;
+        for (let i = 0; i < rawParams.length; i++) {
+            const p = rawParams[i] || {};
+            const rowMidY = cursorY + rowH * 0.5;
+            if (i % 2 === 1) {
+                ctx.fillStyle = 'rgba(241, 245, 249, 0.72)';
+                ctx.fillRect(cardX + Math.round(8 * s), cursorY, cardW - Math.round(16 * s), rowH);
+            }
+            ctx.font = `600 ${Math.round(11.5 * s)}px system-ui, -apple-system, sans-serif`;
+            ctx.fillStyle = '#475569';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(truncateText(ctx, p.label ?? '', cardW * 0.52), cardX + padX, rowMidY);
+
+            const isBool = typeof p.value === 'boolean' || p.kind === 'bool';
+            if (isBool) {
+                const on = Boolean(p.value) && String(p.value).toLowerCase() !== 'false' && String(p.value).toLowerCase() !== 'off';
+                const badgeTxt = on ? 'ON' : 'OFF';
+                const bW = Math.round(36 * s);
+                const bH = Math.round(18 * s);
+                const bX = cardX + cardW - padX - bW;
+                const bY = rowMidY - bH * 0.5;
+                drawRoundedRectPath(ctx, bX, bY, bW, bH, Math.round(4 * s));
+                ctx.fillStyle = on ? '#ecfdf5' : '#f1f5f9';
+                ctx.fill();
+                ctx.strokeStyle = on ? '#6ee7b7' : '#cbd5e1';
+                ctx.lineWidth = Math.max(1, Math.round(1 * s));
+                ctx.stroke();
+                ctx.font = `700 ${Math.round(10 * s)}px Consolas, ui-monospace, monospace`;
+                ctx.fillStyle = on ? '#047857' : '#64748b';
+                ctx.textAlign = 'center';
+                ctx.fillText(badgeTxt, bX + bW * 0.5, rowMidY + 0.5);
+            } else {
+                ctx.font = `600 ${Math.round(11.5 * s)}px Consolas, ui-monospace, monospace`;
+                ctx.fillStyle = p.kind === 'accent' ? '#1d4ed8' : '#0f172a';
+                ctx.textAlign = 'right';
+                ctx.fillText(truncateText(ctx, p.value ?? '—', cardW * 0.44), cardX + cardW - padX, rowMidY);
+            }
+            cursorY += rowH;
+        }
+        cursorY += paramsPadY;
+    }
+
+    // 5. Bottom telemetry metric chips
+    if (metricRows.length > 0) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(cardX, cursorY, cardW, cardY + cardH - cursorY);
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = Math.max(1, Math.round(1 * s));
+        ctx.beginPath();
+        ctx.moveTo(cardX, cursorY);
+        ctx.lineTo(cardX + cardW, cursorY);
+        ctx.stroke();
+
+        ctx.font = chipFont;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        let my = cursorY + Math.round(12 * s);
+        for (const row of metricRows) {
+            let mx = cardX + padX;
+            for (const chip of row) {
+                drawRoundedRectPath(ctx, mx, my, chip.w, chipH, Math.round(5 * s));
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = Math.max(1, Math.round(1 * s));
+                ctx.stroke();
+                ctx.fillStyle = '#1e293b';
+                ctx.fillText(truncateText(ctx, chip.text, chip.w - Math.round(8 * s)), mx + chip.w * 0.5, my + chipH * 0.5 + 0.5);
+                mx += chip.w + chipGap;
+            }
+            my += chipH + chipGap;
+        }
+    }
+
+    ctx.restore(); // end card clip
+
+    // 6. Subtle bottom-left projection / camera view pill
+    const projRaw = uiOverlay.projection || fallbackMeta.projection || viewport.projectionMode || 'perspective';
+    const isOrtho = String(projRaw).toLowerCase().startsWith('ortho');
+    const projBadge = isOrtho ? 'ORTHO' : 'PERSP';
+    const camName = String(uiOverlay.cameraName || fallbackMeta.cameraName || '').trim();
+    const viewTag = camName ? `${projBadge} · ${camName}` : projBadge;
+
+    ctx.font = `700 ${Math.round(11 * s)}px Consolas, ui-monospace, monospace`;
+    const tagPadX = Math.round(12 * s);
+    const tagH = Math.round(26 * s);
+    const tagW = Math.ceil(ctx.measureText(viewTag).width) + tagPadX * 2;
+    const tagX = margin;
+    const tagY = height - margin - tagH;
+
+    drawRoundedRectPath(ctx, tagX, tagY, tagW, tagH, Math.round(6 * s));
+    ctx.fillStyle = 'rgba(248, 250, 252, 0.92)';
+    ctx.fill();
+    ctx.strokeStyle = isOrtho ? '#6ee7b7' : '#93c5fd';
+    ctx.lineWidth = Math.max(1, Math.round(1.25 * s));
+    ctx.stroke();
+    ctx.fillStyle = isOrtho ? '#047857' : '#1d4ed8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(viewTag, tagX + tagW * 0.5, tagY + tagH * 0.5 + 0.5);
+
+    ctx.restore();
+}
+
+export function captureHighResPNG({ width = 1920, height = 1080, bookmark = null, background = null, uiOverlay = null } = {}) {
     if (!viewport.renderer || !viewport.scene || !viewport.camera) {
         throw new Error('Viewport renderer is not initialized');
     }
@@ -496,8 +779,10 @@ export function captureHighResPNG({ width = 1920, height = 1080, bookmark = null
     const savedFatRes = viewport.fatMaterials.map(m => (m && m.resolution ? m.resolution.clone() : null));
 
     try {
+        let resolvedBookmark = null;
         if (bookmark) {
-            applyCameraBookmark(bookmark, { animate: false });
+            resolvedBookmark = typeof bookmark === 'string' ? getBookmarkById(bookmark) : bookmark;
+            applyCameraBookmark(resolvedBookmark || bookmark, { animate: false });
         }
         if (background !== null && background !== undefined) {
             viewport.scene.background = background instanceof THREE.Color ? background : new THREE.Color(background);
@@ -519,6 +804,22 @@ export function captureHighResPNG({ width = 1920, height = 1080, bookmark = null
         });
 
         viewport.renderer.render(viewport.scene, activeCam);
+
+        if (uiOverlay && typeof uiOverlay === 'object' && typeof document !== 'undefined') {
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = capW;
+            offCanvas.height = capH;
+            const ctx = offCanvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(viewport.renderer.domElement, 0, 0, capW, capH);
+                const activeBm = resolvedBookmark || (viewport.activeBookmarkId ? getBookmarkById(viewport.activeBookmarkId) : null);
+                drawStageUIOverlay(ctx, capW, capH, uiOverlay, {
+                    projection: viewport.projectionMode,
+                    cameraName: activeBm ? activeBm.name : ''
+                });
+                return offCanvas.toDataURL('image/png');
+            }
+        }
         return viewport.renderer.domElement.toDataURL('image/png');
     } finally {
         viewport.scene.background = savedBg;

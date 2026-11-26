@@ -36,6 +36,8 @@ import {
     getLoadedChain,
     getActiveStageIndex,
     getLoadedSourceLabel,
+    setPlaybackCameraMode,
+    getPlaybackCameraMode,
     clearChain,
     exportChainDownload,
     saveChainToRepo,
@@ -96,12 +98,17 @@ export function mountTab6Io() {
                         <option value="1920x1080" selected>1920×1080 (FHD)</option>
                         <option value="2560x1440">2560×1440 (QHD)</option>
                     </select>
-                    <select id="sel-chain-capture-views" class="chain-select" title="Camera view(s) to capture at each stage">
+                    <select id="sel-chain-capture-views" class="chain-select" title="Camera view mode for Playback &amp; Capture (Active View overrides stored bookmarks)">
                         <option value="active">Active View</option>
                         <option value="stage" selected>Stage Bookmark</option>
                         <option value="defaults">All Default Views</option>
                     </select>
                 </div>
+
+                <label class="flex items-center space-x-1.5 text-[9px] text-gray-500 cursor-pointer select-none" title="Composite the relevant tab's live UI parameters &amp; metrics onto each captured PNG">
+                    <input type="checkbox" id="chain-capture-include-ui" class="accent-cyan-500 rounded">
+                    <span>Capture Stage UI (Overlay + Manifest)</span>
+                </label>
 
                 <div class="chain-controls">
                     <button id="btn-chain-play-all" class="cad-btn primary text-[9.5px] py-1" title="Deterministically replay all steps in the active chain">▶ Play All</button>
@@ -786,14 +793,23 @@ export function initTab6Io() {
         const captureWidth = parseInt(resVal[0], 10) || 1920;
         const captureHeight = parseInt(resVal[1], 10) || 1080;
         const viewMode = $('sel-chain-capture-views')?.value || 'stage';
+        const includeStageUI = Boolean($('chain-capture-include-ui')?.checked);
         let bookmarkIds = [];
         if (viewMode === 'defaults') {
             bookmarkIds = getDefaultBookmarks().map((b) => b.id);
         } else if (viewMode === 'active') {
             bookmarkIds = [];
         }
-        return { captureWidth, captureHeight, viewMode, bookmarkIds };
+        return { captureWidth, captureHeight, viewMode, bookmarkIds, includeStageUI };
     };
+
+    const selViews = $('sel-chain-capture-views');
+    if (selViews) {
+        setPlaybackCameraMode(selViews.value || 'stage');
+        selViews.addEventListener('change', (e) => {
+            setPlaybackCameraMode(e.target.value);
+        });
+    }
 
     onChainChange((snap) => {
         updateStepBadge();
@@ -823,6 +839,7 @@ export function initTab6Io() {
         if (res.stepCount > 0) {
             const playRes = await playChain(null, {
                 captureStages: false,
+                cameraMode: getPlaybackCameraMode(),
                 onStage: ({ index, total, step }) => {
                     setChainProgress(((index + 1) / Math.max(1, total)) * 100);
                     setChainStatus(`Stage ${index + 1}/${total}: ${step.label || step.op}`);
@@ -903,6 +920,7 @@ export function initTab6Io() {
             if (res.stepCount > 0) {
                 const playRes = await playChain(null, {
                     captureStages: false,
+                    cameraMode: getPlaybackCameraMode(),
                     onStage: ({ index, total, step }) => {
                         setChainProgress(((index + 1) / Math.max(1, total)) * 100);
                         setChainStatus(`Stage ${index + 1}/${total}: ${step.label || step.op}`);
@@ -920,10 +938,13 @@ export function initTab6Io() {
 
     bind('btn-chain-play-all', async () => {
         try {
+            const { viewMode } = parseCaptureOptions();
+            setPlaybackCameraMode(viewMode);
             setChainProgress(0);
             setChainStatus('Replaying procedural chain…');
             const res = await playChain(null, {
                 captureStages: false,
+                cameraMode: viewMode,
                 onStage: ({ index, total, step }) => {
                     setChainProgress(((index + 1) / Math.max(1, total)) * 100);
                     setChainStatus(`Stage ${index + 1}/${total}: ${step.label || step.op}`);
@@ -938,7 +959,9 @@ export function initTab6Io() {
 
     bind('btn-chain-step-next', async () => {
         try {
-            const res = await stepNextChain({ captureStages: false });
+            const { viewMode } = parseCaptureOptions();
+            setPlaybackCameraMode(viewMode);
+            const res = await stepNextChain({ captureStages: false, cameraMode: viewMode });
             if (!res.ok) {
                 setChainStatus(res.message || 'No steps to execute.');
                 return;
@@ -953,17 +976,20 @@ export function initTab6Io() {
 
     bind('btn-chain-play-capture', async () => {
         try {
-            const { captureWidth, captureHeight, viewMode, bookmarkIds } = parseCaptureOptions();
+            const { captureWidth, captureHeight, viewMode, bookmarkIds, includeStageUI } = parseCaptureOptions();
+            setPlaybackCameraMode(viewMode);
             const liveCaptures = [];
             setChainProgress(0);
             renderCaptureGallery([]);
-            setChainStatus(`Capturing stages at ${captureWidth}×${captureHeight}…`);
+            setChainStatus(`Capturing stages at ${captureWidth}×${captureHeight}${includeStageUI ? ' (+ Stage UI)' : ''}…`);
             const res = await playChain(null, {
                 captureStages: true,
                 captureWidth,
                 captureHeight,
+                cameraMode: viewMode,
                 bookmarkIds: viewMode === 'defaults' ? bookmarkIds : [],
                 useStageBookmark: viewMode !== 'active',
+                includeStageUI,
                 saveCapturesToRepo: true,
                 onStage: ({ index, total, step, captures }) => {
                     setChainProgress(((index + 1) / Math.max(1, total)) * 100);

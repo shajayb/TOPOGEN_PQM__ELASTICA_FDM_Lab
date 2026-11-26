@@ -533,5 +533,88 @@ await runTest('UI playback contract invariants: tab-lock, jumpToStage, file-load
     assert.match(mainSrc, /jumpToStage/, 'main.js must connect timeline selection to jumpToStage');
 });
 
+// 9. Round 3 regression test: Elastica chain export + schema validation + re-import round-trip
+await runTest('Elastica chain ending with elastica_trace serializes, validates, and re-imports cleanly', () => {
+    const chain = createProceduralChain({
+        id: 'elastica-roundtrip-test',
+        name: 'Elastica End-Step Export & Re-Import',
+        notes: 'Regression test for chain whose final step is in the Elastica tab'
+    });
+    appendChainStep(chain, {
+        op: 'tile_preset',
+        label: 'Load Default Ortho Tile Set',
+        params: { preset: 'default_ortho' }
+    });
+    appendChainStep(chain, {
+        op: 'grid_config',
+        label: 'Configure 2x2x2 Grid',
+        params: { nx: 2, ny: 2, nz: 2, voxelSize: 1.0, algorithm: 'wfc' }
+    });
+    appendChainStep(chain, {
+        op: 'wfc_collapse',
+        label: 'Collapse WFC Topology',
+        params: { seed: 42, mode: 'wfc' }
+    });
+    appendChainStep(chain, {
+        op: 'elastica_trace',
+        label: 'Trace & Unroll Elastica Rods',
+        params: {
+            rodR: 0.018,
+            rodSides: 8,
+            pairMode: 'all',
+            smoothMode: 'catmull',
+            sourceNodes: [0, 1, 2],
+            sinkNodes: [9, 10, 11],
+            unroll3D: true,
+            showRods: true
+        },
+        bookmarkId: 'persp-iso',
+        capture: true
+    });
+
+    const check = validateProceduralChain(chain);
+    assert.equal(check.ok, true, `Elastica chain validation failed: ${check.errors.join('; ')}`);
+    assert.equal(check.errors.length, 0);
+    assert.equal(check.warnings.length, 0);
+
+    const exportedJson = serializeProceduralChain(chain, { pretty: true });
+    const reimported = parseProceduralChain(exportedJson);
+    assert.equal(reimported.steps.length, 4);
+    const lastStep = reimported.steps[reimported.steps.length - 1];
+    assert.equal(lastStep.op, 'elastica_trace');
+    assert.equal(lastStep.params.rodR, 0.018);
+    assert.equal(lastStep.params.rodSides, 8);
+    assert.deepEqual(lastStep.params.sourceNodes, [0, 1, 2]);
+    assert.deepEqual(lastStep.params.sinkNodes, [9, 10, 11]);
+    assert.equal(lastStep.params.unroll3D, true);
+});
+
+// 10. Round 3 static & contract invariants: Elastica hooks, Active View override, Stage UI capture overlay
+await runTest('Round 3 invariants: Elastica recorder hooks, Active View playback override, and Stage UI capture compositing', () => {
+    const elasticaSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'tabs', 'tab_elastica.js'), 'utf8');
+    const recorderSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'state', 'procedural_recorder.js'), 'utf8');
+    const tab6Src = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'tabs', 'tab6_io.js'), 'utf8');
+    const viewportSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'display', 'viewport_scene.js'), 'utf8');
+
+    // Air-gap
+    assert.equal(/verifier\//.test(elasticaSrc), false, 'tab_elastica.js must not import verifier/');
+    assert.equal(/verifier\//.test(viewportSrc), false, 'viewport_scene.js must not import verifier/');
+
+    // 1. Elastica recording & replay
+    assert.match(elasticaSrc, /recordElasticaChainStep|elastica_trace/, 'tab_elastica.js must record elastica_trace steps');
+    assert.match(recorderSrc, /case\s+'elastica_trace'\s*:/, 'procedural_recorder.js must replay elastica_trace');
+
+    // 2. Active View playback override
+    assert.match(recorderSrc, /setPlaybackCameraMode/, 'procedural_recorder.js must expose setPlaybackCameraMode');
+    assert.match(recorderSrc, /getPlaybackCameraMode/, 'procedural_recorder.js must expose getPlaybackCameraMode');
+    assert.match(recorderSrc, /cameraMode\s*===\s*'active'|['"]active['"]/, 'procedural_recorder.js must honor cameraMode === "active" override');
+
+    // 3. Stage UI capture option & 2D compositing
+    assert.match(tab6Src, /chain-capture-include-ui/, 'tab6_io.js must render #chain-capture-include-ui checkbox');
+    assert.match(recorderSrc, /buildStageUIOverlay/, 'procedural_recorder.js must implement buildStageUIOverlay');
+    assert.match(viewportSrc, /uiOverlay/, 'viewport_scene.js captureHighResPNG must accept uiOverlay');
+    assert.match(viewportSrc, /drawStageUIOverlay/, 'viewport_scene.js must implement drawStageUIOverlay 2D compositing');
+});
+
 console.log(`\nSummary: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

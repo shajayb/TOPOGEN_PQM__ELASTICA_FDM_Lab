@@ -48,7 +48,7 @@ import {
     refreshOutliner
 } from '../display/display_hud.js';
 
-const COALESCE_OPS = new Set(['pq_config', 'grid_config', 'fdm_config']);
+const COALESCE_OPS = new Set(['pq_config', 'grid_config', 'fdm_config', 'elastica_trace']);
 
 let _chain = createProceduralChain({
     id: 'live-session',
@@ -61,6 +61,7 @@ let _loadedAssets = new Map();
 let _isReplaying = false;
 let _stepCursor = 0;
 let _currentStageIndex = -1;
+let _playbackCameraMode = 'stage'; // 'active' | 'stage' | 'defaults'
 let _lastCaptures = [];
 const _listeners = new Set();
 
@@ -117,6 +118,17 @@ export function getActiveStageIndex() {
 
 export function getLoadedSourceLabel() {
     return _loadedSourceLabel;
+}
+
+export function setPlaybackCameraMode(mode) {
+    const m = String(mode || 'stage').toLowerCase();
+    _playbackCameraMode = (m === 'active' || m === 'defaults') ? m : 'stage';
+    notifyListeners('camera_mode', { playbackCameraMode: _playbackCameraMode });
+    return _playbackCameraMode;
+}
+
+export function getPlaybackCameraMode() {
+    return _playbackCameraMode;
 }
 
 export function getLastCaptures() {
@@ -494,6 +506,124 @@ function syncGridControlsFromState() {
     if (actions.syncVoxelAndEnvelopeUI) actions.syncVoxelAndEnvelopeUI();
 }
 
+function syncElasticaControlsFromState() {
+    const st = appState.elasticaState;
+    if (!st) return;
+    const setV = (id, v) => { const el = $(id); if (el) el.value = String(v); };
+    const setC = (id, c) => { const el = $(id); if (el) el.checked = Boolean(c); };
+    setV('sel-elastica-pair-mode', st.pairMode);
+    setV('sel-elastica-smooth-mode', st.smoothMode);
+    setV('rng-elastica-subdiv', st.smoothLevel);
+    setTxt('val-elastica-subdiv', `${st.smoothLevel} (PgUp)`);
+    const tightPct = Math.round((Number(st.tightness) || 0) * 100);
+    setV('rng-elastica-tightness', tightPct);
+    setTxt('val-elastica-tightness', `${tightPct}%`);
+    setV('rng-elastica-radius', st.rodRadius);
+    setTxt('val-elastica-radius', `${st.rodRadius}m`);
+    setV('rng-elastica-sides', st.rodSides);
+    setTxt('val-elastica-sides', String(st.rodSides));
+    setC('chk-elastica-show-leaves', st.showLeaves);
+    setC('chk-elastica-show-skeletal', st.showSkeletalPaths);
+    setC('chk-elastica-show-curves', st.showCurves);
+    setC('chk-elastica-show-rods', st.showRods);
+    setTxt('elastica-unroll-3d-state', st.showUnrolled3D ? 'ON' : 'OFF');
+    const btnUnroll = $('btn-toggle-elastica-unroll-3d');
+    if (btnUnroll) btnUnroll.classList.toggle('on', Boolean(st.showUnrolled3D));
+    if (actions.updateElasticaSourceSinkUI) actions.updateElasticaSourceSinkUI();
+}
+
+export function buildStageUIOverlay(step, stageIndex = 0, stageCount = 1, bookmark = null) {
+    const op = step?.op || '';
+    const metricsObj = collectStageMetrics();
+    const bmName = bookmark?.name || (viewport.activeBookmarkId ? (getBookmarkById(viewport.activeBookmarkId)?.name || viewport.activeBookmarkId) : 'Active View');
+    const projection = bookmark?.projection || viewport.projectionMode || 'perspective';
+
+    let tabTitle = 'Workbench';
+    const params = [];
+    const metrics = [];
+
+    if (op === 'tile_preset' || op === 'tile_toggle' || op === 'tile_import') {
+        tabTitle = '1. Tiles';
+        const enabledNames = (appState.TILES || []).filter((t) => t.enabled).map((t) => t.short || t.name);
+        params.push({ label: 'Active Tiles', value: enabledNames.slice(0, 6).join(', ') || 'None' });
+        params.push({ label: 'Voxel Size', value: `${Number(appState.VOXEL_SIZE || 1).toFixed(2)} m` });
+        params.push({ label: 'CC Subdiv', value: `n = ${appState.ccSubdivLevel ?? 0}` });
+        if (step?.params?.repoRelativePath) {
+            params.push({ label: 'Asset', value: step.params.repoRelativePath.split('/').pop() });
+        }
+        metrics.push(`${enabledNames.length} tiles active`);
+    } else if (op === 'grid_config' || op === 'wfc_collapse') {
+        tabTitle = '2. Topo Gen';
+        params.push({ label: 'Voxel Grid', value: `${appState.GRID_X}×${appState.GRID_Y}×${appState.GRID_Z}` });
+        params.push({ label: 'Algorithm', value: String(appState.currentAlgorithm || 'wfc').toUpperCase() });
+        params.push({ label: 'Voxel Size', value: `${Number(appState.VOXEL_SIZE || 1).toFixed(2)} m` });
+        if (metricsObj.vertices) metrics.push(`V:${metricsObj.vertices}`);
+        if (metricsObj.edges) metrics.push(`E:${metricsObj.edges}`);
+    } else if (op === 'fdm_config' || op === 'fdm_solve') {
+        tabTitle = '3. FDM';
+        const fs = appState.fdmState || {};
+        params.push({ label: 'Mode', value: String(fs.mode || 'compression') });
+        params.push({ label: 'q Profile', value: String(fs.qProfile || 'column_boosted') });
+        params.push({ label: 'q Base', value: `${fs.qBase ?? 5}` });
+        params.push({ label: 'Load Z', value: `${fs.loadZ ?? 500} N` });
+        if (metricsObj.vertices) metrics.push(`V:${metricsObj.vertices}`);
+        if (metricsObj.edges) metrics.push(`E:${metricsObj.edges}`);
+    } else if (op.startsWith('pq_')) {
+        tabTitle = '4. PQ Mesh';
+        const ts = appState.tubeState || {};
+        params.push({ label: 'Outer / Inner R', value: `${ts.radius}m / ${ts.innerRadiusM}m` });
+        params.push({ label: 'Sides / Subdiv', value: `N=${ts.nSides} · L=${ts.longitudinalSubdivLevels}` });
+        params.push({ label: 'Bisector', value: Boolean(ts.stitchAtBisectors), kind: 'bool' });
+        params.push({ label: 'Miter Clamp', value: ts.miterClamp !== false, kind: 'bool' });
+        params.push({ label: 'PQ Planarize', value: Boolean(ts.pqOptimization), kind: 'bool' });
+        params.push({ label: 'Color Mode', value: String(ts.colorMode || 'longitudinal') });
+        if (metricsObj.vertices) metrics.push(`V:${metricsObj.vertices}`);
+        if (metricsObj.quads) metrics.push(`Q:${metricsObj.quads}`);
+        if (metricsObj.maxPlanarityMm !== null) metrics.push(`PQ:${metricsObj.maxPlanarityMm}mm`);
+        if (metricsObj.watertight) metrics.push('Watertight');
+    } else if (op === 'elastica_trace') {
+        tabTitle = '5. Elastica';
+        const es = appState.elasticaState || {};
+        const ed = appState.lastElasticaData;
+        params.push({ label: 'Pair Mode', value: String(es.pairMode || 'all_pairs') });
+        params.push({ label: 'Solver', value: String(es.smoothMode || 'der_inextensible') });
+        params.push({ label: 'Smooth / Tight', value: `L=${es.smoothLevel ?? 2} · ${Math.round((es.tightness ?? 0.5) * 100)}%` });
+        params.push({ label: 'Rod R / Sides', value: `${es.rodRadius}m · ${es.rodSides}s` });
+        params.push({ label: 'Unroll 3D', value: Boolean(es.showUnrolled3D), kind: 'bool' });
+        if (ed && Array.isArray(ed.curves)) {
+            const totalL = ed.curves.reduce((acc, c) => acc + (c.totalLength || 0), 0);
+            metrics.push(`${ed.curves.length} Rods`);
+            metrics.push(`ΣL=${totalL.toFixed(2)}m`);
+        }
+    } else if (op === 'fea_run') {
+        tabTitle = '6. FEA';
+        const fe = appState.feaState || {};
+        params.push({ label: 'Material', value: String(fe.materialKey || 'plaster') });
+        params.push({ label: 'Top Load', value: `${fe.topLoadKg ?? 25} kg` });
+        params.push({ label: 'Supports', value: String(fe.restraintType || 'pinned') });
+        params.push({ label: 'Elastica', value: Boolean(fe.includeElastica), kind: 'bool' });
+        if (metricsObj.vertices) metrics.push(`V:${metricsObj.vertices}`);
+    } else {
+        tabTitle = 'Viewport Camera';
+        params.push({ label: 'Bookmark', value: bmName });
+        params.push({ label: 'Projection', value: projection });
+        params.push({ label: 'Grid', value: `${appState.GRID_X}×${appState.GRID_Y}×${appState.GRID_Z}` });
+        if (metricsObj.quads) metrics.push(`Q:${metricsObj.quads}`);
+    }
+
+    return {
+        tabTitle,
+        stageIndex,
+        stageCount,
+        stageLabel: step?.label || op || `Stage ${stageIndex + 1}`,
+        op,
+        params,
+        metrics,
+        projection,
+        cameraName: bmName
+    };
+}
+
 function resetWorkbenchForReplay() {
     // Reset tiles to clean built-in catalog
     const baseTiles = CORE.createTileTemplates();
@@ -510,6 +640,13 @@ function resetWorkbenchForReplay() {
     appState.ccSubdivLevel = 1;
     appState.skeletonizeMeshTile = false;
 
+    if (appState.elasticaSourceSet) appState.elasticaSourceSet.clear();
+    if (appState.elasticaSinkSet) appState.elasticaSinkSet.clear();
+    appState.lastElasticaData = null;
+    if (appState.elasticaState) appState.elasticaState.showUnrolled3D = false;
+    if (viewport.elasticaGroup) viewport.elasticaGroup.visible = false;
+    if (viewport.elasticaUnroll3DGroup) viewport.elasticaUnroll3DGroup.visible = false;
+
     if (actions.clearVoxelPins) actions.clearVoxelPins({ redraw: false });
     if (actions.clearUserImportedMeshes) actions.clearUserImportedMeshes();
     if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
@@ -518,6 +655,7 @@ function resetWorkbenchForReplay() {
     appState.faceLoopState.showUnrolled3D = false;
     syncPqControlsFromState();
     syncGridControlsFromState();
+    syncElasticaControlsFromState();
 
     if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
     if (actions.renderTileCatalogUI) actions.renderTileCatalogUI();
@@ -543,7 +681,7 @@ function restoreActiveTabInPlace(savedTabId) {
     });
 }
 
-async function executeStep(step, chain, savedTabId = appState.activeTabId) {
+async function executeStep(step, chain, savedTabId = appState.activeTabId, cameraMode = 'stage') {
     const op = step.op;
     const p = step.params || {};
 
@@ -830,11 +968,44 @@ async function executeStep(step, chain, savedTabId = appState.activeTabId) {
         }
 
         case 'elastica_trace': {
-            if (p.pairMode) appState.elasticaState.pairMode = p.pairMode;
-            if (p.smoothMode) appState.elasticaState.smoothMode = p.smoothMode;
-            if (p.smoothLevel !== undefined) appState.elasticaState.smoothLevel = Math.round(Number(p.smoothLevel));
-            if (p.tightness !== undefined) appState.elasticaState.tightness = Number(p.tightness);
+            const st = appState.elasticaState;
+            if (st) {
+                if (p.pairMode) st.pairMode = p.pairMode;
+                if (p.smoothMode) st.smoothMode = p.smoothMode;
+                if (p.inextensible !== undefined) st.inextensible = Boolean(p.inextensible);
+                if (p.smoothLevel !== undefined) st.smoothLevel = Math.round(Number(p.smoothLevel));
+                if (p.tightness !== undefined) st.tightness = Number(p.tightness);
+                if (p.rodRadius !== undefined) st.rodRadius = Number(p.rodRadius);
+                if (p.rodSides !== undefined) st.rodSides = Math.round(Number(p.rodSides));
+                if (p.showLeaves !== undefined) st.showLeaves = Boolean(p.showLeaves);
+                if (p.showSkeletalPaths !== undefined) st.showSkeletalPaths = Boolean(p.showSkeletalPaths);
+                if (p.showCurves !== undefined) st.showCurves = Boolean(p.showCurves);
+                if (p.showRods !== undefined) st.showRods = Boolean(p.showRods);
+                if (p.showGuideTube !== undefined) st.showGuideTube = Boolean(p.showGuideTube);
+                if (p.showUnrolled3D !== undefined) st.showUnrolled3D = Boolean(p.showUnrolled3D);
+            }
+            if (Array.isArray(p.sourceNodes) && appState.elasticaSourceSet) {
+                appState.elasticaSourceSet.clear();
+                for (const idx of p.sourceNodes) {
+                    const n = Number(idx);
+                    if (Number.isInteger(n) && n >= 0) appState.elasticaSourceSet.add(n);
+                }
+            }
+            if (Array.isArray(p.sinkNodes) && appState.elasticaSinkSet) {
+                appState.elasticaSinkSet.clear();
+                for (const idx of p.sinkNodes) {
+                    const n = Number(idx);
+                    if (Number.isInteger(n) && n >= 0) appState.elasticaSinkSet.add(n);
+                }
+            }
+            syncElasticaControlsFromState();
+            if (!appState.lastHostGraph && !appState.lastFDMResult && actions.refreshHostGraph) {
+                actions.refreshHostGraph({ preserveFixed: true });
+            }
             if (actions.generateElasticaFromUI) actions.generateElasticaFromUI();
+            if (p.showUnrolled3D && actions.toggleElasticaUnroll3DFromUI) {
+                actions.toggleElasticaUnroll3DFromUI(true);
+            }
             break;
         }
 
@@ -847,6 +1018,7 @@ async function executeStep(step, chain, savedTabId = appState.activeTabId) {
         }
 
         case 'camera_bookmark': {
+            if (cameraMode === 'active') break;
             const bmSpec = p.bookmarkId || step.bookmarkId || p.bookmark;
             if (bmSpec && viewport.applyCameraBookmark) {
                 const resolved = typeof bmSpec === 'string'
@@ -865,14 +1037,26 @@ async function executeStep(step, chain, savedTabId = appState.activeTabId) {
     restoreActiveTabInPlace(savedTabId);
     recomputeModelBox();
     applyOutlinerVisibility();
+    // Ensure stage-specific groups remain visible even while locked to Tab 7 (I/O)
+    if (op === 'elastica_trace') {
+        if (viewport.meshGroup) viewport.meshGroup.visible = false;
+        if (viewport.elasticaGroup) viewport.elasticaGroup.visible = true;
+        if (viewport.elasticaUnroll3DGroup) {
+            viewport.elasticaUnroll3DGroup.visible = Boolean(appState.elasticaState?.showUnrolled3D && viewport.elasticaUnroll3DGroup.children.length > 0);
+        }
+    } else if (op === 'fea_run' && appState.lastFEAResult) {
+        if (viewport.feaGroup) viewport.feaGroup.visible = true;
+    }
     refreshOutliner();
 
-    // Apply step-level bookmark if present (and op wasn't already camera_bookmark)
-    if (op !== 'camera_bookmark' && step.bookmarkId && viewport.applyCameraBookmark) {
-        const bm = getBookmarkById(step.bookmarkId) || (chain?.bookmarks || []).find((b) => b.id === step.bookmarkId);
-        if (bm) viewport.applyCameraBookmark(bm, { animate: false });
-    } else if (op === 'wfc_collapse' || op === 'tile_import' || op === 'grid_config') {
-        zoomToBox(modelBoxToWorld(appState.modelBox));
+    // Respect cameraMode === 'active' override: never move/zoom camera when user chose Active View
+    if (cameraMode !== 'active') {
+        if (op !== 'camera_bookmark' && step.bookmarkId && viewport.applyCameraBookmark) {
+            const bm = getBookmarkById(step.bookmarkId) || (chain?.bookmarks || []).find((b) => b.id === step.bookmarkId);
+            if (bm) viewport.applyCameraBookmark(bm, { animate: false });
+        } else if (op === 'wfc_collapse' || op === 'tile_import' || op === 'grid_config') {
+            zoomToBox(modelBoxToWorld(appState.modelBox));
+        }
     }
 }
 
@@ -910,11 +1094,18 @@ export async function playChain(chainObj = null, options = {}) {
         captureWidth = 1920,
         captureHeight = 1080,
         bookmarkIds = [],
-        useStageBookmark = true,
+        cameraMode = _playbackCameraMode,
+        useStageBookmark = undefined,
+        includeStageUI = false,
         saveCapturesToRepo = true,
         downloadFallback = false,
         onStage = null
     } = options;
+
+    const effectiveCameraMode = (cameraMode === 'active' || cameraMode === 'defaults') ? cameraMode : 'stage';
+    const effectiveUseStageBookmark = useStageBookmark !== undefined
+        ? Boolean(useStageBookmark)
+        : (effectiveCameraMode !== 'active');
 
     let activeChain = _loadedChain || getChain();
     if (chainObj) {
@@ -947,7 +1138,7 @@ export async function playChain(chainObj = null, options = {}) {
 
         for (let i = fromIdx; i <= toIdx; i++) {
             const step = steps[i];
-            await executeStep(step, activeChain, savedTabId);
+            await executeStep(step, activeChain, savedTabId, effectiveCameraMode);
             await waitForRenderSettle();
             _currentStageIndex = i;
             _stepCursor = i + 1;
@@ -957,11 +1148,15 @@ export async function playChain(chainObj = null, options = {}) {
 
             if (captureStages && typeof viewport.captureHighResPNG === 'function') {
                 let targetBookmarks = [];
-                if (Array.isArray(bookmarkIds) && bookmarkIds.length > 0) {
+                if (effectiveCameraMode === 'active') {
+                    targetBookmarks = [null];
+                } else if (Array.isArray(bookmarkIds) && bookmarkIds.length > 0) {
                     targetBookmarks = bookmarkIds
                         .map((id) => resolveBookmarkForCapture(id, activeChain))
                         .filter(Boolean);
-                } else if (useStageBookmark && step.bookmarkId) {
+                } else if (effectiveCameraMode === 'defaults') {
+                    targetBookmarks = getDefaultBookmarks();
+                } else if (effectiveUseStageBookmark && step.bookmarkId) {
                     const bm = resolveBookmarkForCapture(step.bookmarkId, activeChain);
                     targetBookmarks = [bm];
                 }
@@ -969,10 +1164,12 @@ export async function playChain(chainObj = null, options = {}) {
 
                 for (let bi = 0; bi < targetBookmarks.length; bi++) {
                     const bm = targetBookmarks[bi];
+                    const uiOverlay = includeStageUI ? buildStageUIOverlay(step, i, steps.length, bm) : null;
                     const dataUrl = viewport.captureHighResPNG({
                         width: captureWidth,
                         height: captureHeight,
-                        bookmark: bm
+                        bookmark: bm,
+                        uiOverlay
                     });
                     const safeOp = String(step.op || 'stage').replace(/[^a-z0-9_-]+/gi, '_');
                     const bmSuffix = bm && bm.id ? `_${String(bm.id).replace(/[^a-z0-9_-]+/gi, '_')}` : '';
@@ -990,7 +1187,8 @@ export async function playChain(chainObj = null, options = {}) {
                         stageFile,
                         dataUrl,
                         repoRelativePath: null,
-                        metrics
+                        metrics,
+                        uiState: uiOverlay || undefined
                     };
 
                     const isLastCaptureOverall = (i === toIdx && bi === targetBookmarks.length - 1);
@@ -1004,7 +1202,8 @@ export async function playChain(chainObj = null, options = {}) {
                         stageFile,
                         width: captureWidth,
                         height: captureHeight,
-                        metrics
+                        metrics,
+                        uiState: uiOverlay || undefined
                     });
 
                     if (saveCapturesToRepo) {

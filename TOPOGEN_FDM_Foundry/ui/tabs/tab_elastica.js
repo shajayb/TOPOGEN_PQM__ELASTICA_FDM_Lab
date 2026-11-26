@@ -560,6 +560,35 @@ export function generateElasticaFromUI() {
     return data;
 }
 
+function buildElasticaRecordParams() {
+    const st = appState.elasticaState || {};
+    return {
+        pairMode: String(st.pairMode || 'all_pairs'),
+        smoothMode: String(st.smoothMode || 'der_inextensible'),
+        inextensible: st.inextensible !== false,
+        smoothLevel: Math.round(Number(st.smoothLevel ?? 2)),
+        tightness: Number(st.tightness ?? 0.5),
+        rodRadius: Number(st.rodRadius ?? 0.015),
+        rodSides: Math.round(Number(st.rodSides ?? 6)),
+        showLeaves: Boolean(st.showLeaves),
+        showSkeletalPaths: Boolean(st.showSkeletalPaths),
+        showCurves: Boolean(st.showCurves),
+        showRods: Boolean(st.showRods),
+        showGuideTube: Boolean(st.showGuideTube),
+        showUnrolled3D: Boolean(st.showUnrolled3D),
+        sourceNodes: Array.from(appState.elasticaSourceSet || []).map(Number).filter(Number.isFinite),
+        sinkNodes: Array.from(appState.elasticaSinkSet || []).map(Number).filter(Number.isFinite)
+    };
+}
+
+function recordElasticaChainStep(label = null) {
+    if (!actions.recordChainStep) return;
+    const params = buildElasticaRecordParams();
+    actions.recordChainStep('elastica_trace', params, {
+        label: label || `Elastica Rods (${params.pairMode}, R=${params.rodRadius}m)`
+    });
+}
+
 export function toggleElasticaUnroll3DFromUI(forceState = undefined) {
     if (!appState.lastElasticaData || !appState.lastElasticaData.curves?.length) {
         generateElasticaFromUI();
@@ -571,6 +600,7 @@ export function toggleElasticaUnroll3DFromUI(forceState = undefined) {
     renderElasticaUnroll3D();
     applyOutlinerVisibility();
     recomputeModelBox();
+    recordElasticaChainStep(appState.elasticaState.showUnrolled3D ? 'Elastica Rods + Unroll 3D' : 'Elastica Rods');
     return appState.elasticaState.showUnrolled3D;
 }
 
@@ -583,7 +613,10 @@ export function ensureElasticaTabReady() {
     } else if (actions.renderHostNetworkInFdmGroup) {
         actions.renderHostNetworkInFdmGroup();
     }
-    generateElasticaFromUI();
+    const data = generateElasticaFromUI();
+    if (data && Array.isArray(data.curves) && data.curves.length > 0) {
+        recordElasticaChainStep();
+    }
 }
 
 export function initTabElastica() {
@@ -591,6 +624,7 @@ export function initTabElastica() {
     actions.toggleElasticaUnroll3DFromUI = toggleElasticaUnroll3DFromUI;
     actions.ensureElasticaTabReady = ensureElasticaTabReady;
     actions.toggleElasticaNodesByClick = toggleElasticaNodesByClick;
+    actions.updateElasticaSourceSinkUI = updateElasticaSourceSinkUI;
 
     const st = appState.elasticaState;
 
@@ -605,6 +639,7 @@ export function initTabElastica() {
     document.querySelectorAll('.el-valency-btn').forEach(btn => {
         btn.addEventListener('click', e => {
             selectElasticaByValency(btn.dataset.elValency, !!(e.ctrlKey || e.metaKey));
+            recordElasticaChainStep(`Elastica Valency ${btn.dataset.elValency}`);
         });
     });
     $('btn-el-top-sources')?.addEventListener('click', () => {
@@ -616,6 +651,7 @@ export function initTabElastica() {
         zs.forEach((z, i) => { if (z >= maxZ - 0.08) appState.elasticaSourceSet.add(i); });
         updateElasticaSourceSinkUI();
         generateElasticaFromUI();
+        recordElasticaChainStep('Elastica Top → Sources');
     });
     $('btn-el-ground-sinks')?.addEventListener('click', () => {
         const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
@@ -626,6 +662,7 @@ export function initTabElastica() {
         zs.forEach((z, i) => { if (z <= minZ + 0.08) appState.elasticaSinkSet.add(i); });
         updateElasticaSourceSinkUI();
         generateElasticaFromUI();
+        recordElasticaChainStep('Elastica Ground → Sinks');
     });
     $('btn-el-clear-ss')?.addEventListener('click', () => {
         appState.elasticaSourceSet.clear();
@@ -675,28 +712,33 @@ export function initTabElastica() {
     $('sel-elastica-pair-mode')?.addEventListener('change', e => {
         st.pairMode = e.target.value;
         scheduleLiveUpdate();
+        recordElasticaChainStep();
     });
     $('sel-elastica-smooth-mode')?.addEventListener('change', e => {
         st.smoothMode = e.target.value;
         scheduleLiveUpdate();
+        recordElasticaChainStep();
     });
-    bindSlider('rng-elastica-subdiv', 'val-elastica-subdiv', ' (PgUp)', v => { st.smoothLevel = Math.round(v); scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-tightness', 'val-elastica-tightness', '%', v => { st.tightness = v / 100; scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-radius', 'val-elastica-radius', 'm', v => { st.rodRadius = v; scheduleLiveUpdate(); });
-    bindSlider('rng-elastica-sides', 'val-elastica-sides', '', v => { st.rodSides = Math.round(v); scheduleLiveUpdate(); });
+    bindSlider('rng-elastica-subdiv', 'val-elastica-subdiv', ' (PgUp)', v => { st.smoothLevel = Math.round(v); scheduleLiveUpdate(); recordElasticaChainStep(); });
+    bindSlider('rng-elastica-tightness', 'val-elastica-tightness', '%', v => { st.tightness = v / 100; scheduleLiveUpdate(); recordElasticaChainStep(); });
+    bindSlider('rng-elastica-radius', 'val-elastica-radius', 'm', v => { st.rodRadius = v; scheduleLiveUpdate(); recordElasticaChainStep(); });
+    bindSlider('rng-elastica-sides', 'val-elastica-sides', '', v => { st.rodSides = Math.round(v); scheduleLiveUpdate(); recordElasticaChainStep(); });
 
     $('chk-elastica-show-leaves')?.addEventListener('change', e => {
         st.showLeaves = e.target.checked;
         renderElastica3D();
         if (actions.applyOutlinerVisibility) actions.applyOutlinerVisibility();
+        recordElasticaChainStep();
     });
     $('chk-elastica-show-skeletal')?.addEventListener('change', e => {
         st.showSkeletalPaths = e.target.checked;
         renderElastica3D();
+        recordElasticaChainStep();
     });
     $('chk-elastica-show-curves')?.addEventListener('change', e => {
         st.showCurves = e.target.checked;
         renderElastica3D();
+        recordElasticaChainStep();
     });
     $('chk-elastica-show-rods')?.addEventListener('change', e => {
         st.showRods = e.target.checked;
@@ -709,9 +751,13 @@ export function initTabElastica() {
         if (chkTubeShow) chkTubeShow.checked = st.showRods;
         renderElastica3D();
         if (actions.applyOutlinerVisibility) actions.applyOutlinerVisibility();
+        recordElasticaChainStep();
     });
 
-    $('btn-generate-elastica')?.addEventListener('click', () => generateElasticaFromUI());
+    $('btn-generate-elastica')?.addEventListener('click', () => {
+        generateElasticaFromUI();
+        recordElasticaChainStep('Trace Elastica Rods');
+    });
     $('btn-toggle-elastica-unroll-3d')?.addEventListener('click', () => toggleElasticaUnroll3DFromUI());
 
     $('elastica-unroll-canvas')?.addEventListener('click', () => {
