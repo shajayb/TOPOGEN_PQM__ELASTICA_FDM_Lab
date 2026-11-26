@@ -88,8 +88,27 @@ Force-density (`q`) profiles & refinement:
 
 ## 4. Operating the Generator
 
-### Interactive Browser Mode
-Open `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` in any modern browser (or via a local static server):
+### Launching TOPOGEN & Connecting to Browser Tabs (Chrome + Conversation Affinity)
+
+> [!IMPORTANT]
+> **ALWAYS launch TOPOGEN in Google Chrome bound to the current conversation** so `index_TOPOGEN_PQM_ELASTICA_FDM.html` opens on the desktop and pairs deterministically with your `<Conversation ID>` (see [`AGENTS.md`](../../../AGENTS.md) & [`WISE_AI_ASSISTANT_MCP.md`](../../../WISE_AI_ASSISTANT_MCP.md)):
+> - **Desktop MCP (preferred, unsandboxed)**: `topogen_ui_launch({ conversationId: "<Conversation ID>" })`
+> - **Unified CLI**: `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>`
+
+**Strict Prohibitions & Live UI Control Rules**:
+1. **NEVER** use Antigravity's built-in `browser` webview subagent to open TOPOGEN for the user unless the user explicitly asks for the internal webview pane.
+2. **NEVER** write ad-hoc `node -e "brokerCall(...)"` scripts. Always drive the paired Chrome tab via `topogen_ui_*` MCP tools (passing `conversationId`) or `topogen ui` CLI subcommands:
+   ```bash
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs tabs
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui load-file --conv <Conversation ID> --file path/to/module.obj --target tile --subdiv 0 --custom-only
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui configure --conv <Conversation ID> --grid 1x1x1 --elastica-valency 3 --elastica-pair-mode nearest_k
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui step --conv <Conversation ID> --step elastica_trace
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui export --conv <Conversation ID> --format elastica_svg --out ./elastica_rods.svg
+   ```
+3. **Mode A vs Mode B Code Edits**: When modifying sealed generator or UI files (`core/**`, `ui/**`, `index_TOPOGEN_PQM_ELASTICA_FDM.html`), switch to Mode B first (`node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mode --B`), make edits and run tests (including real desktop Chrome visibility verification for GUI/bridge changes), then reseal (`node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs seal --mode B --reseal`) and lock back to Mode A (`node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mode --A`). If `agent/tools.mjs` or `agent/mcp.mjs` changed, refresh `topogen_fdm_foundry` in Antigravity MCP settings (daemon restart alone does not reload `mcp.mjs`).
+
+### Interactive Browser Workflow
+Once `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` is open in Google Chrome (check the top-right **Chrome · Paired** HUD pill):
 1. Generate a WFC centerline graph from the tile/growth tabs or switch directly to the **`3. FDM & Tubes`** tab.
 2. Pick a structural preset (e.g., `pilot_champion`, `catenary_quadripod`, `funicular_vault`, `slender_diagrid`, `hyperboloid_tower`, `arch_braced`), choose the FDM mode (`compression`, `zero-weight`, `tensile`), `q` profile (`uniform`, `height_graded`, `column_boosted`, `funicular_tuned`), load, max anchors, and target envelope, then click **Run FDM** to inspect the force-colored network and anchor spheres.
 3. Configure tubular mesh parameters (outer radius `outerRadiusM`, hollow **`Inner R`** slider `innerRadiusM`, `nSides`, end offset, bisector stitching), click **Solidify**, and confirm the manifold status readout reports watertight manifold geometry.

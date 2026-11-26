@@ -75,7 +75,11 @@ export function mountTab2Topo() {
 
         <div class="flex items-center justify-between">
             <label class="block text-[11px] font-semibold uppercase tracking-wider text-gray-200">Topology Generator</label>
-            <span id="sim-frame-badge" class="text-[10px] font-mono text-pink-400">3×3×4 grid</span>
+            <div class="flex items-center space-x-1.5">
+                <span id="topo-voxel-pins-badge" class="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-400" title="Pinned (x,y,z) voxel constraints">0 pins</span>
+                <button type="button" id="btn-clear-voxel-pins" class="hidden cad-btn text-[8.5px] py-0.5 px-1.5" title="Clear all pinned voxel constraints">✕ Pins</button>
+                <span id="sim-frame-badge" class="text-[10px] font-mono text-pink-400">3×3×4 grid</span>
+            </div>
         </div>
 
         <!-- Algorithm Toggle -->
@@ -255,6 +259,12 @@ export function setGridResolution(nx, ny = nx, nz = nx, opts = {}) {
     appState.GRID_Z = clampDim(nz);
     appState.GRID_ORIGIN.set(-(appState.GRID_X * appState.VOXEL_SIZE) * 0.5, -(appState.GRID_Y * appState.VOXEL_SIZE) * 0.5, 0);
     appState.loadedFileNetworkGraph = null;
+    if (appState.voxelPins instanceof Map) {
+        for (const [k, pin] of appState.voxelPins.entries()) {
+            if (!inGridBounds(pin.x, pin.y, pin.z)) appState.voxelPins.delete(k);
+        }
+        updateVoxelPinsUI();
+    }
     syncVoxelAndEnvelopeUI();
     clearActiveAnalysisOverlaysForTopo();
     setup({ collapseAll: opts.collapseAll !== false, seedTile: opts.seedTile });
@@ -264,6 +274,129 @@ export function setGridResolution(nx, ny = nx, nz = nx, opts = {}) {
 
 const inGridBounds = (x, y, z) => x >= 0 && x < appState.GRID_X && y >= 0 && y < appState.GRID_Y && z >= 0 && z < appState.GRID_Z;
 const voxelIndex = (x, y, z) => x + y * appState.GRID_X + z * appState.GRID_X * appState.GRID_Y;
+
+function ensureVoxelPinsMap() {
+    if (!(appState.voxelPins instanceof Map)) {
+        appState.voxelPins = new Map();
+    }
+    return appState.voxelPins;
+}
+
+export function resolveVoxelPinTileId(tileSpec) {
+    if (tileSpec === null || tileSpec === undefined) return TILE_NULL;
+    if (typeof tileSpec === 'number') {
+        const idx = Math.round(tileSpec);
+        if (idx >= 0 && idx < appState.TILES.length) return idx;
+        throw new Error(`Voxel pin tile id ${tileSpec} out of range (0..${appState.TILES.length - 1})`);
+    }
+    const raw = String(tileSpec).trim();
+    const lower = raw.toLowerCase();
+    if (!lower || lower === 'null' || lower === 'tile_null' || lower === 'empty' || lower === 'void' || lower === 'none') {
+        return TILE_NULL;
+    }
+    if (/^\d+$/.test(raw)) {
+        const idx = parseInt(raw, 10);
+        if (idx >= 0 && idx < appState.TILES.length) return idx;
+        throw new Error(`Voxel pin tile id ${raw} out of range (0..${appState.TILES.length - 1})`);
+    }
+    const found = appState.TILES.find(t =>
+        String(t.key || '').toLowerCase() === lower ||
+        String(t.short || '').toLowerCase() === lower ||
+        String(t.name || '').toLowerCase() === lower
+    );
+    if (found) return found.id;
+    throw new Error(`Unknown voxel pin tile specifier: ${tileSpec}`);
+}
+
+export function updateVoxelPinsUI() {
+    const pinsMap = ensureVoxelPinsMap();
+    const count = pinsMap.size;
+    const badge = $('topo-voxel-pins-badge');
+    if (badge) {
+        badge.textContent = count === 1 ? '1 pin' : `${count} pins`;
+        badge.className = count > 0
+            ? 'text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-amber-950/70 border border-amber-500/50 text-amber-300 font-semibold'
+            : 'text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-400';
+    }
+    const btnClear = $('btn-clear-voxel-pins');
+    if (btnClear) {
+        btnClear.classList.toggle('hidden', count === 0);
+    }
+}
+
+export function getVoxelPins() {
+    const pinsMap = ensureVoxelPinsMap();
+    const list = [];
+    for (const pin of pinsMap.values()) {
+        if (!inGridBounds(pin.x, pin.y, pin.z)) continue;
+        list.push({
+            x: pin.x,
+            y: pin.y,
+            z: pin.z,
+            tile: pin.tileId === TILE_NULL ? 'null' : pin.tileId,
+            tileId: pin.tileId,
+            tileName: appState.TILES[pin.tileId]?.name || (pin.tileId === TILE_NULL ? 'Null' : String(pin.tileId)),
+        });
+    }
+    return list;
+}
+
+export function setVoxelPins(pins = [], opts = {}) {
+    const pinsMap = ensureVoxelPinsMap();
+    if (opts.replace) {
+        pinsMap.clear();
+        for (const v of appState.voxels) v.pinned = false;
+    }
+    if (!Array.isArray(pins)) {
+        throw new Error('voxelPins must be an array of { x, y, z, tile }');
+    }
+    const appliedIndices = [];
+    for (const rawPin of pins) {
+        if (!rawPin || typeof rawPin !== 'object') {
+            throw new Error('Each voxel pin must be an object { x, y, z, tile }');
+        }
+        const x = Math.round(Number(rawPin.x));
+        const y = Math.round(Number(rawPin.y));
+        const z = Math.round(Number(rawPin.z));
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || !inGridBounds(x, y, z)) {
+            throw new Error(`Voxel pin (${rawPin.x},${rawPin.y},${rawPin.z}) is outside grid ${appState.GRID_X}x${appState.GRID_Y}x${appState.GRID_Z}`);
+        }
+        const tileId = resolveVoxelPinTileId(rawPin.tile);
+        const key = `${x},${y},${z}`;
+        pinsMap.set(key, { x, y, z, tileId });
+        const idx = voxelIndex(x, y, z);
+        if (appState.voxels[idx]) {
+            collapseVoxelTo(idx, tileId);
+            appState.voxels[idx].pinned = true;
+            appliedIndices.push(idx);
+        }
+    }
+    if (appliedIndices.length > 0 && appState.currentAlgorithm === 'wfc') {
+        propagateWFC(appliedIndices);
+    }
+    updateVoxelPinsUI();
+    if (opts.redraw !== false) {
+        clearActiveAnalysisOverlaysForTopo();
+        draw();
+    } else {
+        updateSimUI();
+    }
+    return getVoxelPins();
+}
+
+export function clearVoxelPins(opts = {}) {
+    const pinsMap = ensureVoxelPinsMap();
+    pinsMap.clear();
+    for (const v of appState.voxels) v.pinned = false;
+    updateVoxelPinsUI();
+    if (opts.redraw) {
+        clearActiveAnalysisOverlaysForTopo();
+        draw();
+    } else {
+        updateSimUI();
+    }
+    return [];
+}
 export const voxelCenter = (x, y, z) => new THREE.Vector3(
     appState.GRID_ORIGIN.x + (x + 0.5) * appState.VOXEL_SIZE,
     appState.GRID_ORIGIN.y + (y + 0.5) * appState.VOXEL_SIZE,
@@ -390,15 +523,50 @@ export function initVoxelGrid(preferredSeedTile = null) {
     for (let z = 0; z < GRID_Z; z++) {
         for (let y = 0; y < GRID_Y; y++) {
             for (let x = 0; x < GRID_X; x++) {
-                appState.voxels.push({ x, y, z, idx: voxelIndex(x, y, z), collapsed: false, tile: null, domain: [...enabledDomain], inFrontier: false });
+                appState.voxels.push({ x, y, z, idx: voxelIndex(x, y, z), collapsed: false, tile: null, domain: [...enabledDomain], inFrontier: false, pinned: false });
             }
         }
     }
-    const seedIdx = voxelIndex(Math.floor(GRID_X / 2), Math.floor(GRID_Y / 2), Math.floor(GRID_Z / 2));
+    const pinsMap = ensureVoxelPinsMap();
+    const pinnedIndices = [];
+    let hasNonNullPin = false;
+    for (const pin of pinsMap.values()) {
+        if (!inGridBounds(pin.x, pin.y, pin.z)) continue;
+        const pIdx = voxelIndex(pin.x, pin.y, pin.z);
+        const safeTileId = (pin.tileId >= 0 && pin.tileId < TILES.length) ? pin.tileId : TILE_NULL;
+        if (appState.voxels[pIdx]) {
+            collapseVoxelTo(pIdx, safeTileId);
+            appState.voxels[pIdx].pinned = true;
+            pinnedIndices.push(pIdx);
+            if (safeTileId !== TILE_NULL) hasNonNullPin = true;
+        }
+    }
+    if (pinnedIndices.length > 0) {
+        appState.simStepCount += pinnedIndices.length;
+        if (appState.currentAlgorithm === 'wfc') propagateWFC(pinnedIndices);
+    }
+    updateVoxelPinsUI();
+
+    const cx = Math.floor(GRID_X / 2), cy = Math.floor(GRID_Y / 2), cz = Math.floor(GRID_Z / 2);
+    let seedIdx = voxelIndex(cx, cy, cz);
+    if (appState.voxels[seedIdx] && appState.voxels[seedIdx].pinned) {
+        seedIdx = -1;
+        if (!hasNonNullPin) {
+            let bestDist = Infinity;
+            for (const v of appState.voxels) {
+                if (v.pinned || v.collapsed) continue;
+                const d = Math.hypot(v.x - cx, v.y - cy, v.z - cz);
+                if (d < bestDist) {
+                    bestDist = d;
+                    seedIdx = v.idx;
+                }
+            }
+        }
+    }
     const seedTile = pickDefaultSeedTile(preferredSeedTile);
-    if (seedTile !== -1 && appState.voxels[seedIdx]) {
+    if (seedIdx !== -1 && seedTile !== -1 && appState.voxels[seedIdx] && !appState.voxels[seedIdx].pinned) {
         collapseVoxelTo(seedIdx, seedTile);
-        appState.simStepCount = 1;
+        appState.simStepCount++;
         if (appState.currentAlgorithm === 'wfc') propagateWFC([seedIdx]);
     }
 }
@@ -412,9 +580,12 @@ export function collapseFullGridImmediate(preferredSeedTile = null) {
     const chosenSeed = pickDefaultSeedTile(preferredSeedTile);
     if (chosenSeed > 0 && !appState.voxels.some(v => v.collapsed && v.tile !== null && v.tile !== TILE_NULL)) {
         const cIdx = voxelIndex(Math.floor(appState.GRID_X / 2), Math.floor(appState.GRID_Y / 2), Math.floor(appState.GRID_Z / 2));
-        if (appState.voxels[cIdx]) {
-            appState.voxels[cIdx].collapsed = true;
-            appState.voxels[cIdx].tile = chosenSeed;
+        const fallbackCell = (appState.voxels[cIdx] && !appState.voxels[cIdx].pinned)
+            ? appState.voxels[cIdx]
+            : appState.voxels.find(v => !v.pinned);
+        if (fallbackCell) {
+            fallbackCell.collapsed = true;
+            fallbackCell.tile = chosenSeed;
         }
     }
     appState.simRunning = false;
@@ -1163,6 +1334,26 @@ export function initTab2Topo() {
     actions.buildWeldedGraph = buildWeldedGraph;
     actions.draw = draw;
     actions.setAlgorithm = setAlgorithm;
+    actions.setVoxelPins = setVoxelPins;
+    actions.clearVoxelPins = clearVoxelPins;
+    actions.getVoxelPins = getVoxelPins;
+    actions.updateVoxelPinsUI = updateVoxelPinsUI;
+    appState._voxelPinApi = {
+        setVoxelPins,
+        clearVoxelPins,
+        getVoxelPins,
+        updateVoxelPinsUI,
+    };
+
+    const btnClearPins = $('btn-clear-voxel-pins');
+    if (btnClearPins) {
+        btnClearPins.addEventListener('click', () => {
+            clearVoxelPins({ redraw: true });
+            setup({ collapseAll: true });
+            draw();
+        });
+    }
+    updateVoxelPinsUI();
 
     $$('.algo-btn').forEach(btn => btn.addEventListener('click', () => setAlgorithm(btn.dataset.algo)));
 

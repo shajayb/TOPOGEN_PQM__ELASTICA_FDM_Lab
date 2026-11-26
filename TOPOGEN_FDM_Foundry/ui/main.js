@@ -47,7 +47,8 @@ import {
     parse3dmMeshes,
     resubdivideImportedTiles,
     clearCustomGraphTiles,
-    setCCSubdivLevel
+    setCCSubdivLevel,
+    setSkeletonizeMeshTile
 } from './tabs/tab1_tiles.js';
 import {
     mountTab2Topo,
@@ -220,6 +221,8 @@ const workbenchApi = {
     clearCustomGraphTiles,
     get ccSubdivLevel() { return appState.ccSubdivLevel; },
     setCCSubdivLevel,
+    get skeletonizeMeshTile() { return appState.skeletonizeMeshTile; },
+    setSkeletonizeMeshTile,
     get showCenterlineGraph() { return appState.showCenterlineGraph; },
     setShowCenterlineGraph: (on) => {
         appState.showCenterlineGraph = !!on;

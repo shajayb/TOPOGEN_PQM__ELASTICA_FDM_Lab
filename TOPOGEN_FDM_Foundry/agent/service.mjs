@@ -3,13 +3,19 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { resolveEcosystem, ecosystemInfo } from './ecosystem.mjs';
-import { toolDefinitions, validateTool } from './tools.mjs';
+import {
+  toolDefinitions,
+  validateTool,
+  TOOLS_SHA256,
+  readManifestSurfaceInfo,
+} from './tools.mjs';
 import { createBroker } from './broker.mjs';
 import { createWorkspaceTools } from './workspace-tools.mjs';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const jsonHash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id);
+const isPlainObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 export function publicResult(value) {
   if (Array.isArray(value)) return value.map(publicResult);
@@ -114,8 +120,9 @@ export async function createAgentService(options) {
     verifyIdentity(value);
     if (closed) throw Error('Agent service is closed');
 
-    const operation = validateTool(value.tool, value.arguments || {});
-    const args = { ...(value.arguments || {}) };
+    const resolvedArgs = value.arguments ?? (isPlainObject(value.args) ? value.args : {});
+    const operation = validateTool(value.tool, resolvedArgs);
+    const args = { ...resolvedArgs };
 
     if (!validId(value.requestId)) throw Error('Unique tool request ID required');
     const hash = jsonHash({ operation, args });
@@ -157,7 +164,8 @@ export async function createAgentService(options) {
           allowModeB: false,
           operation,
           ok: false,
-          path: args.path || null,
+          path: args.path || (Array.isArray(args.edits) ? args.edits.map(e => e?.path).filter(Boolean).join(', ') : null),
+          editCount: Array.isArray(args.edits) ? args.edits.length : (operation === 'workspace.edit' ? 1 : undefined),
           command: args.command || null,
           args: Array.isArray(args.args) ? args.args : undefined,
           error: errorMsg
@@ -187,11 +195,12 @@ export async function createAgentService(options) {
             allowModeB: true,
             operation,
             ok: entry.result.ok,
-            path: args.path || null,
+            path: args.path || (Array.isArray(args.edits) ? args.edits.map(e => e?.path).filter(Boolean).join(', ') : null),
+            editCount: Array.isArray(args.edits) ? args.edits.length : (operation === 'workspace.edit' ? 1 : undefined),
             command: args.command || null,
             args: Array.isArray(args.args) ? args.args : undefined,
             exitCode: entry.result.result?.exitCode ?? null,
-            bytes: entry.result.result?.bytes ?? null,
+            bytes: entry.result.result?.bytes ?? entry.result.result?.totalBytes ?? null,
             sha256: entry.result.result?.sha256 ?? null,
             airGapSurfaceWarning: entry.result.result?.airGapSurfaceWarning ?? false,
             error: entry.result.error || null
@@ -219,6 +228,18 @@ export async function createAgentService(options) {
     return entry.result;
   }
 
+  const resolveSurfaceInfo = () => {
+    if (options.foundryRoot || options.manifestRoot) {
+      return readManifestSurfaceInfo(options.foundryRoot || options.manifestRoot);
+    }
+    const wsInfo = readManifestSurfaceInfo(workspace);
+    return wsInfo.ok ? wsInfo : readManifestSurfaceInfo();
+  };
+  const surfaceInfo = resolveSurfaceInfo();
+  const foundryVersion = surfaceInfo.foundryVersion || '2.0.0';
+  const codeSurfaceSha256 = surfaceInfo.codeSurfaceSha256 || null;
+  const toolsSha256 = TOOLS_SHA256;
+
   const broker = await createBroker(stateDir, handleTool);
   const manifest = {
     schema: 'topogen.foundry.agent-session.v1',
@@ -227,7 +248,10 @@ export async function createAgentService(options) {
     sessionId: options.sessionId,
     ecosystem,
     mode: 'desktop',
-    pid: process.pid
+    pid: process.pid,
+    foundryVersion,
+    codeSurfaceSha256,
+    toolsSha256
   };
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 });
   fs.writeFileSync(toolFile, JSON.stringify(toolDefinitions, null, 2) + '\n', { mode: 0o600 });
@@ -240,6 +264,9 @@ export async function createAgentService(options) {
       scratch,
       manifestPath,
       ledgerPath: ledger,
+      foundryVersion,
+      codeSurfaceSha256,
+      toolsSha256,
       toolCount: toolDefinitions.length,
       receiptCount: toolReceipts.size,
       events: [...state.events]
@@ -252,18 +279,25 @@ export async function createAgentService(options) {
     return status();
   }
 
-  function desktopConfig() {
+  function desktopConfig({ pinSession = true } = {}) {
+    const mcpArgs = pinSession
+      ? [path.join(directory, 'mcp.mjs'), '--session', manifestPath, '--ecosystem', ecosystem]
+      : [path.join(directory, 'mcp.mjs'), '--ecosystem', ecosystem];
     return {
       ecosystem,
       sessionId: options.sessionId,
       serverName: 'topogen_fdm_foundry',
       server: {
         command: process.execPath,
-        args: [path.join(directory, 'mcp.mjs'), '--session', manifestPath, '--ecosystem', ecosystem],
+        args: mcpArgs,
         env: { TOPOGEN_ECOSYSTEM: ecosystem, ALICE_ECOSYSTEM: ecosystem }
       },
       message: 'Add this MCP server to Antigravity or Codex Desktop.'
     };
+  }
+
+  function sessionManifest() {
+    return { ...manifest };
   }
 
   async function close() {
@@ -276,6 +310,7 @@ export async function createAgentService(options) {
     status,
     setAllowModeB,
     desktopConfig,
+    sessionManifest,
     manifestPath,
     close
   };

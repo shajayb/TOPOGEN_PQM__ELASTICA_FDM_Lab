@@ -1,0 +1,22 @@
+{
+  "name": "topogen-fdm-foundry",
+  "version": "2.0.0",
+  "private": true,
+  "description": "TOPOGEN PQM Elastica FDM FEA Foundry — Air-Gapped Structural & Fabrication Design Engine",
+  "bin": {
+    "topogen": "./TOPOGEN_FDM_Foundry/cli/topogen.mjs"
+  },
+  "scripts": {
+    "topogen": "node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs",
+    "serve": "node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs serve",
+    "bench": "node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs bench",
+    "seal:verify": "node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs seal --mode A --verify",
+    "seal:reseal": "node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs seal --mode B --reseal --verify",
+    "test:verifier": "node ./TOPOGEN_FDM_Foundry/verifier/test_verifier.mjs",
+    "test:guard": "node ./TOPOGEN_FDM_Foundry/scripts/foundry_mode_guard.mjs --self-test",
+    "test:core": "node ./TOPOGEN_FDM_Foundry/core/test_core.mjs",
+    "test:mcp": "node ./TOPOGEN_FDM_Foundry/agent/test-mcp.mjs",
+    "test:cli": "node ./TOPOGEN_FDM_Foundry/cli/test-cli.mjs",
+    "test:live-desktop": "node ./TOPOGEN_FDM_Foundry/scripts/verify_live_desktop_mcp.mjs"
+  }
+}

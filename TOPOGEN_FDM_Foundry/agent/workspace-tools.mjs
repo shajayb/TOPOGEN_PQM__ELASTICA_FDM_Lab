@@ -5,15 +5,23 @@ import { spawn } from 'node:child_process';
 
 const MAX_READ_LINES = 400;
 const MAX_READ_BYTES = 64 * 1024;
+const MAX_BATCH_FILES = 12;
+const MAX_BATCH_FRAME_BYTES = 180 * 1024;
 const MAX_WRITE_BYTES = 256 * 1024;
+const MAX_EDIT_BATCH = 20;
 const MAX_LIST_ENTRIES = 200;
-const MAX_SEARCH_MATCHES = 100;
+const MAX_SEARCH_MATCHES = 200;
+const MAX_SEARCH_QUERIES = 8;
 const MAX_SEARCH_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_SEARCH_DUMP_BYTES = 1024 * 1024;
+const SEARCH_CONCURRENCY = 16;
 const MAX_COMMAND_OUTPUT = 64 * 1024;
 const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_TIMEOUT_MS = 120000;
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'build', 'dist', '__pycache__']);
+const ARTIFACT_SKIP_DIRS = new Set(['runs', 'video_build', 'outputs', '.rsi_snapshots']);
+const DEFAULT_SEARCH_SKIP_DIRS = new Set([...SKIP_DIRS, ...ARTIFACT_SKIP_DIRS]);
 const ALLOWED_COMMANDS = new Set([
   'node', 'npm', 'npx', 'git', 'pwsh', 'powershell', 'clang++', 'python', 'python3'
 ]);
@@ -22,6 +30,160 @@ const CREDENTIAL_NAME_RE = /^(?:api[_-]?keys?(?:\.[a-z0-9]+)?|\.env(?:\..+)?|id_
 const CREDENTIAL_EXT_RE = /\.(?:pem|key|pfx|p12|jks|keystore)$/i;
 const CREDENTIAL_PATH_RE = /(?:^|\/)(?:api[_-]?keys?(?:\.[a-z0-9]+)?|\.env(?:\..+)?|credentials?(?:\.[a-z0-9]+)?|secrets?(?:\.[a-z0-9]+)?|agent-session\.json)(?:$|\/)/i;
 const DESTRUCTIVE_GIT_RE = /^(?:push|reset|clean|rebase|filter-branch)$/i;
+const ARTIFACT_PATH_RE = /(?:^|\/)(?:runs|video_build|outputs|\.rsi_snapshots)(?:$|\/)/i;
+const DUMP_EXT_RE = /\.(?:json|obj)$/i;
+const CODE_EXT_RE = /\.(?:mjs|js|cjs|ts|html|htm)$/i;
+const AIRGAP_GEN_REF_RE = /(?:['"`][^'"`\r\n]*?(?:verifier[\\/]|verifier_worker\.mjs|fea_solver\.mjs|fabrication_check\.mjs)[^'"`\r\n]*?['"`])/;
+const AIRGAP_VER_REF_RE = /(?:['"`][^'"`\r\n]*?(?:index_TOPOGEN_PQM_ELASTICA_FDM\.html|index_WFC\.html|run_generator\.mjs|generator_worker\.mjs|(?:^|[\\/\.])core[\\/])[^'"`\r\n]*?['"`])/;
+const AIRGAP_IMPORT_IO_RE = /\b(?:import|export|require|from|readFileSync|readFile|createReadStream|fetch|Worker|spawn|spawnSync|execFile|execFileSync)\b|<script\b/i;
+
+function globToRegex(glob) {
+  let norm = String(glob || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!norm) return null;
+  if (!norm.includes('/')) {
+    norm = `**/${norm}`;
+  }
+  let rx = '^';
+  let i = 0;
+  while (i < norm.length) {
+    const ch = norm[i];
+    if (ch === '*') {
+      if (norm[i + 1] === '*') {
+        if (norm[i + 2] === '/') {
+          rx += '(?:.+/)?';
+          i += 3;
+          continue;
+        }
+        rx += '.*';
+        i += 2;
+        continue;
+      }
+      rx += '[^/]*';
+      i += 1;
+    } else if (ch === '?') {
+      rx += '[^/]';
+      i += 1;
+    } else {
+      rx += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+      i += 1;
+    }
+  }
+  rx += '$';
+  return new RegExp(rx, 'i');
+}
+
+function compileGlobList(value) {
+  if (value === undefined || value === null) return [];
+  const rawList = Array.isArray(value) ? value : [value];
+  const regexes = [];
+  for (const item of rawList) {
+    if (typeof item !== 'string' || !item.trim()) continue;
+    const rx = globToRegex(item);
+    if (rx) regexes.push(rx);
+  }
+  return regexes;
+}
+
+function stripCommentsPreserveLines(source, isHtml = false) {
+  let out = '';
+  let i = 0;
+  const n = source.length;
+  let inQuote = null;
+
+  while (i < n) {
+    const ch = source[i];
+    const next = source[i + 1];
+
+    if (inQuote) {
+      out += ch;
+      if (ch === '\\' && i + 1 < n) {
+        out += source[i + 1];
+        i += 2;
+        continue;
+      }
+      if (ch === inQuote) {
+        inQuote = null;
+      }
+      i += 1;
+      continue;
+    }
+
+    if (isHtml && ch === '<' && source.slice(i, i + 4) === '<!--') {
+      const end = source.indexOf('-->', i + 4);
+      const stop = end === -1 ? n : end + 3;
+      out += source.slice(i, stop).replace(/[^\n]/g, ' ');
+      i = stop;
+      continue;
+    }
+
+    if (ch === '/' && next === '/') {
+      const end = source.indexOf('\n', i + 2);
+      const stop = end === -1 ? n : end;
+      out += ' '.repeat(stop - i);
+      i = stop;
+      continue;
+    }
+
+    if (ch === '/' && next === '*') {
+      const end = source.indexOf('*/', i + 2);
+      const stop = end === -1 ? n : end + 2;
+      out += source.slice(i, stop).replace(/[^\n]/g, ' ');
+      i = stop;
+      continue;
+    }
+
+    if (ch === '\'' || ch === '"' || ch === '`') {
+      inQuote = ch;
+      out += ch;
+      i += 1;
+      continue;
+    }
+
+    out += ch;
+    i += 1;
+  }
+
+  return out;
+}
+
+function assertNoAirGapCrossImport(relativePath, content) {
+  const norm = String(relativePath || '').replace(/\\/g, '/').replace(/^TOPOGEN_FDM_Foundry\//i, '');
+  if (!CODE_EXT_RE.test(norm)) return;
+
+  const isGeneratorSurface =
+    norm.startsWith('core/') ||
+    norm.startsWith('ui/') ||
+    norm === 'index_TOPOGEN_PQM_ELASTICA_FDM.html' ||
+    norm === 'run_generator.mjs' ||
+    norm === 'workers/generator_worker.mjs';
+
+  const isVerifierSurface =
+    norm.startsWith('verifier/') ||
+    norm === 'workers/verifier_worker.mjs';
+
+  if (!isGeneratorSurface && !isVerifierSurface) return;
+
+  const cleaned = stripCommentsPreserveLines(content, /\.html?$/i.test(norm));
+  const lines = cleaned.split(/\r?\n/);
+
+  if (isGeneratorSurface) {
+    for (let idx = 0; idx < lines.length; idx++) {
+      const line = lines[idx];
+      if (AIRGAP_GEN_REF_RE.test(line) && (AIRGAP_IMPORT_IO_RE.test(line) || /\bverifier[\\/]/.test(line))) {
+        throw Error(`AIR-GAP VIOLATION: generator file "${relativePath}" line ${idx + 1} cannot import or reference verifier surface`);
+      }
+    }
+  }
+
+  if (isVerifierSurface) {
+    for (let idx = 0; idx < lines.length; idx++) {
+      const line = lines[idx];
+      if (AIRGAP_VER_REF_RE.test(line) && AIRGAP_IMPORT_IO_RE.test(line)) {
+        throw Error(`AIR-GAP VIOLATION: verifier file "${relativePath}" line ${idx + 1} cannot import or reference generator surface`);
+      }
+    }
+  }
+}
 
 export function redactSecrets(value) {
   return String(value ?? '')
@@ -138,14 +300,9 @@ export function createWorkspaceTools({ projectRoot, scratchDir, ecosystem = 'ant
     return { path: relative, entries, count: entries.length, truncated };
   }
 
-  function read(args) {
-    const { resolved, relative } = resolveAllowed(args.path, { allowMissing: false });
-    const st = fs.lstatSync(resolved);
-    if (!st.isFile()) throw Error('Target path is not a regular file');
-    if (st.size > MAX_SEARCH_FILE_BYTES) throw Error('File exceeds 2 MB read limit; inspect a smaller slice or file');
-    const raw = fs.readFileSync(resolved);
-    if (raw.includes(0)) throw Error('Binary files cannot be read as text');
-    const text = raw.toString('utf8');
+  function formatReadSlice(relative, rawBuf, args) {
+    if (rawBuf.includes(0)) throw Error('Binary files cannot be read as text');
+    const text = rawBuf.toString('utf8');
     const lines = text.split(/\r?\n/);
     const totalLines = lines.length;
     const startLine = Math.max(1, Number(args.startLine ?? 1));
@@ -171,124 +328,453 @@ export function createWorkspaceTools({ projectRoot, scratchDir, ecosystem = 'ant
     };
   }
 
-  function search(args) {
-    const { resolved, root, relative } = resolveAllowed(args.path ?? '.', { allowMissing: false });
-    const maxMatches = Math.min(Math.max(1, Number(args.maxMatches ?? 50)), MAX_SEARCH_MATCHES);
-    const caseSensitive = Boolean(args.caseSensitive);
-    let matcher;
-    if (args.regex) {
-      try { matcher = new RegExp(args.query, caseSensitive ? '' : 'i'); }
-      catch (e) { throw Error('Invalid search regex: ' + e.message); }
-    } else {
-      const needle = caseSensitive ? args.query : args.query.toLowerCase();
-      matcher = { test: line => (caseSensitive ? line : line.toLowerCase()).includes(needle) };
+  function read(args) {
+    const { resolved, relative } = resolveAllowed(args.path, { allowMissing: false });
+    const st = fs.lstatSync(resolved);
+    if (!st.isFile()) throw Error('Target path is not a regular file');
+    if (st.size > MAX_SEARCH_FILE_BYTES) throw Error('File exceeds 2 MB read limit; inspect a smaller slice or file');
+    const raw = fs.readFileSync(resolved);
+    return formatReadSlice(relative, raw, args);
+  }
+
+  async function readBatch(args = {}) {
+    if (!Array.isArray(args.files) || args.files.length < 1 || args.files.length > MAX_BATCH_FILES) {
+      throw Error(`files must be an array of 1..${MAX_BATCH_FILES} file specs`);
     }
 
-    const matches = [];
-    let filesSearched = 0;
-    let truncated = false;
-    const MAX_FILES = 1500;
+    // Validate all paths upfront so security violations (traversal, symlink, credential) fail closed
+    const resolvedSpecs = args.files.map((item, idx) => {
+      if (!item || typeof item !== 'object' || typeof item.path !== 'string' || !item.path.trim()) {
+        throw Error(`files[${idx}].path is required`);
+      }
+      const { resolved, relative } = resolveAllowed(item.path, { allowMissing: false });
+      const st = fs.lstatSync(resolved);
+      if (!st.isFile()) throw Error(`Target path is not a regular file: ${relative}`);
+      if (st.size > MAX_SEARCH_FILE_BYTES) {
+        throw Error(`File exceeds 2 MB read limit: ${relative}`);
+      }
+      return { item, resolved, relative };
+    });
 
-    function scanFile(filePath) {
-      if (filesSearched >= MAX_FILES || matches.length >= maxMatches) { truncated = true; return; }
-      if (isCredentialPath(filePath)) return;
-      let st;
-      try { st = fs.lstatSync(filePath); } catch { return; }
-      if (st.isSymbolicLink() || !st.isFile() || st.size > MAX_SEARCH_FILE_BYTES) return;
-      let buf;
-      try { buf = fs.readFileSync(filePath); } catch { return; }
-      if (buf.includes(0)) return;
-      filesSearched++;
-      const lines = buf.toString('utf8').split(/\r?\n/);
-      const rel = path.relative(root, filePath).replace(/\\/g, '/');
-      for (let i = 0; i < lines.length; i++) {
-        if (matcher.test(lines[i])) {
-          matches.push({ file: rel, line: i + 1, text: redactSecrets(lines[i].slice(0, 300)) });
-          if (matches.length >= maxMatches) { truncated = true; return; }
+    const files = await Promise.all(
+      resolvedSpecs.map(async ({ item, resolved, relative }) => {
+        const raw = await fs.promises.readFile(resolved);
+        return formatReadSlice(relative, raw, item);
+      })
+    );
+
+    const totalBytes = files.reduce((sum, f) => sum + Buffer.byteLength(f.content, 'utf8'), 0);
+    const anyTruncated = files.some(f => f.truncated);
+    const fullPayload = {
+      ok: true,
+      count: files.length,
+      totalBytes,
+      truncated: anyTruncated,
+      files
+    };
+
+    const serialized = JSON.stringify(fullPayload);
+    const frameBytes = Buffer.byteLength(serialized, 'utf8');
+    if (frameBytes <= MAX_BATCH_FRAME_BYTES) {
+      return fullPayload;
+    }
+
+    // Exceeds safe broker frame margin (< 256 KB): stage full JSON to scratchDir if available
+    if (realScratch) {
+      fs.mkdirSync(realScratch, { recursive: true });
+      const stagedPath = path.join(
+        realScratch,
+        `read_batch_${Date.now()}_${crypto.randomUUID().slice(0, 6)}.json`
+      );
+      fs.writeFileSync(stagedPath, serialized + '\n', 'utf8');
+      const perFilePreview = Math.max(1024, Math.floor((MAX_BATCH_FRAME_BYTES - 8192) / files.length));
+      return {
+        ok: true,
+        count: files.length,
+        totalBytes,
+        bytes: frameBytes,
+        truncated: true,
+        stagedPath,
+        files: files.map(f => ({
+          ...f,
+          truncated: true,
+          content: f.content.length > perFilePreview ? f.content.slice(0, perFilePreview) : f.content
+        }))
+      };
+    }
+
+    const perFileCap = Math.max(1024, Math.floor((MAX_BATCH_FRAME_BYTES - 8192) / files.length));
+    return {
+      ok: true,
+      count: files.length,
+      totalBytes,
+      truncated: true,
+      files: files.map(f => ({
+        ...f,
+        truncated: true,
+        content: f.content.length > perFileCap ? f.content.slice(0, perFileCap) : f.content
+      }))
+    };
+  }
+
+  async function search(args = {}) {
+    const rawQueries = Array.isArray(args.queries)
+      ? args.queries
+      : (typeof args.query === 'string' && args.query.length ? [args.query] : []);
+    if (rawQueries.length < 1 || rawQueries.length > MAX_SEARCH_QUERIES) {
+      throw Error(`Provide query or queries (1..${MAX_SEARCH_QUERIES} non-empty strings)`);
+    }
+    const normalizedQueries = rawQueries.map((q, idx) => {
+      if (typeof q !== 'string' || !q.length || q.length > 500) {
+        throw Error(`Invalid search query at index ${idx}`);
+      }
+      return q;
+    });
+
+    const { resolved, root, relative } = resolveAllowed(args.path ?? '.', { allowMissing: false });
+    const maxMatchesPerQuery = Math.min(Math.max(1, Number(args.maxMatches ?? 50)), MAX_SEARCH_MATCHES);
+    const totalMatchCap = normalizedQueries.length > 1
+      ? Math.min(maxMatchesPerQuery * normalizedQueries.length, 400)
+      : maxMatchesPerQuery;
+    const caseSensitive = Boolean(args.caseSensitive);
+    const isRegex = Boolean(args.regex);
+    const includeRegexes = compileGlobList(args.include);
+    const excludeRegexes = compileGlobList(args.exclude);
+
+    const matchers = normalizedQueries.map(q => {
+      if (isRegex) {
+        try {
+          const rx = new RegExp(q, caseSensitive ? '' : 'i');
+          return { query: q, test: line => rx.test(line) };
+        } catch (e) {
+          throw Error(`Invalid search regex "${q}": ${e.message}`);
         }
       }
+      const needle = caseSensitive ? q : q.toLowerCase();
+      return {
+        query: q,
+        test: line => (caseSensitive ? line : line.toLowerCase()).includes(needle)
+      };
+    });
+
+    const rootStat = fs.lstatSync(resolved);
+    const explicitArtifactTarget =
+      rootStat.isFile() ||
+      (args.path !== undefined && args.path !== '' && args.path !== '.' && ARTIFACT_PATH_RE.test(relative));
+    const activeSkipDirs = explicitArtifactTarget ? SKIP_DIRS : DEFAULT_SEARCH_SKIP_DIRS;
+
+    const MAX_FILES = 1500;
+    const candidates = [];
+    let skippedDirs = 0;
+    let skippedLargeDumps = 0;
+    let truncated = false;
+
+    function maybeEnqueueFile(filePath, st) {
+      if (candidates.length >= MAX_FILES) {
+        truncated = true;
+        return;
+      }
+      if (isCredentialPath(filePath)) return;
+      if (st.isSymbolicLink() || !st.isFile()) return;
+      if (st.size > MAX_SEARCH_FILE_BYTES) return;
+      const rel = path.relative(root, filePath).replace(/\\/g, '/');
+      if (!explicitArtifactTarget && DUMP_EXT_RE.test(rel) && st.size > MAX_SEARCH_DUMP_BYTES) {
+        skippedLargeDumps++;
+        return;
+      }
+      if (includeRegexes.length > 0 && !includeRegexes.some(rx => rx.test(rel))) return;
+      if (excludeRegexes.length > 0 && excludeRegexes.some(rx => rx.test(rel))) return;
+      candidates.push({ filePath, rel });
     }
 
-    function walk(dir, depth) {
-      if (filesSearched >= MAX_FILES || matches.length >= maxMatches) { truncated = true; return; }
+    function collectWalk(dir, depth) {
+      if (candidates.length >= MAX_FILES) {
+        truncated = true;
+        return;
+      }
       const st = fs.lstatSync(dir);
-      if (st.isFile()) { scanFile(dir); return; }
+      if (st.isFile()) {
+        maybeEnqueueFile(dir, st);
+        return;
+      }
       if (!st.isDirectory()) return;
       for (const name of fs.readdirSync(dir).sort()) {
-        if (filesSearched >= MAX_FILES || matches.length >= maxMatches) { truncated = true; return; }
+        if (candidates.length >= MAX_FILES) {
+          truncated = true;
+          return;
+        }
         const full = path.join(dir, name);
         let childStat;
         try { childStat = fs.lstatSync(full); } catch { continue; }
         if (childStat.isSymbolicLink()) continue;
         if (childStat.isDirectory()) {
-          if (depth < 10 && !SKIP_DIRS.has(name)) walk(full, depth + 1);
+          if (activeSkipDirs.has(name)) {
+            skippedDirs++;
+            continue;
+          }
+          if (depth < 10) collectWalk(full, depth + 1);
         } else if (childStat.isFile()) {
-          scanFile(full);
+          maybeEnqueueFile(full, childStat);
         }
       }
     }
 
-    walk(resolved, 0);
-    return { query: args.query, path: relative, matches, filesSearched, truncated };
+    collectWalk(resolved, 0);
+
+    // Concurrent bounded async scan over candidate files
+    const perFileResults = new Array(candidates.length);
+    let nextIndex = 0;
+    let filesSearched = 0;
+
+    const worker = async () => {
+      while (true) {
+        const idx = nextIndex++;
+        if (idx >= candidates.length) break;
+        const { filePath, rel } = candidates[idx];
+        let buf;
+        try {
+          buf = await fs.promises.readFile(filePath);
+        } catch {
+          continue;
+        }
+        if (buf.includes(0)) continue;
+        filesSearched++;
+        const lines = buf.toString('utf8').split(/\r?\n/);
+        const fileHits = [];
+        for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+          const line = lines[lineIdx];
+          for (let qIdx = 0; qIdx < matchers.length; qIdx++) {
+            if (matchers[qIdx].test(line)) {
+              fileHits.push({
+                qIdx,
+                query: matchers[qIdx].query,
+                file: rel,
+                line: lineIdx + 1,
+                text: redactSecrets(line.slice(0, 300))
+              });
+            }
+          }
+        }
+        if (fileHits.length > 0) perFileResults[idx] = fileHits;
+      }
+    };
+
+    const poolSize = Math.min(SEARCH_CONCURRENCY, Math.max(1, candidates.length));
+    await Promise.all(Array.from({ length: poolSize }, () => worker()));
+
+    const matches = [];
+    const matchesByQuery = Object.fromEntries(normalizedQueries.map(q => [q, []]));
+    const perQueryCounts = new Array(normalizedQueries.length).fill(0);
+
+    for (const fileHits of perFileResults) {
+      if (!fileHits) continue;
+      for (const hit of fileHits) {
+        if (matches.length >= totalMatchCap) {
+          truncated = true;
+          break;
+        }
+        if (perQueryCounts[hit.qIdx] >= maxMatchesPerQuery) {
+          truncated = true;
+          continue;
+        }
+        perQueryCounts[hit.qIdx]++;
+        const matchObj = {
+          query: hit.query,
+          file: hit.file,
+          line: hit.line,
+          text: hit.text
+        };
+        matches.push(matchObj);
+        matchesByQuery[hit.query].push(matchObj);
+      }
+      if (matches.length >= totalMatchCap) break;
+    }
+
+    return {
+      query: normalizedQueries[0],
+      queries: normalizedQueries,
+      path: relative,
+      matches,
+      matchesByQuery,
+      filesSearched,
+      skippedDirs,
+      skippedLargeDumps,
+      truncated
+    };
   }
 
-  function edit(args) {
-    const hasTarget = args.target !== undefined;
-    const hasContent = args.content !== undefined;
-    if (hasTarget && hasContent) throw Error('Specify either target+replacement or content, not both');
-    if (!hasTarget && !hasContent) throw Error('Specify target+replacement for surgical edit or content to write a file');
-
-    const { resolved, relative } = resolveAllowed(args.path, { allowMissing: hasContent, blockGitInternal: true });
-
-    let nextContent;
-    let mode;
-    let replacements = 0;
-
-    if (hasTarget) {
-      if (typeof args.target !== 'string' || !args.target.length) throw Error('Non-empty target text is required');
-      if (typeof args.replacement !== 'string') throw Error('replacement string is required with target');
-      const st = fs.lstatSync(resolved);
-      if (!st.isFile()) throw Error('Target path is not a regular file');
-      const current = fs.readFileSync(resolved, 'utf8');
-      const count = current.split(args.target).length - 1;
-      if (count === 0) throw Error('Target text not found in file: ' + relative);
-      if (count > 1 && !args.replaceAll) {
-        throw Error(`Target text matched ${count} times in ${relative}; provide more context or set replaceAll: true`);
-      }
-      nextContent = args.replaceAll
-        ? current.split(args.target).join(args.replacement)
-        : current.replace(args.target, args.replacement);
-      replacements = args.replaceAll ? count : 1;
-      mode = 'edit';
-    } else {
-      if (typeof args.content !== 'string') throw Error('content must be a string');
-      if (Buffer.byteLength(args.content, 'utf8') > MAX_WRITE_BYTES) throw Error('File write exceeds 256 KB limit');
-      fs.mkdirSync(path.dirname(resolved), { recursive: true });
-      if (fs.existsSync(resolved) && fs.lstatSync(resolved).isSymbolicLink()) {
-        throw Error('Symlinks are refused in workspace tools');
-      }
-      nextContent = args.content;
-      mode = 'write';
+  function edit(args = {}) {
+    const isBatch = Array.isArray(args.edits);
+    const items = isBatch ? args.edits : [args];
+    if (isBatch && (items.length < 1 || items.length > MAX_EDIT_BATCH)) {
+      throw Error(`edits must be an array of 1..${MAX_EDIT_BATCH} file edits`);
     }
 
-    if (Buffer.byteLength(nextContent, 'utf8') > MAX_WRITE_BYTES) throw Error('Resulting file exceeds 256 KB limit');
-    const tmp = `${resolved}.tmp-${process.pid}-${crypto.randomUUID()}`;
+    // Phase 1: Validate ALL edits in memory BEFORE touching disk (atomic all-or-nothing)
+    const fileStates = new Map();
+    const editPlans = [];
+
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      if (!item || typeof item !== 'object') {
+        throw Error(`edits[${idx}] must be an object`);
+      }
+      const hasTarget = item.target !== undefined;
+      const hasContent = item.content !== undefined;
+      if (hasTarget && hasContent) {
+        throw Error('Specify either target+replacement or content, not both');
+      }
+      if (!hasTarget && !hasContent) {
+        throw Error('Specify target+replacement for surgical edit or content to write a file');
+      }
+
+      const { resolved, relative } = resolveAllowed(item.path, {
+        allowMissing: hasContent,
+        blockGitInternal: true
+      });
+
+      let state = fileStates.get(resolved);
+      if (!state) {
+        const existed = fs.existsSync(resolved);
+        let originalBuf = null;
+        if (existed) {
+          const st = fs.lstatSync(resolved);
+          if (st.isSymbolicLink()) throw Error('Symlinks are refused in workspace tools');
+          if (!st.isFile()) throw Error('Target path is not a regular file');
+          originalBuf = fs.readFileSync(resolved);
+        }
+        state = {
+          resolved,
+          relative,
+          existed,
+          originalBuf,
+          content: existed ? originalBuf.toString('utf8') : null,
+          airGapSurfaceWarning: /(?:^|\/)verifier\//i.test(relative)
+        };
+        fileStates.set(resolved, state);
+      }
+
+      let nextContent;
+      let mode;
+      let replacements = 0;
+
+      if (hasTarget) {
+        if (typeof item.target !== 'string' || !item.target.length) {
+          throw Error('Non-empty target text is required');
+        }
+        if (typeof item.replacement !== 'string') {
+          throw Error('replacement string is required with target');
+        }
+        if (state.content === null) {
+          throw Error('Path does not exist: ' + relative);
+        }
+        const current = state.content;
+        const count = current.split(item.target).length - 1;
+        if (count === 0) {
+          throw Error('Target text not found in file: ' + relative);
+        }
+        if (count > 1 && !item.replaceAll) {
+          throw Error(`Target text matched ${count} times in ${relative}; provide more context or set replaceAll: true`);
+        }
+        nextContent = item.replaceAll
+          ? current.split(item.target).join(item.replacement)
+          : current.replace(item.target, item.replacement);
+        replacements = item.replaceAll ? count : 1;
+        mode = 'edit';
+      } else {
+        if (typeof item.content !== 'string') {
+          throw Error('content must be a string');
+        }
+        if (Buffer.byteLength(item.content, 'utf8') > MAX_WRITE_BYTES) {
+          throw Error('File write exceeds 256 KB limit');
+        }
+        nextContent = item.content;
+        mode = 'write';
+      }
+
+      const nextBytes = Buffer.byteLength(nextContent, 'utf8');
+      if (nextBytes > MAX_WRITE_BYTES) {
+        throw Error('Resulting file exceeds 256 KB limit');
+      }
+
+      // Enforce Generator <-> Verifier air-gap cross-import rules BEFORE any disk writes
+      assertNoAirGapCrossImport(relative, nextContent);
+
+      state.content = nextContent;
+      editPlans.push({
+        resolved,
+        path: relative,
+        mode,
+        replacements,
+        bytes: nextBytes,
+        sha256: crypto.createHash('sha256').update(nextContent, 'utf8').digest('hex'),
+        airGapSurfaceWarning: state.airGapSurfaceWarning
+      });
+    }
+
+    // Phase 2: Write per-file .tmp files, then commit renames with rollback on failure
+    const uniqueStates = Array.from(fileStates.values());
+    const tmpFiles = [];
+    const committed = [];
+
     try {
-      fs.writeFileSync(tmp, nextContent, 'utf8');
-      fs.renameSync(tmp, resolved);
+      for (const state of uniqueStates) {
+        fs.mkdirSync(path.dirname(state.resolved), { recursive: true });
+        if (fs.existsSync(state.resolved) && fs.lstatSync(state.resolved).isSymbolicLink()) {
+          throw Error('Symlinks are refused in workspace tools');
+        }
+        const tmpPath = `${state.resolved}.tmp-${process.pid}-${crypto.randomUUID()}`;
+        fs.writeFileSync(tmpPath, state.content, 'utf8');
+        tmpFiles.push({ state, tmpPath });
+      }
+
+      for (const { state, tmpPath } of tmpFiles) {
+        fs.renameSync(tmpPath, state.resolved);
+        committed.push(state);
+      }
+    } catch (commitErr) {
+      // Roll back any already-committed files so partial edits never happen
+      for (const state of committed) {
+        try {
+          if (state.existed && state.originalBuf !== null) {
+            fs.writeFileSync(state.resolved, state.originalBuf);
+          } else if (fs.existsSync(state.resolved)) {
+            fs.unlinkSync(state.resolved);
+          }
+        } catch {}
+      }
+      throw commitErr;
     } finally {
-      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      for (const { tmpPath } of tmpFiles) {
+        try {
+          if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+        } catch {}
+      }
     }
-    const sha256 = crypto.createHash('sha256').update(nextContent, 'utf8').digest('hex');
-    const airGapSurfaceWarning = /(?:^|\/)verifier\//i.test(relative);
+
+    if (!isBatch) {
+      const p = editPlans[0];
+      return {
+        ok: true,
+        path: p.path,
+        mode: p.mode,
+        replacements: p.replacements,
+        bytes: p.bytes,
+        sha256: p.sha256,
+        ...(p.airGapSurfaceWarning ? { airGapSurfaceWarning: true } : {})
+      };
+    }
+
+    const totalBytes = uniqueStates.reduce((sum, s) => sum + Buffer.byteLength(s.content, 'utf8'), 0);
+    const anyAirGapWarning = uniqueStates.some(s => s.airGapSurfaceWarning);
     return {
       ok: true,
-      path: relative,
-      mode,
-      replacements,
-      bytes: Buffer.byteLength(nextContent, 'utf8'),
-      sha256,
-      ...(airGapSurfaceWarning ? { airGapSurfaceWarning: true } : {})
+      atomic: true,
+      count: editPlans.length,
+      filesModified: uniqueStates.length,
+      totalBytes,
+      edits: editPlans.map(({ resolved: _r, ...rest }) => rest),
+      ...(anyAirGapWarning ? { airGapSurfaceWarning: true } : {})
     };
   }
 
@@ -383,12 +869,14 @@ export function createWorkspaceTools({ projectRoot, scratchDir, ecosystem = 'ant
     resolveAllowed,
     list,
     read,
+    readBatch,
     search,
     edit,
     runCommand,
     async execute(operation, args = {}) {
       if (operation === 'workspace.list') return list(args);
       if (operation === 'workspace.read') return read(args);
+      if (operation === 'workspace.read_batch') return readBatch(args);
       if (operation === 'workspace.search') return search(args);
       if (operation === 'workspace.edit') return edit(args);
       if (operation === 'workspace.run_command') return runCommand(args);

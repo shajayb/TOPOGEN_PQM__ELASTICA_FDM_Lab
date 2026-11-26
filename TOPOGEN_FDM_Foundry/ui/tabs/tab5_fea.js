@@ -104,7 +104,14 @@ export function mountTab5Fea() {
             <!-- Coupled Elastica Rods: Bracing, Post-Tensioning & Active-Bending -->
             <div class="bg-gray-950/85 border border-gray-800 rounded p-1.5 space-y-1.5 font-sans">
                 <div class="flex items-center justify-between">
-                    <label class="flex items-center space-x-1.5 cursor-pointer text-[9.5px] font-semibold text-cyan-300" title="Couple 3D curved Elastica rods into the space-frame stiffness matrix with post-tensioning &amp; active-bending springback">
+                    <label class="flex items-center space-x-1.5 cursor-pointer text-[9.5px] font-semibold text-amber-300" title="Exclude Host Graph — Solve 3D FEA on Elastica rods only, omitting space-frame graph members.">
+                        <input type="checkbox" id="chk-fea-exclude-graph" class="accent-amber-400 rounded">
+                        <span>Exclude Graph from FEA</span>
+                    </label>
+                    <span id="fea-graph-badge" class="text-[8.5px] font-mono text-gray-400">Included</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center space-x-1.5 cursor-pointer text-[9.5px] font-semibold text-cyan-300" title="Coupled Elastica — Add curved rods and prestress into frame analysis.">
                         <input type="checkbox" id="chk-fea-include-elastica" class="accent-cyan-400 rounded">
                         <span>Include Elastica Rods</span>
                     </label>
@@ -125,7 +132,7 @@ export function mountTab5Fea() {
                         <input type="range" id="rng-fea-elastica-prestress" min="-100" max="250" step="5" value="15" class="flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-amber-400">
                         <span id="val-fea-elastica-prestress" class="w-12 text-right text-amber-300 flex-shrink-0">+15N</span>
                     </div>
-                    <label class="flex items-center space-x-1.5 cursor-pointer text-[8.5px] font-sans text-gray-300" title="Include cold-bent straightening thrust &amp; bending stress M0 = E*I*kappa (sensitive to Rod R^4)">
+                    <label class="flex items-center space-x-1.5 cursor-pointer text-[8.5px] font-sans text-gray-300" title="Cold-Bent Springback — Include active-bending straightening moments in rods.">
                         <input type="checkbox" id="chk-fea-elastica-activebend" class="accent-pink-500 rounded">
                         <span>Cold-Bent Springback (M₀ = EIκ)</span>
                     </label>
@@ -163,7 +170,7 @@ export function mountTab5Fea() {
             </div>
 
             <div class="flex items-center justify-between gap-2 text-[9.5px] text-gray-300 pt-0.5">
-                <button type="button" id="btn-fea-animate" class="cad-btn cyan flex-1 py-1 font-sans flex items-center justify-center gap-1" aria-pressed="false" title="Harmonic breathing oscillation between undeformed ghost frame and exaggerated deflected shape">
+                <button type="button" id="btn-fea-animate" class="cad-btn cyan flex-1 py-1 font-sans flex items-center justify-center gap-1" aria-pressed="false" title="Animate Deflection — Oscillate between undeformed frame and deflected shape.">
                     <span id="lbl-fea-animate">▶ Animate Deflection</span>
                 </button>
                 <input type="checkbox" id="chk-fea-animate" class="hidden" aria-hidden="true">
@@ -251,7 +258,7 @@ export function updateExaggerationBadgeUI() {
         const uMm = Number(lastFEAResult.maxDispMm || 0);
         const uTxt = uMm > 0 && uMm < 0.1 ? uMm.toFixed(3) : uMm.toFixed(2);
         lbl.textContent = `${raw}× (auto-vis)`;
-        lbl.title = `True max |u| = ${uTxt} mm · Boosted visual scale = ${Math.round(eff)}× (~${((lastFEAResult.maxDispM * eff) * 1000).toFixed(0)} mm visual amplitude)`;
+        lbl.title = `Deflection Scale — Peak ${uTxt} mm shown at ${Math.round(eff)}× visual scale.`;
     } else {
         lbl.textContent = `${raw}×`;
         lbl.title = `True deflection exaggeration: ${raw}×`;
@@ -261,7 +268,7 @@ export function updateExaggerationBadgeUI() {
 export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appState.feaState.exaggeration)) {
     const assets = ensureFea3DAssets();
     clearGroup(viewport.feaGroup);
-    const { lastFEAResult, feaState, tubeState } = appState;
+    const { lastFEAResult, feaState, tubeState, elasticaState } = appState;
     const feaSrc = (lastFEAResult && lastFEAResult._sourceGraph) || (actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null);
     if (!lastFEAResult || !feaSrc) return;
 
@@ -346,7 +353,10 @@ export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appS
     }
 
     const nSides = 8;
-    const rVis = Math.max(0.014, tubeState.radius);
+    const isElasticaOnly = Boolean(feaState.excludeGraph && feaState.includeElastica);
+    const rVis = isElasticaOnly
+        ? Math.max(0.006, (elasticaState?.rodRadius || 0.015))
+        : Math.max(0.014, tubeState.radius);
     const triPos = [], triCol = [];
     const cU = new THREE.Color(), cV = new THREE.Color();
     const upRef = new THREE.Vector3(0, 0, 1), altRef = new THREE.Vector3(1, 0, 0);
@@ -397,6 +407,10 @@ export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appS
     const nHostNodes = feaSrc.hostNodeCount !== undefined ? feaSrc.hostNodeCount : defVerts.length;
     const nodeMult = appState.nodeDisplayScale || 1.0;
     const jRad = rVis * 1.18 * nodeMult;
+    const deg = isElasticaOnly ? new Int32Array(defVerts.length) : null;
+    if (deg) {
+        for (const [u, v] of edges) { deg[u]++; deg[v]++; }
+    }
     const maxDispRef = Math.max(1e-8, lastFEAResult.maxDispM || 1e-4);
     for (let i = 0; i < nHostNodes; i++) {
         if (anchorSet.has(i)) {
@@ -404,7 +418,7 @@ export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appS
             cone.scale.setScalar(rVis * nodeMult);
             cone.position.set(defVerts[i].x, defVerts[i].y, defVerts[i].z - rVis * nodeMult * 1.5);
             viewport.feaGroup.add(cone);
-        } else {
+        } else if (!deg || deg[i] !== 2) {
             const dMag = Math.hypot(disps[i][0], disps[i][1], disps[i][2]);
             sampleContourColor('deflection', dMag, 0, maxDispRef, _feaTmpColor);
             let jMat = feaJointMatPool[i];
@@ -490,7 +504,7 @@ export function updateFEAScorecardUI(res) {
 }
 
 export function runSpaceFrameFEAFromUI(opts = {}) {
-    if (appState.fdmState.triggerOnHost && !appState.lastFDMResult && actions.runFDMOnActiveGraph) {
+    if (!appState.feaState.excludeGraph && appState.fdmState.triggerOnHost && !appState.lastFDMResult && actions.runFDMOnActiveGraph) {
         actions.runFDMOnActiveGraph({ skipAutoSolidify: true, keepCamera: true });
     }
     let feaSrc = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
@@ -506,12 +520,19 @@ export function runSpaceFrameFEAFromUI(opts = {}) {
 
     let solveVerts = feaSrc.vertices;
     let solveEdges = feaSrc.edges;
+    let solveAnchors = feaSrc.anchors;
     let edgeSpecs = null;
     let nodalSelfStressPairs = null;
     let hostNodeCount = feaSrc.vertices.length;
     let coupledRods = 0;
 
-    if (feaState.includeElastica) {
+    if (feaState.excludeGraph && !feaState.includeElastica) {
+        feaState.includeElastica = true;
+        const chkEl = $('chk-fea-include-elastica');
+        if (chkEl) chkEl.checked = true;
+    }
+
+    if (feaState.includeElastica || feaState.excludeGraph) {
         if ((!appState.lastElasticaData || !appState.lastElasticaData.curves?.length) && actions.generateElasticaFromUI) {
             actions.generateElasticaFromUI();
         }
@@ -520,8 +541,10 @@ export function runSpaceFrameFEAFromUI(opts = {}) {
             ? mat
             : (FEA_MATERIALS[feaState.elasticaMaterialKey] || FEA_MATERIALS.gfrp_rod);
         const hybrid = CORE.buildHybridGraphWithElastica(feaSrc.vertices, feaSrc.edges, curves, {
-            maxRods: 64,
-            segsPerRod: 8,
+            includeHostGraph: !feaState.excludeGraph,
+            hostAnchors: feaSrc.anchors,
+            maxRods: Math.max(64, curves.length),
+            segsPerRod: feaState.excludeGraph ? (curves.length > 300 ? 8 : 12) : (curves.length > 300 ? 6 : 8),
             rodRadiusM: elasticaState ? elasticaState.rodRadius : 0.015,
             rodMaterial: rodMat,
             prestressForceN: Number(feaState.elasticaPrestressN || 0),
@@ -533,6 +556,21 @@ export function runSpaceFrameFEAFromUI(opts = {}) {
         nodalSelfStressPairs = hybrid.nodalSelfStressPairs;
         hostNodeCount = hybrid.hostNodeCount;
         coupledRods = hybrid.coupledRodCount;
+        if (feaState.excludeGraph) {
+            if (Array.isArray(hybrid.recommendedAnchors) && hybrid.recommendedAnchors.length > 0) {
+                solveAnchors = hybrid.recommendedAnchors;
+            } else if (hybrid.hostNodeMap) {
+                solveAnchors = (feaSrc.anchors || [])
+                    .map(ai => hybrid.hostNodeMap.get(ai))
+                    .filter(ni => ni !== undefined && ni >= 0);
+            }
+        }
+    }
+
+    const graphBadge = $('fea-graph-badge');
+    if (graphBadge) {
+        graphBadge.textContent = feaState.excludeGraph ? 'Excluded (Rods Only · Stabilized)' : 'Included';
+        graphBadge.className = `text-[8.5px] font-mono ${feaState.excludeGraph ? 'text-amber-300' : 'text-gray-400'}`;
     }
 
     const elBadge = $('fea-elastica-badge');
@@ -546,6 +584,8 @@ export function runSpaceFrameFEAFromUI(opts = {}) {
     const loadConfig = {
         distributedVerticalMassKg: feaState.topLoadKg,
         restraintType: feaState.restraintType,
+        ensureComponentFixity: Boolean(feaState.excludeGraph),
+        fixAllComponentRotations: Boolean(feaState.excludeGraph),
         topZoneFractionZ: 0.20,
         includeSelfWeight: true,
         edgeSpecs,
@@ -557,10 +597,11 @@ export function runSpaceFrameFEAFromUI(opts = {}) {
         ...feaSrc,
         vertices: solveVerts,
         edges: solveEdges,
+        anchors: solveAnchors,
         hostNodeCount
     };
 
-    appState.lastFEAResult = CORE.analyzeSpaceFrameFEA(solveVerts, solveEdges, feaSrc.anchors, sectionParams, mat, loadConfig);
+    appState.lastFEAResult = CORE.analyzeSpaceFrameFEA(solveVerts, solveEdges, solveAnchors, sectionParams, mat, loadConfig);
     if (appState.lastFEAResult) {
         appState.lastFEAResult._sourceGraph = solveGraph;
         appState.lastFEAResult.coupledRodCount = coupledRods;
@@ -584,7 +625,9 @@ export function setFEAAnimation(on) {
     appState.feaState.animPhase = 0;
     const chkFeaAnim = $('chk-fea-animate');
     const btnFeaAnim = $('btn-fea-animate');
-    if (chkFeaAnim) chkFeaAnim.checked = wantOn;
+    if (chkFeaAnim && chkFeaAnim.checked !== wantOn) {
+        chkFeaAnim.checked = wantOn;
+    }
     if (btnFeaAnim) {
         btnFeaAnim.classList.toggle('seg-on', wantOn);
         btnFeaAnim.classList.toggle('cyan', !wantOn);
@@ -593,6 +636,46 @@ export function setFEAAnimation(on) {
     setTxt('lbl-fea-animate', wantOn ? '⏸ Animating...' : '▶ Animate Deflection');
     if (!wantOn && appState.lastFEAResult) renderFEAResults3D(computeEffectiveExaggeration(appState.feaState.exaggeration));
     return appState.feaState.animate;
+}
+
+export function setFEADeflectionScale(scale) {
+    const parsed = Number(scale);
+    if (!Number.isFinite(parsed) || parsed <= 0) return appState.feaState.exaggeration;
+    const clamped = Math.max(1, Math.min(200, Math.round(parsed)));
+    appState.feaState.exaggeration = clamped;
+    const rngExag = $('rng-fea-exag');
+    if (rngExag) {
+        rngExag.value = String(clamped);
+    }
+    updateExaggerationBadgeUI();
+    if (appState.lastFEAResult && !appState.feaState.animate) {
+        renderFEAResults3D(computeEffectiveExaggeration(appState.feaState.exaggeration));
+    }
+    return appState.feaState.exaggeration;
+}
+
+export function setFEALoadCase(loadCase) {
+    const normalized = String(loadCase || '').trim();
+    if (!normalized) return appState.feaState.loadCase || null;
+    appState.feaState.loadCase = normalized;
+    const lower = normalized.toLowerCase();
+    const loadPresets = {
+        self_weight: 0,
+        dead: 0,
+        service: 25,
+        standard: 25,
+        heavy: 100,
+        ultimate: 150,
+    };
+    if (Object.prototype.hasOwnProperty.call(loadPresets, lower)) {
+        const kg = loadPresets[lower];
+        appState.feaState.topLoadKg = kg;
+        const rngLoad = $('rng-fea-load-kg');
+        const numLoad = $('num-fea-load-kg');
+        if (rngLoad) rngLoad.value = String(Math.min(500, kg));
+        if (numLoad) numLoad.value = String(kg);
+    }
+    return appState.feaState.loadCase;
 }
 
 export function tickFEAAnimation(dt) {
@@ -647,6 +730,18 @@ export function initTab5Fea() {
         });
     });
 
+    const chkFeaExcludeGraph = $('chk-fea-exclude-graph');
+    if (chkFeaExcludeGraph) {
+        chkFeaExcludeGraph.addEventListener('change', () => {
+            appState.feaState.excludeGraph = chkFeaExcludeGraph.checked;
+            if (appState.feaState.excludeGraph && !appState.feaState.includeElastica) {
+                appState.feaState.includeElastica = true;
+                const chkEl = $('chk-fea-include-elastica');
+                if (chkEl) chkEl.checked = true;
+            }
+            runSpaceFrameFEAFromUI();
+        });
+    }
     const chkFeaElastica = $('chk-fea-include-elastica');
     if (chkFeaElastica) {
         chkFeaElastica.addEventListener('change', () => {
@@ -693,11 +788,13 @@ export function initTab5Fea() {
 
     const rngExag = $('rng-fea-exag');
     if (rngExag) {
-        rngExag.addEventListener('input', () => {
+        const onExagChange = () => {
             appState.feaState.exaggeration = parseFloat(rngExag.value) || 1;
             updateExaggerationBadgeUI();
             if (appState.lastFEAResult && !appState.feaState.animate) renderFEAResults3D(computeEffectiveExaggeration(appState.feaState.exaggeration));
-        });
+        };
+        rngExag.addEventListener('input', onExagChange);
+        rngExag.addEventListener('change', onExagChange);
     }
 
     const btnFeaAnim = $('btn-fea-animate'), chkFeaAnim = $('chk-fea-animate');
@@ -712,4 +809,12 @@ export function initTab5Fea() {
         });
     }
     actions.renderFEAResults3D = renderFEAResults3D;
+    actions.setFEADeflectionScale = setFEADeflectionScale;
+    actions.setFEALoadCase = setFEALoadCase;
+    appState._feaApi = {
+        setFEAAnimation,
+        setFEADeflectionScale,
+        setFEALoadCase,
+        runSpaceFrameFEAFromUI,
+    };
 }

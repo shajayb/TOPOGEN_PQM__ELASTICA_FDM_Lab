@@ -858,10 +858,198 @@ export function buildElasticaRibbonsSVG(curves, options = {}) {
  *   3. Self-equilibrated active-bending straightening moments M0 = E_rod * I_rod * kappa_0.
  */
 export function buildHybridGraphWithElastica(hostVertices, hostEdges, elasticaCurves, options = {}) {
-    const verts = hostVertices.map(v => {
+    const includeHostGraph = options.includeHostGraph !== false;
+    const rawHostVerts = (hostVertices || []).map(v => {
         const p = toV3(v);
         return [p.x, p.y, p.z];
     });
+
+    if (!includeHostGraph) {
+        if (!Array.isArray(elasticaCurves) || elasticaCurves.length === 0) {
+            return { vertices: [], edges: [], edgeSpecs: [], nodalSelfStressPairs: [], hostNodeCount: 0, hostEdgeCount: 0, elasticaEdgeCount: 0, coupledRodCount: 0, hostNodeMap: new Map(), recommendedAnchors: [] };
+        }
+        const maxRods = Math.max(1, Math.round(options.maxRods || elasticaCurves.length));
+        const segsPerRod = Math.max(4, Math.round(options.segsPerRod || 12));
+        const rodRadiusM = Math.max(0.002, Number(options.rodRadiusM || 0.015));
+        const rodMat = options.rodMaterial || {
+            youngsModulusPa: 7.5e9,
+            shearModulusPa: 3.0e9,
+            densityKgM3: 1450,
+            tensileStrengthPa: 65.0e6,
+            compressiveStrengthPa: 90.0e6
+        };
+        const prestressForceN = Number(options.prestressForceN || 0);
+        const activeBendFactor = Number(options.activeBendFactor !== undefined ? options.activeBendFactor : 1.0);
+        const weldTol = options.weldTolM !== undefined ? Math.max(1e-5, Number(options.weldTolM)) : 0.005;
+        const weldTolSq = weldTol * weldTol;
+
+        const verts = [];
+        const edges = [];
+        const edgeSpecs = [];
+        const nodalSelfStressPairs = [];
+        let coupledRodCount = 0;
+
+        const findOrAddWeldedVert = (pt) => {
+            let bestIdx = -1;
+            let bestD2 = weldTolSq;
+            for (let vi = 0; vi < verts.length; vi++) {
+                const vv = verts[vi];
+                const dx = vv[0] - pt.x, dy = vv[1] - pt.y, dz = vv[2] - pt.z;
+                const d2 = dx * dx + dy * dy + dz * dz;
+                if (d2 <= bestD2) {
+                    bestD2 = d2;
+                    bestIdx = vi;
+                }
+            }
+            if (bestIdx !== -1) return bestIdx;
+            const ni = verts.length;
+            verts.push([pt.x, pt.y, pt.z]);
+            return ni;
+        };
+
+        const curvesToUse = elasticaCurves.slice(0, maxRods);
+        for (const c of curvesToUse) {
+            if (!c || !c.points || c.points.length < 2) continue;
+            const sampled = resampleUniformArcLength(c.points.map(p => toV3(p)), segsPerRod + 1);
+            const m = sampled.length;
+            if (m < 2) continue;
+
+            const rActual = c.rod && c.rod.radius ? c.rod.radius : rodRadiusM;
+            const Irod = 0.25 * Math.PI * Math.pow(rActual, 4);
+
+            const stationKappa = new Float64Array(m);
+            let bendEnergy = 0;
+            let arcLen = 0;
+            for (let i = 0; i < m - 1; i++) arcLen += sampled[i].distanceTo(sampled[i + 1]);
+            for (let i = 1; i < m - 1; i++) {
+                const e0 = new V3().subVectors(sampled[i], sampled[i - 1]);
+                const e1 = new V3().subVectors(sampled[i + 1], sampled[i]);
+                const l0 = e0.length(), l1 = e1.length();
+                const ds = 0.5 * (l0 + l1);
+                const denom = l0 * l1 + e0.dot(e1);
+                if (ds > 1e-7 && denom > 1e-10) {
+                    const cross = new V3().crossVectors(e0, e1).length();
+                    const kap = (2.0 * cross) / (denom * ds);
+                    stationKappa[i] = kap;
+                    bendEnergy += 0.5 * rodMat.youngsModulusPa * Irod * kap * kap * ds;
+                }
+            }
+            stationKappa[0] = stationKappa[1];
+            stationKappa[m - 1] = stationKappa[m - 2];
+
+            const nodeIds = new Int32Array(m);
+            for (let i = 0; i < m; i++) {
+                nodeIds[i] = findOrAddWeldedVert(sampled[i]);
+            }
+            if (nodeIds[0] === nodeIds[m - 1]) continue;
+
+            let addedSeg = false;
+            for (let i = 0; i < m - 1; i++) {
+                const u = nodeIds[i], v = nodeIds[i + 1];
+                if (u === v) continue;
+                const pu = verts[u], pv = verts[v];
+                if (Math.hypot(pv[0] - pu[0], pv[1] - pu[1], pv[2] - pu[2]) < 1e-5) continue;
+
+                const kappaAvg = 0.5 * (stationKappa[i] + stationKappa[i + 1]);
+                edges.push([u, v]);
+                edgeSpecs.push({
+                    isElastica: true,
+                    outerRadiusM: rActual,
+                    innerRadiusM: 0,
+                    youngsModulusPa: rodMat.youngsModulusPa,
+                    shearModulusPa: rodMat.shearModulusPa,
+                    densityKgM3: rodMat.densityKgM3,
+                    tensileStrengthPa: rodMat.tensileStrengthPa,
+                    compressiveStrengthPa: rodMat.compressiveStrengthPa,
+                    initialBendStressPa: activeBendFactor > 0 ? (activeBendFactor * rodMat.youngsModulusPa * rActual * kappaAvg) : 0
+                });
+                addedSeg = true;
+            }
+
+            if (addedSeg) {
+                coupledRodCount++;
+                const uEnd = nodeIds[0], vEnd = nodeIds[m - 1];
+                const pA = verts[uEnd], pB = verts[vEnd];
+                const chordLen = Math.hypot(pB[0] - pA[0], pB[1] - pA[1], pB[2] - pA[2]);
+                if (chordLen > 1e-5) {
+                    const slack = Math.max(0.05 * chordLen, arcLen - chordLen);
+                    const eulerChord = (Math.PI * Math.PI * rodMat.youngsModulusPa * Irod) / (chordLen * chordLen);
+                    const activeBendThrustN = activeBendFactor > 0
+                        ? activeBendFactor * Math.min(0.35 * eulerChord, bendEnergy / Math.max(1e-4, slack))
+                        : 0;
+                    const netPullN = prestressForceN - activeBendThrustN;
+                    if (Math.abs(netPullN) > 1e-6) {
+                        nodalSelfStressPairs.push({ u: uEnd, v: vEnd, pullForceN: netPullN });
+                    }
+                }
+            }
+        }
+
+        const nVerts = verts.length;
+        const parent = Int32Array.from({ length: nVerts }, (_, i) => i);
+        const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+        for (const [u, v] of edges) {
+            const ru = find(u), rv = find(v);
+            if (ru !== rv) parent[ru] = rv;
+        }
+        const hostAnchorPts = (Array.isArray(options.hostAnchors) ? options.hostAnchors : [])
+            .filter(ai => ai >= 0 && ai < rawHostVerts.length)
+            .map(ai => rawHostVerts[ai]);
+        const matchedHostAnchors = new Set();
+        for (const hp of hostAnchorPts) {
+            for (let vi = 0; vi < nVerts; vi++) {
+                const vv = verts[vi];
+                const dx = vv[0] - hp[0], dy = vv[1] - hp[1], dz = vv[2] - hp[2];
+                if (dx * dx + dy * dy + dz * dz <= 0.02 * 0.02) matchedHostAnchors.add(vi);
+            }
+        }
+        const compNodes = new Map();
+        for (let i = 0; i < nVerts; i++) {
+            const r = find(i);
+            if (!compNodes.has(r)) compNodes.set(r, []);
+            compNodes.get(r).push(i);
+        }
+        const recommendedAnchors = [];
+        for (const nodes of compNodes.values()) {
+            const existing = nodes.filter(ni => matchedHostAnchors.has(ni));
+            if (existing.length >= 3) {
+                recommendedAnchors.push(...existing);
+                continue;
+            }
+            let zMin = Infinity, zMax = -Infinity;
+            for (const ni of nodes) {
+                const z = verts[ni][2];
+                if (z < zMin) zMin = z;
+                if (z > zMax) zMax = z;
+            }
+            const tol = Math.max(0.03, 0.03 * (zMax - zMin));
+            const sorted = [...nodes].sort((a, b) => verts[a][2] - verts[b][2]);
+            const chosen = [...existing];
+            for (const ni of sorted) {
+                if (chosen.length >= 3 && verts[ni][2] > zMin + tol) break;
+                if (!chosen.includes(ni) && (chosen.length === 0 || verts[ni][2] <= zMin + tol || chosen.length < 3)) {
+                    chosen.push(ni);
+                }
+                if (chosen.length >= 6) break;
+            }
+            recommendedAnchors.push(...chosen);
+        }
+
+        return {
+            vertices: verts,
+            edges,
+            edgeSpecs,
+            nodalSelfStressPairs,
+            hostNodeCount: verts.length,
+            hostEdgeCount: 0,
+            elasticaEdgeCount: edges.length,
+            coupledRodCount,
+            hostNodeMap: new Map(),
+            recommendedAnchors
+        };
+    }
+
+    const verts = rawHostVerts;
     const nHostNodes = verts.length;
     const edges = hostEdges.map(e => [e[0], e[1]]);
     const edgeSpecs = edges.map(() => null);

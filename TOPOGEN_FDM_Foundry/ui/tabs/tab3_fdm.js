@@ -44,7 +44,7 @@ export function mountTab3Fdm() {
             <p class="goldilocks-guide-prose text-[9.5px] text-gray-400 leading-snug">
                 Inspect or form-find your 2. Topo network directly, or load a structural preset below.
             </p>
-            <button data-tile-preset="active_topo" class="tile-preset-btn cad-btn cyan seg-on w-full py-1.5 px-2 flex items-center justify-between text-[9.5px]" title="Use the active 2. Topo welded network as the host network without overwriting tiles or voxel grid">
+            <button data-tile-preset="active_topo" class="tile-preset-btn cad-btn cyan seg-on w-full py-1.5 px-2 flex items-center justify-between text-[9.5px]" title="Host Network — Form-find active Topo network without resetting grid.">
                 <span class="font-semibold">⬡ Use Topo Gen Network</span>
                 <span id="active-topo-graph-badge" class="font-mono text-[8.5px] px-1.5 py-0.5 rounded bg-gray-950/80 border border-cyan-500/30 text-cyan-300">Active Graph</span>
             </button>

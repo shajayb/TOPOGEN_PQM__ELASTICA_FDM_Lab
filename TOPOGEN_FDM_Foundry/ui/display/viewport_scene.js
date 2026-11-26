@@ -52,11 +52,101 @@ export const viewport = {
     substepGroup: null,
     sketchGroup: null,
     cvGroup: null,
-    fatMaterials: []
+    fatMaterials: [],
+    requestRender: null,
+    setBusy: null
 };
 
 export const sharedMaterials = {};
 export const sharedGeometries = {};
+
+// --- On-Demand / Visibility-Gated Render Scheduler (REV-B05-01) ---
+let _dirtyFrames = 15;
+let _rafId = null;
+let _loopStarted = false;
+let _renderClock = null;
+
+function needsContinuousRender() {
+    return Boolean(
+        appState.camTween ||
+        (viewport.tControls && viewport.tControls.dragging) ||
+        (typeof actions.isFEAAnimating === 'function' && actions.isFEAAnimating()) ||
+        appState.feaAnimating ||
+        (appState.feaState && appState.feaState.animate) ||
+        appState.simRunning
+    );
+}
+
+function _renderTick() {
+    _rafId = null;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    if (!viewport.renderer || !viewport.scene || !viewport.camera) return;
+
+    const dt = _renderClock ? Math.min(_renderClock.getDelta(), 0.1) : (1 / 60);
+    const updateActive = actions.update ? Boolean(actions.update(dt)) : false;
+    if (actions.tickFEAAnimation) actions.tickFEAAnimation(dt);
+    updateCamTween(dt);
+    if (viewport.controls) viewport.controls.update();
+    renderFrame();
+    drawOverlay();
+
+    if (_dirtyFrames > 0) _dirtyFrames--;
+    if (_dirtyFrames > 0 || updateActive || needsContinuousRender()) {
+        _rafId = requestAnimationFrame(_renderTick);
+    }
+}
+
+export function requestRender(frames = 15) {
+    const n = Math.max(1, Math.round(Number(frames) || 1));
+    if (n > _dirtyFrames) _dirtyFrames = n;
+    if (!_loopStarted) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    if (_rafId === null) {
+        if (_renderClock) _renderClock.getDelta(); // reset idle dt spike
+        _rafId = requestAnimationFrame(_renderTick);
+    }
+}
+
+export function setBusy(label) {
+    if (typeof document === 'undefined') return;
+    let pill = document.getElementById('workbench-busy-pill');
+    const text = label ? String(label).trim() : '';
+    if (!text) {
+        if (pill) pill.classList.add('hidden');
+        return;
+    }
+    if (!pill) {
+        pill = document.createElement('div');
+        pill.id = 'workbench-busy-pill';
+        pill.className = 'workbench-busy-pill';
+        pill.setAttribute('role', 'status');
+        pill.setAttribute('aria-live', 'polite');
+        pill.innerHTML = '<span class="workbench-busy-spinner" aria-hidden="true"></span><span class="workbench-busy-text"></span>';
+        document.body.appendChild(pill);
+    }
+    const textEl = pill.querySelector('.workbench-busy-text');
+    if (textEl) textEl.textContent = text;
+    pill.classList.remove('hidden');
+}
+
+viewport.requestRender = requestRender;
+viewport.setBusy = setBusy;
+
+function watchTruthyStateFlag(obj, prop, onTruthy) {
+    if (!obj || typeof obj !== 'object') return;
+    const desc = Object.getOwnPropertyDescriptor(obj, prop);
+    if (desc && !desc.configurable) return;
+    let val = obj[prop];
+    Object.defineProperty(obj, prop, {
+        configurable: true,
+        enumerable: true,
+        get() { return val; },
+        set(next) {
+            val = next;
+            if (next) onTruthy();
+        }
+    });
+}
 
 export const cssSize = () => ({ w: window.innerWidth, h: window.innerHeight });
 
@@ -102,6 +192,21 @@ export function makeFatLineSegments(positionsArray, material, colorsArray = null
 
 export function clearGroup(group) {
     if (!group) return;
+    const hadChildren = group.children.length > 0;
+    const disposeMaterialList = (matOrArr) => {
+        if (!matOrArr) return;
+        const mats = Array.isArray(matOrArr) ? matOrArr : [matOrArr];
+        for (const m of mats) {
+            if (m && m.userData && m.userData.disposeOnClear) {
+                m.dispose();
+                let idx = viewport.fatMaterials.indexOf(m);
+                while (idx !== -1) {
+                    viewport.fatMaterials.splice(idx, 1);
+                    idx = viewport.fatMaterials.indexOf(m);
+                }
+            }
+        }
+    };
     while (group.children.length > 0) {
         const child = group.children[0];
         if (child.line && child.cone && typeof child.dispose === 'function') {
@@ -116,27 +221,22 @@ export function clearGroup(group) {
                 ) {
                     obj.geometry.dispose();
                 }
-                if (obj.material) {
-                    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-                    for (const m of mats) {
-                        if (m && m.userData && m.userData.disposeOnClear) {
-                            m.dispose();
-                            const idx = viewport.fatMaterials.indexOf(m);
-                            if (idx !== -1) viewport.fatMaterials.splice(idx, 1);
-                        }
-                    }
-                }
+                disposeMaterialList(obj.material);
             });
-        } else if (
-            child.geometry &&
-            child.geometry !== sharedGeometries.pointSphere &&
-            child.geometry !== sharedGeometries.graphNode &&
-            !(child.geometry.userData && child.geometry.userData.shared)
-        ) {
-            child.geometry.dispose();
+        } else {
+            if (
+                child.geometry &&
+                child.geometry !== sharedGeometries.pointSphere &&
+                child.geometry !== sharedGeometries.graphNode &&
+                !(child.geometry.userData && child.geometry.userData.shared)
+            ) {
+                child.geometry.dispose();
+            }
+            disposeMaterialList(child.material);
         }
         group.remove(child);
     }
+    if (hadChildren) requestRender();
 }
 
 const smooth = x => x * x * (3 - 2 * x);
@@ -164,6 +264,7 @@ export function zoomToBox(boxWorld) {
     viewport.camera.position.copy(shiftedTarget).add(viewOffset);
     viewport.controls.target.copy(shiftedTarget);
     viewport.controls.update();
+    requestRender(15);
 }
 
 export function modelBoxToWorld(boxModel) {
@@ -257,6 +358,7 @@ export function recomputeModelBox() {
         modelBox.expandByPoint(new THREE.Vector3(halfX, halfY, GRID_Z * VOXEL_SIZE));
     }
     updateBoundingBox3D();
+    requestRender();
 }
 
 function fmtDimM(val) {
@@ -496,6 +598,7 @@ export function setArctic(on) {
         btnArctic.textContent = appState.arcticOn ? 'Arctic ✓' : 'Arctic';
         btnArctic.classList.toggle('seg-on', appState.arcticOn);
     }
+    requestRender();
 }
 
 // --- Curve Pool & Gizmo Helpers ---
@@ -860,6 +963,8 @@ export function initViewportScene() {
     viewport.controls = new OrbitControls(viewport.camera, viewport.renderer.domElement);
     viewport.controls.enableDamping = true;
     viewport.controls.dampingFactor = 0.05;
+    viewport.controls.addEventListener('change', () => requestRender(15));
+    viewport.controls.addEventListener('start', () => requestRender(15));
 
     viewport.hemiLight = new THREE.HemisphereLight(0xffffff, 0xe5e7eb, 1.35);
     viewport.scene.add(viewport.hemiLight);
@@ -962,8 +1067,10 @@ export function initViewportScene() {
     viewport.tControls = new TransformControls(viewport.camera, viewport.renderer.domElement);
     viewport.tControls.setSize(0.8);
     viewport.scene.add(viewport.tControls);
+    viewport.tControls.addEventListener('change', () => requestRender(15));
     viewport.tControls.addEventListener('dragging-changed', (e) => {
         viewport.controls.enabled = !e.value;
+        requestRender(15);
         if (!e.value) {
             if (appState.gizmoMode === 'cv') bakeCVEdit();
             else bakeObjectTransform();
@@ -971,6 +1078,7 @@ export function initViewportScene() {
     });
     viewport.tControls.addEventListener('objectChange', () => {
         if (appState.gizmoMode === 'cv') liveCVUpdate();
+        requestRender(15);
     });
 
     // 3D Viewport Click Raycaster (FDM Fixed-Node Picking + Curve/CV Picking)
@@ -978,9 +1086,12 @@ export function initViewportScene() {
     const mouseNdc = new THREE.Vector2();
     let downXY = null;
     viewport.renderer.domElement.addEventListener('pointerdown', (e) => {
+        requestRender(15);
         if (e.button === 0) downXY = { x: e.clientX, y: e.clientY };
     });
+    viewport.renderer.domElement.addEventListener('wheel', () => requestRender(15), { passive: true });
     viewport.renderer.domElement.addEventListener('pointerup', (e) => {
+        requestRender(15);
         if (e.button !== 0 || !downXY) return;
         const moved = Math.hypot(e.clientX - downXY.x, e.clientY - downXY.y);
         downXY = null;
@@ -992,6 +1103,30 @@ export function initViewportScene() {
         );
         pickRay.setFromCamera(mouseNdc, viewport.camera);
 
+        if (appState.activeTabId === 'tab-pq' && actions.selectPqLoopById) {
+            if (viewport.unroll3DGroup.visible) {
+                const stripMeshes = viewport.unroll3DGroup.children.filter(c => c.isMesh && c.userData && c.userData.unrollLoopId !== undefined);
+                const stripHits = pickRay.intersectObjects(stripMeshes, false);
+                if (stripHits.length > 0) {
+                    actions.selectPqLoopById(stripHits[0].object.userData.unrollLoopId);
+                    return;
+                }
+            }
+            if (viewport.tubeGroup.visible && appState.faceLoopState.quadToLoopId) {
+                const tubeMeshes = viewport.tubeGroup.children.filter(c => c.isMesh && c.userData && c.userData.isTubeSurface);
+                const tubeHits = pickRay.intersectObjects(tubeMeshes, false);
+                if (tubeHits.length > 0 && tubeHits[0].faceIndex !== undefined) {
+                    const qIdx = Math.floor(tubeHits[0].faceIndex / 2);
+                    const lid = appState.faceLoopState.quadToLoopId[qIdx];
+                    if (lid !== undefined && lid >= 0) {
+                        actions.selectPqLoopById(lid);
+                        return;
+                    }
+                }
+            }
+            // Clicked empty viewport space on tab-pq -> clear active correspondence arc
+            actions.selectPqLoopById(null);
+        }
         if ((appState.activeTabId === 'tab-fdm' || appState.activeTabId === 'tab-elastica') && viewport.fdmGroup.visible && appState.fdmNodePickMeshes.length > 0) {
             const nodeHits = pickRay.intersectObjects(appState.fdmNodePickMeshes, false);
             if (nodeHits.length > 0) {
@@ -1033,23 +1168,34 @@ export function initViewportScene() {
         viewport.camera.updateProjectionMatrix();
         viewport.renderer.setSize(sz.w, sz.h);
         sizeOverlay();
-        viewport.fatMaterials.forEach(m => m.resolution.set(sz.w, sz.h));
+        viewport.fatMaterials.forEach(m => { if (m && m.resolution) m.resolution.set(sz.w, sz.h); });
+        requestRender(15);
     });
 
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) requestRender(15);
+    });
+    document.addEventListener('click', () => requestRender(15), { passive: true });
+    document.addEventListener('input', () => requestRender(15), { passive: true });
+    document.addEventListener('change', () => requestRender(15), { passive: true });
+
+    // Wake render loop immediately whenever continuous-animation flags turn truthy
+    watchTruthyStateFlag(appState, 'simRunning', () => requestRender(15));
+    watchTruthyStateFlag(appState, 'camTween', () => requestRender(15));
+    watchTruthyStateFlag(appState, 'feaAnimating', () => requestRender(15));
+    if (appState.feaState) watchTruthyStateFlag(appState.feaState, 'animate', () => requestRender(15));
+
+    viewport.requestRender = requestRender;
+    viewport.setBusy = setBusy;
     return viewport;
 }
 
 export function startRenderLoop() {
-    const clock = new THREE.Clock();
-    function animate() {
-        requestAnimationFrame(animate);
-        const dt = Math.min(clock.getDelta(), 0.1);
-        if (actions.update) actions.update(dt);
-        if (actions.tickFEAAnimation) actions.tickFEAAnimation(dt);
-        updateCamTween(dt);
-        viewport.controls.update();
-        renderFrame();
-        drawOverlay();
+    if (_loopStarted) {
+        requestRender(15);
+        return;
     }
-    animate();
+    _renderClock = new THREE.Clock();
+    _loopStarted = true;
+    requestRender(15);
 }

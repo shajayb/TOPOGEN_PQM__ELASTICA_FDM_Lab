@@ -316,9 +316,92 @@ function applyCatmullClarkToPQStrips(solidData, levels = 1, reoptimizePQ = false
     return solidData;
 }
 
+// Compute a T-junction-free dual-chord edge split set on an arbitrary quad mesh.
+// Walks face loops in `directionMode` ('longitudinal' or 'ring'), seeds each non-cap
+// quad's lateral edges ((enterSide + 1) % 4 and (enterSide + 3) % 4), and closes under
+// opposite-edge propagation across shared quad edges (marking all 4 edges of touched caps).
+function computeDualChordSplitMask(currVerts, currQuads, currIsCap, directionMode) {
+    const nQ = currQuads.length;
+    const getEdgeKey = (a, b) => (a < b ? `${a},${b}` : `${b},${a}`);
+    const edgeToQuads = new Map();
+    for (let qIdx = 0; qIdx < nQ; qIdx++) {
+        const q = currQuads[qIdx];
+        for (let s = 0; s < 4; s++) {
+            const k = getEdgeKey(q[s], q[(s + 1) % 4]);
+            let list = edgeToQuads.get(k);
+            if (!list) { list = []; edgeToQuads.set(k, list); }
+            list.push({ qIdx, side: s });
+        }
+    }
+
+    const walked = walkMeshFaceLoops(currVerts, currQuads, directionMode, { computeUnroll: false });
+    const splitEdgeSet = new Set();
+    const queue = [];
+    const enqueueEdge = (a, b) => {
+        const k = getEdgeKey(a, b);
+        if (!splitEdgeSet.has(k)) {
+            splitEdgeSet.add(k);
+            queue.push(k);
+        }
+    };
+
+    const seeded = new Uint8Array(nQ);
+    for (let lp of walked.loops) {
+        for (let st of lp.steps) {
+            const qIdx = st.qIdx;
+            if (currIsCap[qIdx] || seeded[qIdx]) continue;
+            seeded[qIdx] = 1;
+            const q = currQuads[qIdx];
+            const sA = (st.enterSide + 1) % 4;
+            const sB = (st.enterSide + 3) % 4;
+            enqueueEdge(q[sA], q[(sA + 1) % 4]);
+            enqueueEdge(q[sB], q[(sB + 1) % 4]);
+        }
+    }
+    // Fallback for any unvisited non-cap quad
+    const fallbackA = directionMode === 'ring' ? 0 : 1;
+    const fallbackB = (fallbackA + 2) % 4;
+    for (let qIdx = 0; qIdx < nQ; qIdx++) {
+        if (currIsCap[qIdx] || seeded[qIdx]) continue;
+        const q = currQuads[qIdx];
+        enqueueEdge(q[fallbackA], q[(fallbackA + 1) % 4]);
+        enqueueEdge(q[fallbackB], q[(fallbackB + 1) % 4]);
+    }
+
+    // Opposite-edge dual-chord closure guarantees 0 T-junctions on any manifold quad mesh
+    let head = 0;
+    while (head < queue.length) {
+        const k = queue[head++];
+        const inc = edgeToQuads.get(k);
+        if (!inc) continue;
+        for (let i = 0; i < inc.length; i++) {
+            const { qIdx, side } = inc[i];
+            const q = currQuads[qIdx];
+            if (currIsCap[qIdx]) {
+                for (let s = 0; s < 4; s++) enqueueEdge(q[s], q[(s + 1) % 4]);
+            } else {
+                const opp = (side + 2) % 4;
+                enqueueEdge(q[opp], q[(opp + 1) % 4]);
+            }
+        }
+    }
+
+    // Per-quad split classification: 0 = none, 1 = sides 0&2, 2 = sides 1&3, 3 = all 4 sides
+    const quadSplitKind = new Uint8Array(nQ);
+    for (let qIdx = 0; qIdx < nQ; qIdx++) {
+        const q = currQuads[qIdx];
+        const s02 = splitEdgeSet.has(getEdgeKey(q[0], q[1])) && splitEdgeSet.has(getEdgeKey(q[2], q[3]));
+        const s13 = splitEdgeSet.has(getEdgeKey(q[1], q[2])) && splitEdgeSet.has(getEdgeKey(q[3], q[0]));
+        quadSplitKind[qIdx] = (s02 ? 1 : 0) | (s13 ? 2 : 0);
+    }
+
+    return { splitEdgeSet, quadSplitKind, getEdgeKey };
+}
+
 // Anisotropic Longitudinal-Only Cubic B-Spline Subdivision:
-// Splits each trunk quad [v0, v1, v2, v3] along longitudinal edges (1 and 3) into 2 quads
-// while keeping circumferential ring coarseness (0 and 2) & flat leaf end-caps intact!
+// Splits each trunk quad along its topological longitudinal edges into 2 quads (with dual-chord
+// closure so arbitrary imported quad meshes stay 100% manifold with 0 T-junctions)
+// while keeping circumferential ring coarseness & flat leaf end-caps intact!
 function applyLongitudinalOnlySubdivisionToPQStrips(solidData, levels = 1, reoptimizePQ = false, options = {}) {
     if (!solidData || !solidData.vertices || solidData.vertices.length === 0 || !solidData.quads || solidData.quads.length === 0) {
         return solidData;
@@ -360,7 +443,7 @@ function applyLongitudinalOnlySubdivisionToPQStrips(solidData, levels = 1, reopt
     for (let lv = 0; lv < nLevels; lv++) {
         const nV = currVerts.length;
         const nQ = currQuads.length;
-        const getEdgeKey = (a, b) => (a < b ? `${a},${b}` : `${b},${a}`);
+        const { quadSplitKind, getEdgeKey } = computeDualChordSplitMask(currVerts, currQuads, currIsCap, 'longitudinal');
 
         const longEdgeMap = new Map();
         const longEdgeList = [];
@@ -372,12 +455,14 @@ function applyLongitudinalOnlySubdivisionToPQStrips(solidData, levels = 1, reopt
         const ringEdgeLoops = new Map();
         for (let qIdx = 0; qIdx < nQ; qIdx++) {
             const q = currQuads[qIdx];
-            if (currIsCap[qIdx]) {
+            const kind = quadSplitKind[qIdx];
+            if (currIsCap[qIdx] || kind === 0 || kind === 3) {
                 for (let k = 0; k < 4; k++) vertRingCreaseCount[q[k]]++;
                 continue;
             }
             const lid = solidData.quadToLoopId ? (solidData.quadToLoopId[qIdx] ?? -1) : -1;
-            for (let s of [0, 2]) {
+            const ringSides = (kind === 1) ? [1, 3] : [0, 2];
+            for (let s of ringSides) {
                 const a = q[s], b = q[(s + 1) % 4];
                 const cLen = currVerts[a].distanceTo(currVerts[b]);
                 if (cLen < vertMinCircLen[a]) vertMinCircLen[a] = cLen;
@@ -424,11 +509,24 @@ function applyLongitudinalOnlySubdivisionToPQStrips(solidData, levels = 1, reopt
 
         const quadLongEdges = new Array(nQ).fill(null);
         for (let qIdx = 0; qIdx < nQ; qIdx++) {
-            if (currIsCap[qIdx]) continue;
+            const kind = quadSplitKind[qIdx];
+            if (kind === 0) continue;
             const q = currQuads[qIdx];
-            const e12 = registerLongEdge(q[1], q[2], qIdx);
-            const e30 = registerLongEdge(q[3], q[0], qIdx);
-            quadLongEdges[qIdx] = { e12, e30 };
+            if (kind === 2) {
+                const e12 = registerLongEdge(q[1], q[2], qIdx);
+                const e30 = registerLongEdge(q[3], q[0], qIdx);
+                quadLongEdges[qIdx] = { kind: 2, e12, e30 };
+            } else if (kind === 1) {
+                const e01 = registerLongEdge(q[0], q[1], qIdx);
+                const e23 = registerLongEdge(q[2], q[3], qIdx);
+                quadLongEdges[qIdx] = { kind: 1, e01, e23 };
+            } else {
+                const e0 = registerLongEdge(q[0], q[1], qIdx);
+                const e1 = registerLongEdge(q[1], q[2], qIdx);
+                const e2 = registerLongEdge(q[2], q[3], qIdx);
+                const e3 = registerLongEdge(q[3], q[0], qIdx);
+                quadLongEdges[qIdx] = { kind: 3, e0, e1, e2, e3 };
+            }
         }
 
         const nLE = longEdgeList.length;
@@ -486,17 +584,18 @@ function applyLongitudinalOnlySubdivisionToPQStrips(solidData, levels = 1, reopt
             const rCol = currRingColors[qIdx];
             const lPar = currLongParents[qIdx];
             const rPar = currRingParents[qIdx];
-            if (currIsCap[qIdx]) {
+            const capFlag = currIsCap[qIdx] ? 1 : 0;
+            const info = quadLongEdges[qIdx];
+            if (!info) {
                 nextQuads.push([...q]);
                 nextLongColors.push(lCol);
                 nextRingColors.push(rCol);
                 nextLongParents.push(lPar);
                 nextRingParents.push(rPar);
-                nextIsCap.push(1);
-            } else {
-                const { e12, e30 } = quadLongEdges[qIdx];
-                const ep12Idx = nV + e12;
-                const ep30Idx = nV + e30;
+                nextIsCap.push(capFlag);
+            } else if (info.kind === 2) {
+                const ep12Idx = nV + info.e12;
+                const ep30Idx = nV + info.e30;
                 const cA = nextQuads.length;
                 nextQuads.push([q[0], q[1], ep12Idx, ep30Idx]);
                 const cB = nextQuads.length;
@@ -506,7 +605,40 @@ function applyLongitudinalOnlySubdivisionToPQStrips(solidData, levels = 1, reopt
                 nextRingColors.push(rCol, rCol);
                 nextLongParents.push(lPar, lPar);
                 nextRingParents.push(rPar, rPar);
-                nextIsCap.push(0, 0);
+                nextIsCap.push(capFlag, capFlag);
+            } else if (info.kind === 1) {
+                // Canonicalize child quads so split longitudinal edges lie on sides 1 & 3
+                const ep01Idx = nV + info.e01;
+                const ep23Idx = nV + info.e23;
+                const cA = nextQuads.length;
+                nextQuads.push([q[3], q[0], ep01Idx, ep23Idx]);
+                const cB = nextQuads.length;
+                nextQuads.push([ep23Idx, ep01Idx, q[1], q[2]]);
+                quadChildPair[qIdx] = [cA, cB];
+                nextLongColors.push(lCol, lCol);
+                nextRingColors.push(rCol, rCol);
+                nextLongParents.push(lPar, lPar);
+                nextRingParents.push(rPar, rPar);
+                nextIsCap.push(capFlag, capFlag);
+            } else {
+                const fp = new V3()
+                    .add(currVerts[q[0]]).add(currVerts[q[1]])
+                    .add(currVerts[q[2]]).add(currVerts[q[3]])
+                    .multiplyScalar(0.25);
+                const fpIdx = newVerts.length;
+                newVerts.push(fp);
+                const e0 = nV + info.e0, e1 = nV + info.e1, e2 = nV + info.e2, e3 = nV + info.e3;
+                nextQuads.push(
+                    [q[0], e0, fpIdx, e3],
+                    [e0, q[1], e1, fpIdx],
+                    [fpIdx, e1, q[2], e2],
+                    [e3, fpIdx, e2, q[3]]
+                );
+                nextLongColors.push(lCol, lCol, lCol, lCol);
+                nextRingColors.push(rCol, rCol, rCol, rCol);
+                nextLongParents.push(lPar, lPar, lPar, lPar);
+                nextRingParents.push(rPar, rPar, rPar, rPar);
+                nextIsCap.push(capFlag, capFlag, capFlag, capFlag);
             }
         }
 
@@ -585,8 +717,9 @@ function applyLongitudinalOnlySubdivisionToPQStrips(solidData, levels = 1, reopt
 }
 
 // Anisotropic Circumferential Ring-Only Subdivision:
-// Splits each trunk quad [v0, v1, v2, v3] along circumferential ring edges (0 and 2) into 2 quads,
-// and splits leaf cap quads symmetrically to maintain 100% pure-quad watertight manifoldness!
+// Splits each trunk quad along its topological circumferential ring edges into 2 quads
+// (using dual-chord opposite-edge closure so arbitrary imported quad meshes preserve every ring
+// loop with 0 T-junctions), and splits touched cap/junction quads 1->4 cleanly!
 function applyRingOnlySubdivisionToPQStrips(solidData, levels = 1, reoptimizePQ = false, options = {}) {
     if (!solidData || !solidData.vertices || solidData.vertices.length === 0 || !solidData.quads || solidData.quads.length === 0) {
         return solidData;
@@ -623,55 +756,125 @@ function applyRingOnlySubdivisionToPQStrips(solidData, levels = 1, reoptimizePQ 
         ? solidData.barQuadGrids.map(g => g ? g.map(row => [...row]) : null)
         : null;
 
+    const boundaryMode = options.boundaryMode || 'smooth_all';
+
     for (let lv = 0; lv < nLevels; lv++) {
         const nV = currVerts.length;
         const nQ = currQuads.length;
-        const getEdgeKey = (a, b) => (a < b ? `${a},${b}` : `${b},${a}`);
+        const { quadSplitKind, getEdgeKey } = computeDualChordSplitMask(currVerts, currQuads, currIsCap, 'ring');
 
-        // Collect all ring edges (sides 0 and 2 of trunk quads) plus any cap edges so the mesh stays 100% watertight
+        // Collect orthogonal (unsplit) edge lengths & crease/cap pins for safe 1D cubic B-spline ring smoothing
+        const vertOrthoCreaseCount = new Int32Array(nV);
+        const vertMinOrthoLen = new Float64Array(nV).fill(Infinity);
+        const orthoEdgeQuads = new Map();
+        const orthoEdgeLoops = new Map();
+        for (let qIdx = 0; qIdx < nQ; qIdx++) {
+            const q = currQuads[qIdx];
+            const kind = quadSplitKind[qIdx];
+            if (currIsCap[qIdx] || kind === 0 || kind === 3) {
+                for (let k = 0; k < 4; k++) vertOrthoCreaseCount[q[k]]++;
+                continue;
+            }
+            const lid = solidData.quadToLoopId ? (solidData.quadToLoopId[qIdx] ?? -1) : -1;
+            const orthoSides = (kind === 1) ? [1, 3] : [0, 2];
+            for (let s of orthoSides) {
+                const a = q[s], b = q[(s + 1) % 4];
+                const oLen = currVerts[a].distanceTo(currVerts[b]);
+                if (oLen < vertMinOrthoLen[a]) vertMinOrthoLen[a] = oLen;
+                if (oLen < vertMinOrthoLen[b]) vertMinOrthoLen[b] = oLen;
+                const k = getEdgeKey(a, b);
+                orthoEdgeQuads.set(k, (orthoEdgeQuads.get(k) || 0) + 1);
+                if (!orthoEdgeLoops.has(k)) orthoEdgeLoops.set(k, new Set());
+                if (lid >= 0) orthoEdgeLoops.get(k).add(lid);
+            }
+        }
+        for (let [k, count] of orthoEdgeQuads.entries()) {
+            const loopSet = orthoEdgeLoops.get(k);
+            const isOpenEnd = count === 1;
+            const isStripSeam = (boundaryMode === 'preserve_strip_creases') && loopSet && (loopSet.size >= 2);
+            if (isOpenEnd || isStripSeam) {
+                const comma = k.indexOf(',');
+                const u = parseInt(k.slice(0, comma), 10);
+                const v = parseInt(k.slice(comma + 1), 10);
+                vertOrthoCreaseCount[u]++;
+                vertOrthoCreaseCount[v]++;
+            }
+        }
+
+        // Register all midpoint vertices & curve neighbors for dual-chord split ring edges
         const splitEdgeMap = new Map();
         const splitEdgeList = [];
+        const vertRingNeighbors = Array.from({ length: nV }, () => new Set());
+        const vertMinSplitLen = new Float64Array(nV).fill(Infinity);
         const registerSplitEdge = (a, b) => {
             const key = getEdgeKey(a, b);
             let entry = splitEdgeMap.get(key);
             if (!entry) {
                 const u = Math.min(a, b), v = Math.max(a, b);
+                const sLen = currVerts[u].distanceTo(currVerts[v]);
+                if (sLen < vertMinSplitLen[u]) vertMinSplitLen[u] = sLen;
+                if (sLen < vertMinSplitLen[v]) vertMinSplitLen[v] = sLen;
                 const mid = new V3().addVectors(currVerts[u], currVerts[v]).multiplyScalar(0.5);
                 entry = { id: splitEdgeList.length, u, v, mid };
                 splitEdgeMap.set(key, entry);
                 splitEdgeList.push(entry);
+                vertRingNeighbors[u].add(v);
+                vertRingNeighbors[v].add(u);
             }
             return entry.id;
         };
 
-        // First register all trunk ring edges (sides 0 and 2)
         for (let qIdx = 0; qIdx < nQ; qIdx++) {
-            if (currIsCap[qIdx]) continue;
+            const kind = quadSplitKind[qIdx];
+            if (kind === 0) continue;
             const q = currQuads[qIdx];
-            registerSplitEdge(q[0], q[1]);
-            registerSplitEdge(q[2], q[3]);
-        }
-        // Also register all 4 edges of any cap quad that touches a split ring edge so caps subdivide cleanly into 4 quads
-        let capFacesWithSplit = new Uint8Array(nQ);
-        for (let qIdx = 0; qIdx < nQ; qIdx++) {
-            if (!currIsCap[qIdx]) continue;
-            const q = currQuads[qIdx];
-            let hasSplit = false;
-            for (let k = 0; k < 4; k++) {
-                if (splitEdgeMap.has(getEdgeKey(q[k], q[(k + 1) % 4]))) { hasSplit = true; break; }
+            if (kind === 1 || kind === 3) {
+                registerSplitEdge(q[0], q[1]);
+                registerSplitEdge(q[2], q[3]);
             }
-            if (hasSplit) {
-                capFacesWithSplit[qIdx] = 1;
-                for (let k = 0; k < 4; k++) {
-                    registerSplitEdge(q[k], q[(k + 1) % 4]);
-                }
+            if (kind === 2 || kind === 3) {
+                registerSplitEdge(q[1], q[2]);
+                registerSplitEdge(q[3], q[0]);
             }
         }
 
         const nSE = splitEdgeList.length;
-        const newVerts = currVerts.map(v => v.clone());
+        const newVerts = new Array(nV + nSE);
+
+        // 1D cubic B-spline ring smoothing (1/8, 6/8, 1/8) with safe step guard matching longitudinal subdiv
+        for (let vIdx = 0; vIdx < nV; vIdx++) {
+            const nbrs = Array.from(vertRingNeighbors[vIdx]);
+            const isPinned = vertOrthoCreaseCount[vIdx] > 0;
+            if (isPinned || nbrs.length <= 1) {
+                newVerts[vIdx] = currVerts[vIdx].clone();
+            } else {
+                let target;
+                if (nbrs.length === 2) {
+                    target = currVerts[vIdx].clone().multiplyScalar(0.75)
+                        .addScaledVector(currVerts[nbrs[0]], 0.125)
+                        .addScaledVector(currVerts[nbrs[1]], 0.125);
+                } else {
+                    const avgNbr = new V3();
+                    for (let nb of nbrs) avgNbr.add(currVerts[nb]);
+                    avgNbr.divideScalar(nbrs.length);
+                    target = currVerts[vIdx].clone().multiplyScalar(0.75)
+                        .addScaledVector(avgNbr, 0.25);
+                }
+                const delta = new V3().subVectors(target, currVerts[vIdx]);
+                const dLen = delta.length();
+                const limOrtho = Number.isFinite(vertMinOrthoLen[vIdx]) ? (0.42 * vertMinOrthoLen[vIdx]) : Infinity;
+                const limSplit = Number.isFinite(vertMinSplitLen[vIdx]) ? (0.20 * vertMinSplitLen[vIdx]) : Infinity;
+                const maxStep = Math.min(limOrtho, limSplit);
+                if (dLen > maxStep && dLen > 1e-12) {
+                    delta.multiplyScalar(maxStep / dLen);
+                    newVerts[vIdx] = currVerts[vIdx].clone().add(delta);
+                } else {
+                    newVerts[vIdx] = target;
+                }
+            }
+        }
         for (let eIdx = 0; eIdx < nSE; eIdx++) {
-            newVerts.push(splitEdgeList[eIdx].mid.clone());
+            newVerts[nV + eIdx] = splitEdgeList[eIdx].mid.clone();
         }
 
         const nextQuads = [];
@@ -688,8 +891,10 @@ function applyRingOnlySubdivisionToPQStrips(solidData, levels = 1, reoptimizePQ 
             const rCol = currRingColors[qIdx];
             const lPar = currLongParents[qIdx];
             const rPar = currRingParents[qIdx];
+            const capFlag = currIsCap[qIdx] ? 1 : 0;
+            const kind = quadSplitKind[qIdx];
 
-            if (!currIsCap[qIdx]) {
+            if (kind === 1) {
                 const e01 = nV + splitEdgeMap.get(getEdgeKey(q[0], q[1])).id;
                 const e23 = nV + splitEdgeMap.get(getEdgeKey(q[2], q[3])).id;
                 const cA = nextQuads.length;
@@ -701,9 +906,23 @@ function applyRingOnlySubdivisionToPQStrips(solidData, levels = 1, reoptimizePQ 
                 nextRingColors.push(rCol, rCol);
                 nextLongParents.push(lPar, lPar);
                 nextRingParents.push(rPar, rPar);
-                nextIsCap.push(0, 0);
-            } else if (capFacesWithSplit[qIdx]) {
-                // Subdivide cap quad into 4 pure quads around its centroid
+                nextIsCap.push(capFlag, capFlag);
+            } else if (kind === 2) {
+                // Canonicalize child quads so split ring edges lie on sides 0 & 2 and ring-walk edges on sides 1 & 3
+                const e12 = nV + splitEdgeMap.get(getEdgeKey(q[1], q[2])).id;
+                const e30 = nV + splitEdgeMap.get(getEdgeKey(q[3], q[0])).id;
+                const cA = nextQuads.length;
+                nextQuads.push([q[1], e12, e30, q[0]]);
+                const cB = nextQuads.length;
+                nextQuads.push([e12, q[2], q[3], e30]);
+                quadChildPair[qIdx] = [cA, cB];
+                nextLongColors.push(lCol, lCol);
+                nextRingColors.push(rCol, rCol);
+                nextLongParents.push(lPar, lPar);
+                nextRingParents.push(rPar, rPar);
+                nextIsCap.push(capFlag, capFlag);
+            } else if (kind === 3) {
+                // Subdivide cap / self-crossing junction quad into 4 pure quads around its centroid
                 const fp = new V3()
                     .add(currVerts[q[0]]).add(currVerts[q[1]])
                     .add(currVerts[q[2]]).add(currVerts[q[3]])
@@ -724,14 +943,14 @@ function applyRingOnlySubdivisionToPQStrips(solidData, levels = 1, reoptimizePQ 
                 nextRingColors.push(rCol, rCol, rCol, rCol);
                 nextLongParents.push(lPar, lPar, lPar, lPar);
                 nextRingParents.push(rPar, rPar, rPar, rPar);
-                nextIsCap.push(1, 1, 1, 1);
+                nextIsCap.push(capFlag, capFlag, capFlag, capFlag);
             } else {
                 nextQuads.push([...q]);
                 nextLongColors.push(lCol);
                 nextRingColors.push(rCol);
                 nextLongParents.push(lPar);
                 nextRingParents.push(rPar);
-                nextIsCap.push(1);
+                nextIsCap.push(capFlag);
             }
         }
 

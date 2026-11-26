@@ -298,8 +298,8 @@ export function emitFEATelemetry(res, sectionParams, mat, loadConfig, opts = {})
     if (hudPill) {
         hudPill.textContent = `FEA #${runIdx} · ${res.passed ? 'PASS ✓' : 'CHECK'}`;
         hudPill.className = res.passed
-            ? 'text-[8.5px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 font-bold whitespace-nowrap flex-shrink-0'
-            : 'text-[8.5px] font-mono px-1.5 py-0.5 rounded bg-amber-950/90 border border-amber-500/50 text-amber-300 font-bold whitespace-nowrap flex-shrink-0';
+            ? 'panel-pill bg-emerald-950/90 border-emerald-500/50 text-emerald-300 font-bold'
+            : 'panel-pill bg-amber-950/90 border-amber-500/50 text-amber-300 font-bold';
     }
 
     const hudVerdict = $('hud-fea-verdict');

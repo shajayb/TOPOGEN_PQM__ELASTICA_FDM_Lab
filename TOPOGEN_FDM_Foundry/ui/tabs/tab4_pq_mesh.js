@@ -46,10 +46,15 @@ export function mountTab4PqMesh() {
     pane.innerHTML = `
         <div class="bg-gray-900/90 border border-gray-700 rounded p-2 space-y-1.5 text-[10px] font-mono">
             <div class="flex items-center justify-between font-sans">
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-pink-400">PQ Tubular Mesh Solidifier</span>
+                <span id="pq-panel-title" class="text-[10px] font-semibold uppercase tracking-wider text-pink-400">PQ Tubular Mesh Solidifier</span>
                 <span id="tube-manifold-badge" class="text-[9px] font-mono text-gray-400">Not Built</span>
             </div>
 
+            <div id="pq-host-mesh-banner" class="hidden rounded px-2 py-1.5 font-sans text-[9.5px] leading-snug border" style="background:#f0f9ff; border-color:#0284c7; color:#0f172a;">
+                <strong style="color:#0369a1;">Host Mesh Mode (Mesh Tiles)</strong> — Graph-to-tube solidification skipped; downstream PQ subdivision, planarization, coloring &amp; unrolling operate directly on the mesh.
+            </div>
+
+            <div id="pq-tube-solidifier-controls" class="space-y-1.5">
             <div class="flex items-center space-x-2 min-w-0">
                 <span class="w-16 text-gray-400 flex-shrink-0">Outer R</span>
                 <input type="range" id="rng-tube-radius" min="0.040" max="0.200" step="0.001" value="0.0600" class="min-w-0 flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-pink-500">
@@ -86,7 +91,7 @@ export function mountTab4PqMesh() {
                     <input type="checkbox" id="chk-tube-bisector" checked class="accent-pink-500 rounded">
                     <span>Bisector</span>
                 </label>
-                <label class="flex items-center space-x-1 cursor-pointer" title="Per-node acute-angle radius clamping r_node(v) <= Outer R so short/acute struts never miter-overlap; uncheck for uniform constant Outer R">
+                <label class="flex items-center space-x-1 cursor-pointer" title="Miter Clamp — Limit joint radius at acute angles to prevent overlap.">
                     <input type="checkbox" id="chk-tube-miter-clamp" checked class="accent-amber-400 rounded">
                     <span>Miter Clamp</span>
                 </label>
@@ -94,7 +99,7 @@ export function mountTab4PqMesh() {
                     <input type="checkbox" id="chk-tube-pq" checked class="accent-cyan-400 rounded">
                     <span>PQ Planarize</span>
                 </label>
-                <label class="flex items-center space-x-1 cursor-pointer" title="Close degree-1 leaf ends with pure-quad caps (uncheck to inspect open hollow pipe wall thickness)">
+                <label class="flex items-center space-x-1 cursor-pointer" title="Leaf Caps — Seal open pipe ends with planar quad caps.">
                     <input type="checkbox" id="chk-tube-cap-leaves" checked class="accent-pink-500 rounded">
                     <span>Caps</span>
                 </label>
@@ -105,6 +110,7 @@ export function mountTab4PqMesh() {
             </div>
 
             <button id="btn-solidify-tubes" class="cad-btn on w-full py-1.5">⚡ Solidify → All-Quad PQ</button>
+            </div>
 
             <div class="grid grid-cols-2 gap-1 pt-0.5 font-sans">
                 <button id="btn-reset-pq-default" class="cad-btn text-[9px] py-1" title="Reset all PQ tube parameters to default values and rebuild default tube on active graph">↺ Reset Tube Default</button>
@@ -114,9 +120,10 @@ export function mountTab4PqMesh() {
             <div class="grid grid-cols-2 gap-1 pt-0.5 font-sans">
                 <button id="btn-long-subdiv-pq" class="cad-btn cyan text-[9px] py-1" title="Apply 1 level of 1D Cubic B-Spline Longitudinal Subdivision + Negotiated PQ Planarization">═ Longitudinal Subdiv + PQ</button>
                 <button id="btn-cc-subdiv-pq" class="cad-btn accent text-[9px] py-1" title="Apply 1 level of Catmull-Clark Subdivision + Negotiated PQ Planarization">⊞ Catmull-Clark + PQ</button>
-                <button id="btn-ring-subdiv-pq" class="cad-btn cyan text-[9px] py-1" title="Apply 1 level of Circumferential Ring Subdivision + Negotiated PQ Planarization">◎ Ring Subdiv + PQ</button>
+                <button id="btn-ring-subdiv-pq" class="cad-btn cyan text-[9px] py-1" title="Apply 1 level of 1D Cubic B-Spline Ring Subdivision + Negotiated PQ Planarization">◎ Ring Subdiv + PQ</button>
                 <button id="btn-only-pq-opt" class="cad-btn accent text-[9px] py-1" title="Run Negotiated Face-Loop PQ Planarization Only without changing mesh topology">✦ Only PQ Optimisation</button>
             </div>
+            <button id="btn-swap-long-ring" class="cad-btn w-full text-[9px] py-1 font-sans" title="Swap longitudinal and ring directions on the active PQ mesh (rotates quad winding 90° while keeping outward normals)">⇄ Swap Long ↔ Ring Directions</button>
 
             <div class="pt-1 border-t border-gray-800 space-y-1 font-sans">
                 <div class="flex items-center justify-between text-[9px] text-gray-400">
@@ -223,10 +230,21 @@ export function drawUnrolledLoopCanvas() {
 
     const loops = appState.faceLoopState.loops;
     if (!loops || loops.length === 0) {
-        if (unrollLabel) unrollLabel.textContent = '2D PQ Strip Preview (solidify first)';
+        if (unrollLabel) {
+            unrollLabel.textContent = '2D PQ Strip Preview (solidify first)';
+            unrollLabel.style.color = '';
+        }
         return;
     }
-    const selIdx = Math.max(0, Math.min(loops.length - 1, appState.faceLoopState.selectedLoopIdx));
+    const rawSel = appState.faceLoopState.selectedLoopIdx;
+    if (rawSel === null || rawSel === undefined || rawSel < 0) {
+        if (unrollLabel) {
+            unrollLabel.textContent = `No loop selected (${loops.length} loops · click 3D mesh or strip)`;
+            unrollLabel.style.color = '';
+        }
+        return;
+    }
+    const selIdx = Math.max(0, Math.min(loops.length - 1, rawSel));
     const loop = loops[selIdx];
     const u2d = loop.unrolled2D;
     if (!u2d || !u2d.quads2D || u2d.quads2D.length === 0) return;
@@ -341,16 +359,50 @@ export function renderUnrolledStrips3D() {
     const zPlane = 0.006;
 
     const activeUnrollGraph = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
-    if (activeUnrollGraph) {
-        const { unrolledJson } = CORE.buildUnrolledPatterns(activeUnrollGraph, lastSolidData, {
-            name: `unroll3d_${currentTilePreset}`,
-            outerRadiusM: tubeState.radius,
-            nSides: tubeState.nSides,
-            longitudinalSubdivLevels: tubeState.longitudinalSubdivLevels,
-            laserBedWidthM: 0.60,
-            laserBedHeightM: 0.90,
-            laserSheetGapM: 0.08
-        });
+    const hasGraphEdges = Boolean(activeUnrollGraph && Array.isArray(activeUnrollGraph.edges) && activeUnrollGraph.edges.length > 0);
+    if (hasGraphEdges || (faceLoopState.loops && faceLoopState.loops.length > 0)) {
+        let unrolledJson = null;
+        if (hasGraphEdges) {
+            ({ unrolledJson } = CORE.buildUnrolledPatterns(activeUnrollGraph, lastSolidData, {
+                name: `unroll3d_${currentTilePreset}`,
+                outerRadiusM: tubeState.radius,
+                nSides: tubeState.nSides,
+                longitudinalSubdivLevels: tubeState.longitudinalSubdivLevels,
+                laserBedWidthM: 0.60,
+                laserBedHeightM: 0.90,
+                laserSheetGapM: 0.08
+            }));
+        } else {
+            // Direct face-loop sheet packing for Host Mesh Mode (mesh tiles without graph edges)
+            const bedW = 0.60, bedH = 0.90, gap = 0.06;
+            const bars = [];
+            const sheets = [{ sheetIndex: 0, widthM: bedW, heightM: bedH, bbox2D: [0, 0, bedW, bedH] }];
+            let curX = gap, curY = gap, rowH = 0, sIdx = 0;
+            faceLoopState.loops.forEach((lp, lIdx) => {
+                const u2d = lp.unrolled2D;
+                if (!u2d || !u2d.quads2D || u2d.quads2D.length === 0) return;
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                for (const q2 of u2d.quads2D) {
+                    for (const p of q2.pts) {
+                        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+                        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+                    }
+                }
+                const w = Math.max(1e-4, maxX - minX), h = Math.max(1e-4, maxY - minY);
+                if (curX + w + gap > bedW && curX > gap) { curX = gap; curY += rowH + gap; rowH = 0; }
+                if (curY + h + gap > bedH && curY > gap) {
+                    sIdx++;
+                    sheets.push({ sheetIndex: sIdx, widthM: bedW, heightM: bedH, bbox2D: [0, 0, bedW, bedH] });
+                    curX = gap; curY = gap; rowH = 0;
+                }
+                const dx = curX - minX, dy = curY - minY;
+                const quads2D = u2d.quads2D.map(q2 => q2.pts.map(p => [p.x + dx, p.y + dy]));
+                bars.push({ edgeIndex: lIdx, sheetIndex: sIdx, quads2D });
+                curX += w + gap;
+                if (h > rowH) rowH = h;
+            });
+            unrolledJson = { bars, sheets };
+        }
         faceLoopState.unrolledBedLayout = { unrolledJson, startX, tMinY, tMaxY, zPlane };
         const bars = (unrolledJson && unrolledJson.bars) ? unrolledJson.bars : [];
         const sheets = (unrolledJson && unrolledJson.sheets && unrolledJson.sheets.length > 0)
@@ -359,6 +411,7 @@ export function renderUnrolledStrips3D() {
             const { nCols, nRows, sheetTransforms } = computeUnrolledSheetGridLayout(sheets, startX, tMinY, tMaxY);
 
             faceLoopState.unrolledBedLayout.grid = { nCols, nRows, sheetTransforms };
+            faceLoopState.stripCentroidsByLoopId = new Map();
             const mats = getUnrollStripMats();
 
             for (const bar of bars) {
@@ -366,22 +419,38 @@ export function renderUnrolledStrips3D() {
                 if (qs.length === 0) continue;
                 const st = sheetTransforms[bar.sheetIndex || 0] || sheetTransforms[0];
                 const pos = [], idx = [], wire = [];
+                let sumX = 0, sumY = 0, ptCnt = 0;
                 for (const q of qs) {
                     const base = pos.length / 3;
-                    for (let k = 0; k < 4; k++) pos.push(q[k][0] + st.dx, q[k][1] + st.dy, zPlane);
+                    for (let k = 0; k < 4; k++) {
+                        const wx = q[k][0] + st.dx, wy = q[k][1] + st.dy;
+                        pos.push(wx, wy, zPlane);
+                        sumX += wx; sumY += wy; ptCnt++;
+                    }
                     idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
                     for (let k = 0; k < 4; k++) {
                         const a = q[k], b = q[(k + 1) % 4];
                         wire.push(a[0] + st.dx, a[1] + st.dy, zPlane + 0.001, b[0] + st.dx, b[1] + st.dy, zPlane + 0.001);
                     }
                 }
+                const stripCenter = ptCnt > 0 ? new THREE.Vector3(sumX / ptCnt, sumY / ptCnt, zPlane) : new THREE.Vector3(st.dx, st.dy, zPlane);
+                faceLoopState.stripCentroidsByLoopId.set(bar.edgeIndex, stripCenter);
                 const sGeo = new THREE.BufferGeometry();
                 sGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
                 sGeo.setIndex(idx);
                 sGeo.computeVertexNormals();
-                const sMat = mats[bar.edgeIndex % mats.length];
+                const lp = faceLoopState.loops ? faceLoopState.loops[bar.edgeIndex] : null;
+                let sMat;
+                if (lp && lp.colorHex !== undefined) {
+                    const c = new THREE.Color(lp.colorHex).lerp(new THREE.Color(0xffffff), 0.22);
+                    sMat = new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide });
+                } else {
+                    sMat = mats[bar.edgeIndex % mats.length];
+                }
                 const sMesh = new THREE.Mesh(sGeo, arcticOn ? sharedMaterials.arctic : sMat);
                 sMesh.userData.baseMaterial = sMat;
+                sMesh.userData.unrollLoopId = bar.edgeIndex;
+                sMesh.userData.stripCentroid = stripCenter;
                 viewport.unroll3DGroup.add(sMesh);
 
                 const wGeo = new THREE.BufferGeometry();
@@ -403,10 +472,91 @@ export function renderUnrolledStrips3D() {
             bGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bCoords), 3));
             viewport.unroll3DGroup.add(new THREE.LineSegments(bGeo, sharedMaterials.bedBorder));
             viewport.unroll3DGroup.visible = true;
+            renderLoopCorrespondenceArc();
             return;
         }
     }
     viewport.unroll3DGroup.visible = false;
+}
+
+export function renderLoopCorrespondenceArc() {
+    const oldArcs = viewport.unroll3DGroup.children.filter(c => c.userData && c.userData.isCorrespondenceArc);
+    for (const c of oldArcs) {
+        viewport.unroll3DGroup.remove(c);
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+    }
+    const { faceLoopState } = appState;
+    if (!faceLoopState.showUnrolled3D || !faceLoopState.loops || faceLoopState.loops.length === 0) {
+        if (viewport.requestRender) viewport.requestRender();
+        return;
+    }
+    const selIdx = faceLoopState.selectedLoopIdx;
+    if (selIdx === null || selIdx === undefined || selIdx < 0) {
+        if (viewport.requestRender) viewport.requestRender();
+        return;
+    }
+    const loop = faceLoopState.loops[selIdx];
+    const stripEnd = faceLoopState.stripCentroidsByLoopId ? faceLoopState.stripCentroidsByLoopId.get(selIdx) : null;
+    if (!loop || !loop.centroid3D || !stripEnd) return;
+
+    const p0 = new THREE.Vector3(loop.centroid3D.x, loop.centroid3D.y, loop.centroid3D.z);
+    const p2 = stripEnd.clone();
+    const dist = p0.distanceTo(p2);
+    const arcLift = Math.max(0.35, dist * 0.45);
+    const p1 = new THREE.Vector3(
+        0.5 * (p0.x + p2.x),
+        0.5 * (p0.y + p2.y),
+        Math.max(p0.z, p2.z) + arcLift
+    );
+    const curve = new THREE.QuadraticBezierCurve3(p0, p1, p2);
+    const colorHex = loop.colorHex !== undefined ? loop.colorHex : 0xf97316;
+
+    const tubeGeo = new THREE.TubeGeometry(curve, 36, 0.012, 8, false);
+    const tubeMat = new THREE.MeshBasicMaterial({ color: colorHex });
+    const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+    tubeMesh.userData.isCorrespondenceArc = true;
+    viewport.unroll3DGroup.add(tubeMesh);
+
+    const endGeo = new THREE.SphereGeometry(0.026, 12, 12);
+    for (const pt of [p0, p2]) {
+        const endMat = new THREE.MeshBasicMaterial({ color: colorHex });
+        const dot = new THREE.Mesh(endGeo.clone(), endMat);
+        dot.position.copy(pt);
+        dot.userData.isCorrespondenceArc = true;
+        viewport.unroll3DGroup.add(dot);
+    }
+    endGeo.dispose();
+    if (viewport.requestRender) viewport.requestRender();
+}
+
+export function selectPqLoopById(loopId) {
+    const { faceLoopState } = appState;
+    if (loopId === null || loopId === undefined || (typeof loopId === 'number' && loopId < 0)) {
+        faceLoopState.selectedLoopIdx = null;
+        drawUnrolledLoopCanvas();
+        renderLoopCorrespondenceArc();
+        if (viewport.requestRender) viewport.requestRender();
+        return null;
+    }
+    if (!faceLoopState.loops || faceLoopState.loops.length === 0) return null;
+    const numericId = Number(loopId);
+    if (!Number.isFinite(numericId)) {
+        faceLoopState.selectedLoopIdx = null;
+        drawUnrolledLoopCanvas();
+        renderLoopCorrespondenceArc();
+        if (viewport.requestRender) viewport.requestRender();
+        return null;
+    }
+    const idx = ((Math.trunc(numericId) % faceLoopState.loops.length) + faceLoopState.loops.length) % faceLoopState.loops.length;
+    faceLoopState.selectedLoopIdx = idx;
+    drawUnrolledLoopCanvas();
+    if (faceLoopState.showUnrolled3D) {
+        renderLoopCorrespondenceArc();
+    } else if (viewport.requestRender) {
+        viewport.requestRender();
+    }
+    return idx;
 }
 
 export function renderTubularMesh(solid) {
@@ -610,35 +760,153 @@ export function updateSolidTubeReadout(solid) {
     setTxt('tube-readout', `V: ${solid.vertices.length} · Quads: ${solid.quads.length} (${quadPct}%) · t=${tMM}mm · PQ≤${pqErrMM}mm · Bnd: ${v.boundaryEdges} · g=${v.genus}`);
 }
 
+function isHostMeshOnlyActive() {
+    const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+    if (src && Array.isArray(src.edges) && src.edges.length > 0) return false;
+    const { voxels, TILES } = appState;
+    if (!Array.isArray(voxels)) return false;
+    for (const v of voxels) {
+        if (!v.collapsed || v.tile === null || v.tile === CORE.TILE_NULL) continue;
+        const td = TILES[v.tile];
+        if (td && ((td.quads && td.quads.length > 0) || (td.previewQuads && td.previewQuads.length > 0))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function syncPqHostModeUI(isHostMesh) {
+    const controlsEl = $('pq-tube-solidifier-controls');
+    const bannerEl = $('pq-host-mesh-banner');
+    const titleEl = $('pq-panel-title');
+    const resetDefBtn = $('btn-reset-pq-default');
+    const resetGraphBtn = $('btn-reset-pq-graph');
+    if (controlsEl) controlsEl.classList.toggle('hidden', isHostMesh);
+    if (bannerEl) bannerEl.classList.toggle('hidden', !isHostMesh);
+    if (titleEl) titleEl.textContent = isHostMesh ? 'PQ Host Mesh (From Mesh Tiles)' : 'PQ Tubular Mesh Solidifier';
+    if (resetDefBtn) resetDefBtn.textContent = isHostMesh ? '↺ Reset Host Mesh' : '↺ Reset Tube Default';
+    if (resetGraphBtn) resetGraphBtn.textContent = isHostMesh ? '↺ Clear PQ Mesh' : '↺ Reset to Graph';
+}
+
+function buildHostMeshSolidFromVoxels() {
+    const { voxels, TILES, VOXEL_SIZE, GRID_X, GRID_Y, GRID_Z, GRID_ORIGIN } = appState;
+    const half = VOXEL_SIZE * 0.5;
+    const rawPts = [];
+    const rawQuads = [];
+    const rawTris = [];
+    const samePt = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1e-6;
+
+    for (const v of voxels) {
+        if (!v.collapsed || v.tile === null || v.tile === CORE.TILE_NULL) continue;
+        const td = TILES[v.tile];
+        if (!td) continue;
+        const faceQuads = (td.quads && td.quads.length > 0)
+            ? td.quads
+            : (td.previewQuads && td.previewQuads.length > 0 ? td.previewQuads : []);
+        if (faceQuads.length === 0) continue;
+
+        const cx = GRID_ORIGIN.x + v.x * VOXEL_SIZE + half;
+        const cy = GRID_ORIGIN.y + v.y * VOXEL_SIZE + half;
+        const cz = GRID_ORIGIN.z + v.z * VOXEL_SIZE + half;
+
+        for (const q of faceQuads) {
+            const p0 = new CORE.V3(cx + q[0][0] * VOXEL_SIZE, cy + q[0][1] * VOXEL_SIZE, cz + q[0][2] * VOXEL_SIZE);
+            const p1 = new CORE.V3(cx + q[1][0] * VOXEL_SIZE, cy + q[1][1] * VOXEL_SIZE, cz + q[1][2] * VOXEL_SIZE);
+            const p2 = new CORE.V3(cx + q[2][0] * VOXEL_SIZE, cy + q[2][1] * VOXEL_SIZE, cz + q[2][2] * VOXEL_SIZE);
+            const p3 = new CORE.V3(cx + q[3][0] * VOXEL_SIZE, cy + q[3][1] * VOXEL_SIZE, cz + q[3][2] * VOXEL_SIZE);
+            const b = rawPts.length;
+            if (samePt(p2, p3)) {
+                rawPts.push(p0, p1, p2);
+                rawTris.push([b, b + 1, b + 2]);
+            } else {
+                rawPts.push(p0, p1, p2, p3);
+                rawQuads.push([b, b + 1, b + 2, b + 3]);
+            }
+        }
+    }
+
+    if (rawPts.length === 0) return null;
+    const { vertices, map } = CORE.weldVertices(rawPts, 1e-4);
+    const quads = [];
+    for (const q of rawQuads) {
+        const mapped = q.map(i => map[i]);
+        if (new Set(mapped).size === 4) quads.push(mapped);
+    }
+    const triangles = [];
+    for (const t of rawTris) {
+        const mapped = t.map(i => map[i]);
+        if (new Set(mapped).size === 3) triangles.push(mapped);
+    }
+
+    const verificationTriangles = [];
+    for (const q of quads) verificationTriangles.push(q[0], q[1], q[2], q[0], q[2], q[3]);
+    for (const t of triangles) verificationTriangles.push(t[0], t[1], t[2]);
+    const verification = CORE.verifyManifold(vertices, verificationTriangles);
+    const planarity = CORE.computeMeshPlanarityStats(vertices, quads);
+    const solid = {
+        vertices,
+        quads,
+        triangles,
+        verification,
+        planarity,
+        quadIsCap: new Uint8Array(quads.length),
+        isHostMeshTile: true,
+        gridResolution: [GRID_X, GRID_Y, GRID_Z]
+    };
+    CORE.initSolidFaceLoops(solid, appState.tubeState.colorMode === 'ring' ? 'ring' : 'longitudinal');
+    return solid;
+}
+
 export function solidifyActiveGraph() {
     syncTubeWallRadiiUI();
-    if (appState.fdmState.triggerOnHost && !appState.lastFDMResult && actions.runFDMOnActiveGraph) {
-        actions.runFDMOnActiveGraph({ skipAutoSolidify: true, keepCamera: true });
+    const isHostMesh = isHostMeshOnlyActive();
+    syncPqHostModeUI(isHostMesh);
+
+    if (viewport.setBusy) viewport.setBusy(isHostMesh ? 'Building PQ host mesh…' : 'Solidifying PQ tubes…');
+    try {
+        if (isHostMesh) {
+            appState.faceLoopState.quadInheritedColors = null;
+            appState.faceLoopState.quadParentLoopIds = null;
+            appState.lastSolidData = buildHostMeshSolidFromVoxels();
+            if (!appState.lastSolidData) return null;
+            walkAndRefreshFaceLoops(appState.lastSolidData);
+            if (appState.activeTabId !== 'tab-fea') appState.lastFEAResult = null;
+            renderTubularMesh(appState.lastSolidData);
+            updateSolidTubeReadout(appState.lastSolidData);
+            recomputeModelBox();
+            return appState.lastSolidData;
+        }
+
+        if (appState.fdmState.triggerOnHost && !appState.lastFDMResult && actions.runFDMOnActiveGraph) {
+            actions.runFDMOnActiveGraph({ skipAutoSolidify: true, keepCamera: true });
+        }
+        const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+        if (!src || !src.edges || src.edges.length === 0) return null;
+
+        appState.faceLoopState.quadInheritedColors = null;
+        appState.faceLoopState.quadParentLoopIds = null;
+
+        const { tubeState } = appState;
+        appState.lastSolidData = CORE.solidifyGraph(src.vertices, src.edges, {
+            nSides: tubeState.nSides,
+            radius: tubeState.radius,
+            endOffset: tubeState.endOffset,
+            longitudinalSubdivLevels: tubeState.longitudinalSubdivLevels,
+            pqOptimization: tubeState.pqOptimization,
+            stitchAtBisectors: tubeState.stitchAtBisectors,
+            miterClamp: tubeState.miterClamp !== false,
+            capLeafEnds: tubeState.capLeafEnds
+        });
+
+        walkAndRefreshFaceLoops(appState.lastSolidData);
+        if (appState.activeTabId !== 'tab-fea') appState.lastFEAResult = null;
+        renderTubularMesh(appState.lastSolidData);
+        updateSolidTubeReadout(appState.lastSolidData);
+        recomputeModelBox();
+        return appState.lastSolidData;
+    } finally {
+        if (viewport.setBusy) viewport.setBusy(null);
     }
-    const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
-    if (!src || !src.edges || src.edges.length === 0) return null;
-
-    appState.faceLoopState.quadInheritedColors = null;
-    appState.faceLoopState.quadParentLoopIds = null;
-
-    const { tubeState } = appState;
-    appState.lastSolidData = CORE.solidifyGraph(src.vertices, src.edges, {
-        nSides: tubeState.nSides,
-        radius: tubeState.radius,
-        endOffset: tubeState.endOffset,
-        longitudinalSubdivLevels: tubeState.longitudinalSubdivLevels,
-        pqOptimization: tubeState.pqOptimization,
-        stitchAtBisectors: tubeState.stitchAtBisectors,
-        miterClamp: tubeState.miterClamp !== false,
-        capLeafEnds: tubeState.capLeafEnds
-    });
-
-    walkAndRefreshFaceLoops(appState.lastSolidData);
-    if (appState.activeTabId !== 'tab-fea') appState.lastFEAResult = null;
-    renderTubularMesh(appState.lastSolidData);
-    updateSolidTubeReadout(appState.lastSolidData);
-    recomputeModelBox();
-    return appState.lastSolidData;
 }
 
 export function resetPQTubeToDefault() {
@@ -686,11 +954,15 @@ export function resetPQMeshToGraph() {
     setTxt('unroll-3d-state', 'OFF');
     const btnEl = $('btn-toggle-unroll-3d');
     if (btnEl) btnEl.classList.remove('on');
+    const isHostMesh = isHostMeshOnlyActive();
+    syncPqHostModeUI(isHostMesh);
     const badge = $('tube-manifold-badge');
-    if (badge) { badge.textContent = 'Graph Only'; badge.className = 'text-[9px] font-mono text-gray-400'; }
+    if (badge) { badge.textContent = isHostMesh ? 'Host Mesh' : 'Graph Only'; badge.className = 'text-[9px] font-mono text-gray-400'; }
     setTxt('tube-loop-count-badge', '0 loops');
     const gSrc = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
-    setTxt('tube-readout', gSrc ? `Centerline Graph: ${gSrc.vertices.length}V · ${gSrc.edges.length}E (click Solidify to build PQ tubes)` : 'V: 0 · Quads: 0 · Tris: 0 · Manifold: —');
+    setTxt('tube-readout', isHostMesh
+        ? 'Host Mesh Mode (Mesh Tiles) — click any PQ / Subdiv / Unroll tool above.'
+        : (gSrc ? `Centerline Graph: ${gSrc.vertices.length}V · ${gSrc.edges.length}E (click Solidify to build PQ tubes)` : 'V: 0 · Quads: 0 · Tris: 0 · Manifold: —'));
     drawUnrolledLoopCanvas();
     if (appState.fdmState.triggerOnHost && appState.lastFDMResult && actions.renderFDMNetwork) {
         actions.renderFDMNetwork(appState.lastFDMResult);
@@ -701,39 +973,97 @@ export function resetPQMeshToGraph() {
     recomputeModelBox();
 }
 
-function runSubdivMutation(mutatorFn) {
-    if (!appState.lastSolidData || !appState.lastSolidData.vertices || appState.lastSolidData.vertices.length === 0) {
-        solidifyActiveGraph({ keepCamera: true });
+function runSubdivMutation(mutatorFn, label = 'Subdividing PQ mesh…') {
+    if (viewport.setBusy) viewport.setBusy(label);
+    try {
+        if (!appState.lastSolidData || !appState.lastSolidData.vertices || appState.lastSolidData.vertices.length === 0) {
+            solidifyActiveGraph({ keepCamera: true });
+        }
+        if (!appState.lastSolidData) return null;
+        const prevLeafSpecs = appState.lastSolidData.leafEndSpecs;
+        const prevMidSpecs = appState.lastSolidData.barMidRingSpecs;
+        appState.lastSolidData = mutatorFn(appState.lastSolidData);
+        if (prevLeafSpecs && !appState.lastSolidData.leafEndSpecs) appState.lastSolidData.leafEndSpecs = prevLeafSpecs;
+        if (prevMidSpecs && !appState.lastSolidData.barMidRingSpecs) appState.lastSolidData.barMidRingSpecs = prevMidSpecs;
+        walkAndRefreshFaceLoops(appState.lastSolidData);
+        if (appState.activeTabId !== 'tab-fea') appState.lastFEAResult = null;
+        renderTubularMesh(appState.lastSolidData);
+        updateSolidTubeReadout(appState.lastSolidData);
+        recomputeModelBox();
+        if (actions.showToast && appState.lastSolidData) {
+            actions.showToast(`PQ Mesh updated (${appState.lastSolidData.quads.length} quads)`, { tone: 'success' });
+        }
+        return appState.lastSolidData;
+    } finally {
+        if (viewport.setBusy) viewport.setBusy(null);
     }
-    if (!appState.lastSolidData) return null;
-    const prevLeafSpecs = appState.lastSolidData.leafEndSpecs;
-    const prevMidSpecs = appState.lastSolidData.barMidRingSpecs;
-    appState.lastSolidData = mutatorFn(appState.lastSolidData);
-    if (prevLeafSpecs && !appState.lastSolidData.leafEndSpecs) appState.lastSolidData.leafEndSpecs = prevLeafSpecs;
-    if (prevMidSpecs && !appState.lastSolidData.barMidRingSpecs) appState.lastSolidData.barMidRingSpecs = prevMidSpecs;
-    walkAndRefreshFaceLoops(appState.lastSolidData);
-    if (appState.activeTabId !== 'tab-fea') appState.lastFEAResult = null;
-    renderTubularMesh(appState.lastSolidData);
-    updateSolidTubeReadout(appState.lastSolidData);
-    recomputeModelBox();
-    return appState.lastSolidData;
 }
 
-export const applyLongitudinalSubdivPQFromUI = () => runSubdivMutation(s => CORE.applyLongitudinalOnlySubdivisionToPQStrips(s, 1, true));
-export const applyCatmullClarkSubdivPQFromUI = () => runSubdivMutation(s => CORE.applyCatmullClarkToPQStrips(s, 1, true));
-export const applyRingSubdivPQFromUI = () => runSubdivMutation(s => CORE.applyRingOnlySubdivisionToPQStrips(s, 1, true));
-export function applyOnlyPQOptimizationFromUI() {
-    if (!appState.lastSolidData || !appState.lastSolidData.vertices || appState.lastSolidData.vertices.length === 0) {
-        solidifyActiveGraph({ keepCamera: true });
+export const applyLongitudinalSubdivPQFromUI = () => runSubdivMutation(s => CORE.applyLongitudinalOnlySubdivisionToPQStrips(s, 1, true), 'Longitudinal Subdiv + PQ…');
+export const applyCatmullClarkSubdivPQFromUI = () => runSubdivMutation(s => CORE.applyCatmullClarkToPQStrips(s, 1, true), 'Catmull-Clark Subdiv + PQ…');
+export const applyRingSubdivPQFromUI = () => runSubdivMutation(s => CORE.applyRingOnlySubdivisionToPQStrips(s, 1, true), 'Ring Subdiv + PQ…');
+export function swapLongRingDirectionsFromUI() {
+    if (viewport.setBusy) viewport.setBusy('Swapping Long ↔ Ring…');
+    try {
+        if (!appState.lastSolidData || !appState.lastSolidData.vertices || appState.lastSolidData.vertices.length === 0) {
+            solidifyActiveGraph({ keepCamera: true });
+        }
+        const solid = appState.lastSolidData;
+        if (!solid || !Array.isArray(solid.quads) || solid.quads.length === 0) return null;
+        // Align every quad along the current longitudinal loops so its walk axis moves to sides 1 & 3 (ring),
+        // guaranteeing a clean global Long <-> Ring swap even on imported OBJ meshes with mixed local winding.
+        const curLong = CORE.walkMeshFaceLoops(solid.vertices, solid.quads, 'longitudinal', { computeUnroll: false });
+        const rotated = new Uint8Array(solid.quads.length);
+        for (const lp of curLong.loops) {
+            for (const st of lp.steps) {
+                if (rotated[st.qIdx]) continue;
+                rotated[st.qIdx] = 1;
+                if (st.enterSide % 2 === 0) {
+                    const q = solid.quads[st.qIdx];
+                    solid.quads[st.qIdx] = [q[1], q[2], q[3], q[0]];
+                }
+            }
+        }
+        for (let i = 0; i < solid.quads.length; i++) {
+            if (!rotated[i]) {
+                const q = solid.quads[i];
+                solid.quads[i] = [q[1], q[2], q[3], q[0]];
+            }
+        }
+        const activeDir = appState.tubeState.colorMode === 'ring' ? 'ring' : 'longitudinal';
+        CORE.initSolidFaceLoops(solid, activeDir);
+        walkAndRefreshFaceLoops(solid);
+        renderTubularMesh(solid);
+        updateSolidTubeReadout(solid);
+        if (actions.showToast) {
+            actions.showToast(`Swapped Long ↔ Ring (${appState.faceLoopState.loops.length} loops)`, { tone: 'info' });
+        }
+        return solid;
+    } finally {
+        if (viewport.setBusy) viewport.setBusy(null);
     }
-    if (!appState.lastSolidData) return null;
-    CORE.optimizeFaceLoopsToPQ(appState.lastSolidData, 96, 0.65, { targetErrorM: 1e-6, maxQuadPlanarityErrorM: 0.0005 });
-    walkAndRefreshFaceLoops(appState.lastSolidData);
-    if (appState.activeTabId !== 'tab-fea') appState.lastFEAResult = null;
-    renderTubularMesh(appState.lastSolidData);
-    updateSolidTubeReadout(appState.lastSolidData);
-    recomputeModelBox();
-    return appState.lastSolidData;
+}
+export function applyOnlyPQOptimizationFromUI() {
+    if (viewport.setBusy) viewport.setBusy('Optimizing PQ planarity…');
+    try {
+        if (!appState.lastSolidData || !appState.lastSolidData.vertices || appState.lastSolidData.vertices.length === 0) {
+            solidifyActiveGraph({ keepCamera: true });
+        }
+        if (!appState.lastSolidData) return null;
+        CORE.optimizeFaceLoopsToPQ(appState.lastSolidData, 96, 0.65, { targetErrorM: 1e-6, maxQuadPlanarityErrorM: 0.0005 });
+        walkAndRefreshFaceLoops(appState.lastSolidData);
+        if (appState.activeTabId !== 'tab-fea') appState.lastFEAResult = null;
+        renderTubularMesh(appState.lastSolidData);
+        updateSolidTubeReadout(appState.lastSolidData);
+        recomputeModelBox();
+        if (actions.showToast && appState.lastSolidData?.planarity) {
+            const errMm = ((appState.lastSolidData.planarity.maxQuadPlanarityErrorM || 0) * 1000).toFixed(3);
+            actions.showToast(`PQ optimized (max warp ${errMm} mm)`, { tone: 'success' });
+        }
+        return appState.lastSolidData;
+    } finally {
+        if (viewport.setBusy) viewport.setBusy(null);
+    }
 }
 
 export function setTubeColorMode(mode) {
@@ -746,24 +1076,36 @@ export function setTubeColorMode(mode) {
 }
 
 export function toggleUnroll3DFromUI(forceState = undefined) {
-    if (!appState.lastSolidData || !appState.lastSolidData.vertices || appState.lastSolidData.vertices.length === 0) {
-        solidifyActiveGraph({ keepCamera: true });
+    const nextState = forceState !== undefined ? !!forceState : !appState.faceLoopState.showUnrolled3D;
+    if (nextState && viewport.setBusy) viewport.setBusy('Unrolling 3D PQ strips…');
+    try {
+        if (!appState.lastSolidData || !appState.lastSolidData.vertices || appState.lastSolidData.vertices.length === 0) {
+            solidifyActiveGraph({ keepCamera: true });
+        }
+        appState.faceLoopState.showUnrolled3D = nextState;
+        setTxt('unroll-3d-state', appState.faceLoopState.showUnrolled3D ? 'ON' : 'OFF');
+        const btnEl = $('btn-toggle-unroll-3d');
+        if (btnEl) btnEl.classList.toggle('on', appState.faceLoopState.showUnrolled3D);
+        renderUnrolledStrips3D();
+        applyOutlinerVisibility();
+        recomputeModelBox();
+        if (appState.faceLoopState.showUnrolled3D && actions.showToast) {
+            const nSheets = appState.faceLoopState.unrolledBedLayout?.grid?.sheetTransforms?.length || 1;
+            actions.showToast(`Unrolled ${appState.faceLoopState.loops.length} strips onto ${nSheets} sheet${nSheets === 1 ? '' : 's'}`, { tone: 'success' });
+        }
+        return appState.faceLoopState.showUnrolled3D;
+    } finally {
+        if (viewport.setBusy) viewport.setBusy(null);
     }
-    appState.faceLoopState.showUnrolled3D = forceState !== undefined ? !!forceState : !appState.faceLoopState.showUnrolled3D;
-    setTxt('unroll-3d-state', appState.faceLoopState.showUnrolled3D ? 'ON' : 'OFF');
-    const btnEl = $('btn-toggle-unroll-3d');
-    if (btnEl) btnEl.classList.toggle('on', appState.faceLoopState.showUnrolled3D);
-    renderUnrolledStrips3D();
-    applyOutlinerVisibility();
-    recomputeModelBox();
-    return appState.faceLoopState.showUnrolled3D;
 }
 
 export function ensurePqTabReady(opts = {}) {
-    if (!appState.lastHostGraph && !appState.lastFDMResult && actions.refreshHostGraph) {
+    const isHostMesh = isHostMeshOnlyActive();
+    syncPqHostModeUI(isHostMesh);
+    if (!isHostMesh && !appState.lastHostGraph && !appState.lastFDMResult && actions.refreshHostGraph) {
         actions.refreshHostGraph({ preserveFixed: true });
     }
-    if (!appState.lastSolidData && appState.tubeState.show) {
+    if (!appState.lastSolidData && (appState.tubeState.show || isHostMesh)) {
         solidifyActiveGraph({ keepCamera: opts.keepCamera !== false });
     } else if (!appState.lastSolidData) {
         if (appState.fdmState.triggerOnHost && appState.lastFDMResult && actions.renderFDMNetwork) actions.renderFDMNetwork(appState.lastFDMResult);
@@ -777,6 +1119,8 @@ export function initTab4PqMesh() {
     actions.solidifyActiveGraph = solidifyActiveGraph;
     actions.toggleUnroll3DFromUI = toggleUnroll3DFromUI;
     actions.drawUnrolledLoopCanvas = drawUnrolledLoopCanvas;
+    actions.selectPqLoopById = selectPqLoopById;
+    actions.swapPqLongRing = swapLongRingDirectionsFromUI;
     actions.ensurePqTabReady = ensurePqTabReady;
 
     syncTubeWallRadiiUI();
@@ -813,13 +1157,19 @@ export function initTab4PqMesh() {
     });
 
     const bindClick = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', fn); };
-    bindClick('btn-solidify-tubes', () => solidifyActiveGraph({ keepCamera: true }));
+    bindClick('btn-solidify-tubes', () => {
+        const solid = solidifyActiveGraph({ keepCamera: true });
+        if (solid && actions.showToast) {
+            actions.showToast(`Solidified PQ mesh (${solid.quads.length} quads)`, { tone: 'success' });
+        }
+    });
     bindClick('btn-reset-pq-default', () => resetPQTubeToDefault());
     bindClick('btn-reset-pq-graph', () => resetPQMeshToGraph());
     bindClick('btn-long-subdiv-pq', () => applyLongitudinalSubdivPQFromUI());
     bindClick('btn-cc-subdiv-pq', () => applyCatmullClarkSubdivPQFromUI());
     bindClick('btn-ring-subdiv-pq', () => applyRingSubdivPQFromUI());
     bindClick('btn-only-pq-opt', () => applyOnlyPQOptimizationFromUI());
+    bindClick('btn-swap-long-ring', () => swapLongRingDirectionsFromUI());
     bindClick('btn-toggle-unroll-3d', () => toggleUnroll3DFromUI());
 
     $$('.tube-color-btn').forEach(btn => btn.addEventListener('click', () => setTubeColorMode(btn.dataset.tubeColor)));
@@ -828,8 +1178,11 @@ export function initTab4PqMesh() {
     if (unrollCanvasEl) {
         unrollCanvasEl.addEventListener('click', () => {
             if (appState.faceLoopState.loops && appState.faceLoopState.loops.length > 0) {
-                appState.faceLoopState.selectedLoopIdx = (appState.faceLoopState.selectedLoopIdx + 1) % appState.faceLoopState.loops.length;
-                drawUnrolledLoopCanvas();
+                const cur = appState.faceLoopState.selectedLoopIdx;
+                const nextIdx = (cur === null || cur === undefined || cur < 0)
+                    ? 0
+                    : (cur + 1) % appState.faceLoopState.loops.length;
+                selectPqLoopById(nextIdx);
             }
         });
     }

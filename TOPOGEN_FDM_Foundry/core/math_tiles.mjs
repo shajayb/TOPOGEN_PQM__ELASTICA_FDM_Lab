@@ -13,6 +13,12 @@
  * Outputs: V3 vectors, deterministic PRNG, 15 structural tile definitions, adjacency matrices
  */
 
+import {
+    createTwinTubeBifurcationCoarseMesh,
+    subdivideMeshBoundaryPreserving,
+    extractSkeletalGraphFromMesh
+} from './mesh_skeletonizer.mjs';
+
 // --- Lightweight Pure-JS 3D Vector (100% compatible with THREE.Vector3) ---
 class V3 {
     constructor(x = 0, y = 0, z = 0) {
@@ -97,6 +103,7 @@ const TILE_FUNICULAR_VAULT   = 11;
 const TILE_SLENDER_DIAGRID   = 12;
 const TILE_HYPERBOLOID       = 13;
 const TILE_CATENARY_QUADRIPOD = 14;
+const TILE_TWIN_BIFURCATION  = 15;
 
 function buildBoxArmQuads(x0, x1, y0, y1, z0, z1, openFaces = {}) {
     const v = [
@@ -333,6 +340,18 @@ function createTileTemplates() {
         ]
     };
 
+    // 15. Twin-Tube Bifurcation (Coarse 26-Quad Column -> Subdivided Shell + Extracted 2->1->2 Curve Skeleton)
+    const twinCoarse = createTwinTubeBifurcationCoarseMesh();
+    const twinSub = subdivideMeshBoundaryPreserving(twinCoarse.verts, twinCoarse.faces, 1);
+    const twinPreviewQuads = twinSub.faces.map(f => [
+        twinSub.verts[f[0]], twinSub.verts[f[1]], twinSub.verts[f[2]], twinSub.verts[f[3]]
+    ]);
+    const twinSkel = extractSkeletalGraphFromMesh(twinCoarse.verts, twinCoarse.faces);
+    const twinBifurcationGraph = {
+        vertices: twinSkel.vertices,
+        edges: twinSkel.edges
+    };
+
     return [
         {
             id: TILE_NULL, key: 'null', name: 'Null (Empty)', short: 'NUL',
@@ -426,6 +445,12 @@ function createTileTemplates() {
             color: [0.95, 0.45, 0.72], hex: '#f472b6', enabled: false, weight: 2.4,
             sockets: [1, 1, 1, 1, 1, 1], quads: buildQuadsFromGraph(catenaryQuadripodGraph, 0.06),
             graph: catenaryQuadripodGraph
+        },
+        {
+            id: TILE_TWIN_BIFURCATION, key: 'twin_bifurcation', name: 'Twin-Tube Bifurc.', short: 'TBF',
+            color: [0.65, 0.55, 0.98], hex: '#a78bfa', enabled: false, weight: 2.2,
+            sockets: [0, 0, 0, 0, 1, 1], quads: [], previewQuads: twinPreviewQuads,
+            graph: twinBifurcationGraph
         }
     ];
 }
@@ -545,6 +570,23 @@ const TILE_PRESETS = {
             nSides: 8,
             wfcSeed: 42
         }
+    },
+    twin_bifurcation: {
+        enabled: ['twin_bifurcation'],
+        weights: { twin_bifurcation: 2.2 },
+        seedTile: 'twin_bifurcation',
+        defaultGrid: [2, 2, 3],
+        defaultConfig: {
+            fdmMode: 'compression',
+            qProfile: 'column_boosted',
+            qBase: 5.0,
+            columnBoost: 4.0,
+            anchorBoost: 1.8,
+            outerRadiusM: 0.025,
+            innerRadiusM: 0.012,
+            nSides: 8,
+            wfcSeed: 42
+        }
     }
 };
 
@@ -656,6 +698,7 @@ export {
     TILE_SLENDER_DIAGRID,
     TILE_HYPERBOLOID,
     TILE_CATENARY_QUADRIPOD,
+    TILE_TWIN_BIFURCATION,
     buildBoxArmQuads,
     buildStrutQuads,
     buildQuadsFromGraph,

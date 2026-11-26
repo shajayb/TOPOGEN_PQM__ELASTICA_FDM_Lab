@@ -137,7 +137,7 @@ export function mountTabElastica() {
             </div>
 
             <div class="pt-1 border-t border-gray-800 space-y-1 font-sans">
-                <button id="btn-toggle-elastica-unroll-3d" class="cad-btn cyan w-full py-1 flex items-center justify-between text-[9.5px]" title="Render flat 2D unrolled & packed elastica rods on the ground plane alongside the 3D structure">
+                <button id="btn-toggle-elastica-unroll-3d" class="cad-btn cyan w-full py-1 flex items-center justify-between text-[9.5px]" title="3D Unrolled Rods — Lay flat cut sheets beside 3D model.">
                     <span>Toggle 3D Unrolled Rods</span>
                     <span id="elastica-unroll-3d-state" class="font-mono text-[9px] opacity-90">OFF</span>
                 </button>

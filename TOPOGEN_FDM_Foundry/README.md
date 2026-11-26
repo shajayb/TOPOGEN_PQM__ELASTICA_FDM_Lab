@@ -114,14 +114,24 @@ node TOPOGEN_FDM_Foundry/verifier/verify.mjs \
 ```
 Exit codes: `0` = PASS, `2` = FAIL, `1` = runtime/CLI error. Reports `centerlineMassKg` & `meshMassKg`, `funicularEfficiency`, `compressionDominance`, `loadToMassRatio`, `minIncidentAngleDeg`, and the `LC_lateral_5pct` notional lateral stability advisory.
 
-### 4. Interactive Browser Apps & Long-Horizon Campaign Launcher
+### 4. Interactive Browser Apps, Desktop MCP & Long-Horizon Campaign Launcher
+- **Cold-Start & Desktop MCP Playbook**: See [`../AGENTS.md`](../AGENTS.md) and [`../WISE_AI_ASSISTANT_MCP.md`](../WISE_AI_ASSISTANT_MCP.md) for Chrome-first launch rules, conversation-to-tab affinity, Mode A/B cryptographic seal workflows, and known bridge boundaries.
+- **One-Command Chrome Launch & Live Desktop MCP** (`index_TOPOGEN_PQM_ELASTICA_FDM.html` + `foundry_server.mjs` + `agent/mcp.mjs`):
+  ```bash
+  # Launch 3D Workbench in Google Chrome paired to your conversation (auto-starts :8787 & keeps MCP bound):
+  node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>
+  # Or launch the Campaign Launcher instead:
+  node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --launcher --conv <Conversation ID>
+  # Verify Mode A cryptographic seal & air-gap:
+  npm run seal:verify
+  ```
 - **Foundry Launcher & Live Swarm Monitor** (`foundry_launcher.html` + `foundry_server.mjs`):
   ```bash
   node TOPOGEN_FDM_Foundry/foundry_server.mjs
   # Open http://127.0.0.1:8787/foundry_launcher.html
   ```
   Author or load briefs, choose **Mode A (Sealed Parametric)** or **Mode B (Adaptive Generator Evolution)**, select specific Foundry Gates (`G1`–`G7`), watch live candidate 3D meshes & Pareto fronts stream in real time via SSE, stop active swarm execution cleanly, and manage/reset `runs/` storage.
-- **Generator UI**: Open `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` in a browser and open the **`3. FDM & Tubes`** tab to explore WFC tile presets (including `pilot_champion`), run FDM in `compression` / `zero-weight` / `tensile` modes, adjust solid or hollow **`Inner R`** tubular sections, solidify watertight quad tubular meshes, and export `.topology.json` + `.mesh.obj`.
+- **Generator UI**: Open `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html` in Google Chrome (check the top-right **Chrome · Paired** HUD pill) and open the **`3. FDM & Tubes`** tab to explore WFC tile presets (including `pilot_champion`), run FDM in `compression` / `zero-weight` / `tensile` modes, adjust solid or hollow **`Inner R`** tubular sections, solidify watertight quad tubular meshes, and export `.topology.json` + `.mesh.obj`.
 - **Verifier UI**: Open `TOPOGEN_FDM_Foundry/verifier/verifier.html` in a browser (includes a built-in demo tower) to drag-and-drop any `.topology.json`, `brief.json`, and `.mesh.obj`, run 3D plaster FEA, and inspect magnified deflected shapes, tensile/compressive/axial/utilization heatmaps, reaction/load arrows, and funicularity KPIs.
 
 ---

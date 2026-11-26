@@ -5,6 +5,49 @@ import crypto from 'node:crypto';
 
 const MCP_SERVER_KEY = 'topogen_fdm_foundry';
 
+function localShareBaseDir() {
+  if (process.env.TOPOGEN_STATE_ROOT) {
+    return path.resolve(process.env.TOPOGEN_STATE_ROOT);
+  }
+  if (process.platform === 'win32') {
+    return path.join(
+      process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
+      'Topogen',
+      'Foundry'
+    );
+  }
+  return path.join(os.homedir(), '.local', 'share', 'Topogen', 'Foundry');
+}
+
+export function foundryEcosystemDir(ecosystem = 'antigravity') {
+  return path.join(localShareBaseDir(), ecosystem);
+}
+
+export function latestSessionManifestFile(ecosystem = 'antigravity', customParentDir = null) {
+  const dir = customParentDir ? path.resolve(customParentDir) : foundryEcosystemDir(ecosystem);
+  return path.join(dir, 'latest-session.json');
+}
+
+export function writeLatestSessionManifest(manifest, { ecosystem = 'antigravity', customParentDir = null } = {}) {
+  if (!manifest || typeof manifest !== 'object') {
+    throw Error('Valid session manifest object is required');
+  }
+  const file = latestSessionManifestFile(ecosystem, customParentDir);
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const payload = {
+    ...manifest,
+    updatedAt: new Date().toISOString(),
+  };
+  const temp = `${file}.${crypto.randomUUID()}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(payload, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+  try {
+    fs.renameSync(temp, file);
+  } finally {
+    fs.rmSync(temp, { force: true });
+  }
+  return file;
+}
+
 export function desktopBindingFile(thread) {
   if (!/^[a-zA-Z0-9_-]{8,128}$/.test(thread || '')) {
     throw Error('Launch TOPOGEN Foundry from the intended Codex chat to pair it.');
@@ -74,8 +117,12 @@ export function unbindAntigravityMcp(manifestPath, configPath = antigravityMcpCo
     if (!entry || !Array.isArray(entry.args)) return false;
     if (manifestPath !== undefined && manifestPath !== null) {
       const idx = entry.args.indexOf('--session');
-      const boundManifest = idx >= 0 ? entry.args[idx + 1] : entry.args[2];
-      if (boundManifest !== manifestPath) return false;
+      if (idx >= 0) {
+        const boundManifest = entry.args[idx + 1];
+        if (boundManifest !== manifestPath) return false;
+      } else if (entry.args.length >= 3 && !entry.args[1]?.startsWith('--')) {
+        if (entry.args[2] !== manifestPath) return false;
+      }
     }
     const servers = { ...doc.mcpServers };
     delete servers[MCP_SERVER_KEY];

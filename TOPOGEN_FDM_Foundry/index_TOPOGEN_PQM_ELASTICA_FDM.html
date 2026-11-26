@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TOPOGEN-PQ MESH-FDM-FEA — Structural Foundry</title>
+    <link rel="icon" href="data:,">
 
     <!-- UI Styling (Tailwind Utility Classes + Modular Student Theme CSS) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -26,22 +27,20 @@
 
     <!-- =====================================================================
          1. LEFT ALGORITHMIC WORKBENCH PANEL (6-Tab + 3-Button Compact Mode)
-         See STUDENT_GUIDE.md: each tab's controls & logic live in `ui/tabs/*`
+         See STUDENT_GUIDE.md: each tab's controls & logic live in ui/tabs/*
          ===================================================================== -->
-    <aside id="left-sidebar" class="floating-sidebar">
+    <aside id="left-sidebar" class="floating-panel floating-sidebar">
         <!-- Draggable Title Bar with Goldilocks H1/H2/H3, Compact/Full Toggle & Minimize -->
-        <div id="sidebar-drag-header" class="px-2 py-2 border-b border-gray-800 flex items-center justify-between gap-1.5 cursor-move select-none bg-gray-950/60">
-            <div class="min-w-0 flex-1">
-                <div class="flex items-center space-x-1 whitespace-nowrap">
-                    <span class="text-gray-500 text-xs flex-shrink-0">⠿</span>
-                    <h1 class="text-[11px] font-bold tracking-tight text-gray-100 whitespace-nowrap">TOPOGEN · PQ MESH · FDM · FEA</h1>
-                </div>
-                <p class="text-[8.5px] text-gray-400 mt-0.5 truncate">Topo · PQ · Force Density · FEA <span id="build-tag" class="text-cyan-400 font-mono">· foundry</span></p>
+        <div id="sidebar-drag-header" class="panel-header" title="Drag to reposition panel">
+            <div class="panel-title-group">
+                <span class="panel-grip">⠿</span>
+                <h1 class="panel-title">TOPOGEN · PQ MESH · FDM · FEA</h1>
+                <span id="build-tag" class="panel-tag text-cyan-600">FOUNDRY</span>
             </div>
-            <div class="flex items-center space-x-1 flex-shrink-0 whitespace-nowrap">
-                <span id="btn-goldilocks-help" class="whitespace-nowrap flex-shrink-0 text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded px-1.5 py-0.5 text-[8.5px] font-mono leading-tight cursor-help" data-tip="3D Topo Collapse &amp; Adjacency Growth, Force Density form-finding, all-quad PQ tubular solidification, 2D unroll, and 3D Space-Frame FEA." title="3D Topo Collapse &amp; Adjacency Growth, Force Density form-finding, all-quad PQ tubular solidification, 2D unroll, and 3D Space-Frame FEA.">?</span>
-                <button id="btn-sidebar-compact-toggle" class="whitespace-nowrap flex-shrink-0 cad-btn px-1.5 py-0.5 text-[8px] font-mono leading-tight" title="Switch between 3-Button Compact Card and Full 6-Tab UI">Compact</button>
-                <button id="btn-sidebar-minimize" class="whitespace-nowrap flex-shrink-0 text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded px-1.5 py-0.5 text-xs font-mono leading-none" title="Minimize / Expand Panel">–</button>
+            <div class="panel-actions">
+                <span id="btn-goldilocks-help" class="panel-btn cursor-help" data-tip="Pipeline Overview — Tile growth, funicular form-finding, planar quad tubes, frame check." title="Pipeline Overview — Tile growth, funicular form-finding, planar quad tubes, frame check.">?</span>
+                <button id="btn-sidebar-compact-toggle" class="panel-btn" title="Switch between 3-Button Compact Card and Full 6-Tab UI">Compact</button>
+                <button id="btn-sidebar-minimize" class="panel-btn panel-toggle-btn" title="Minimize / Expand Panel">–</button>
             </div>
         </div>
 
@@ -131,7 +130,7 @@
                 </div>
 
                 <!-- 7. I/O: Composite Multi-Layer Rhino .3dm Export -->
-                <button id="btn-compact-export-3dm" class="cad-btn accent w-full py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Export composite multi-layer Rhino .3dm (01_Tiles, 02_Generated_Topology, 03_Post_FDM_Topology, 04_PQ_Mesh, 05_Unrolls_Laser_Sheets)">
+                <button id="btn-compact-export-3dm" class="cad-btn accent w-full py-1.5 px-2.5 flex items-center justify-between text-[10px]" title="Composite Rhino Export — Save tiles, centerlines, planar quad mesh, and flat sheets.">
                     <span>7. I/O · Export Composite .3dm</span>
                     <span id="compact-graph-badge" class="font-mono text-[9px] text-pink-200 bg-pink-950/60 border border-pink-500/35 rounded px-1.5 py-0.5">0V · 0E</span>
                 </button>
@@ -174,16 +173,19 @@
     </aside>
 
     <!-- =====================================================================
-         2. FLOATING ANALYTICAL TELEMETRY HUD PANEL (`ui/display/telemetry_hud.js`)
+         2. FLOATING ANALYTICAL TELEMETRY HUD PANEL (ui/display/telemetry_hud.js)
          ===================================================================== -->
-    <aside id="telemetry-panel" class="floating-telemetry minimized">
-        <div id="telemetry-drag-header" class="px-2.5 py-2 border-b border-gray-800 flex items-center justify-between gap-1.5 cursor-move select-none bg-gray-950/70">
-            <div class="flex items-center space-x-1.5 min-w-0">
-                <span class="text-gray-500 text-xs flex-shrink-0">⠿</span>
-                <span class="text-[10px] font-bold uppercase tracking-tight text-gray-200 whitespace-nowrap">TOPOGEN-PQ-FDM-FEA Telemetry <span class="text-cyan-400 font-mono text-[9px]">HUD</span></span>
-                <span id="telemetry-hud-pill" class="text-[8.5px] font-mono px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-400 whitespace-nowrap flex-shrink-0">Idle</span>
+    <aside id="telemetry-panel" class="floating-panel floating-telemetry minimized">
+        <div id="telemetry-drag-header" class="panel-header" title="Drag to reposition panel">
+            <div class="panel-title-group">
+                <span class="panel-grip">⠿</span>
+                <span class="panel-title">TOPOGEN-PQ-FDM-FEA Telemetry</span>
+                <span class="panel-tag text-cyan-600">HUD</span>
+                <span id="telemetry-hud-pill" class="panel-pill">Idle</span>
             </div>
-            <button id="btn-telemetry-minimize" class="flex-shrink-0 text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded px-2 py-0.5 text-xs font-mono leading-none" title="Minimize / Expand Telemetry HUD">+</button>
+            <div class="panel-actions">
+                <button id="btn-telemetry-minimize" class="panel-btn panel-toggle-btn" title="Minimize / Expand Telemetry HUD">+</button>
+            </div>
         </div>
         <div id="telemetry-collapsible" class="sidebar-scroll-body hidden p-3 space-y-2.5 text-[10px] font-mono"></div>
         <div id="telemetry-resize-e" class="sidebar-resize-handle-e hidden" title="Drag to resize telemetry panel width"></div>
@@ -191,15 +193,18 @@
     </aside>
 
     <!-- =====================================================================
-         3. FLOATING VIEWPORT DISPLAY HUD PANEL (`ui/display/display_hud.js`)
+         3. FLOATING VIEWPORT DISPLAY HUD PANEL (ui/display/display_hud.js)
          ===================================================================== -->
-    <aside id="display-hud-panel" class="floating-display-hud minimized">
-        <div id="display-hud-drag-header" class="px-3 py-2 border-b border-gray-800 flex items-center justify-between cursor-move select-none bg-gray-950/70">
-            <div class="flex items-center space-x-1.5">
-                <span class="text-gray-500 text-xs">⠿</span>
-                <span class="text-[11px] font-bold uppercase tracking-wider text-gray-200">Viewport Display <span class="text-pink-400 font-mono text-[9.5px]">HUD</span></span>
+    <aside id="display-hud-panel" class="floating-panel floating-display-hud minimized">
+        <div id="display-hud-drag-header" class="panel-header" title="Drag to reposition panel">
+            <div class="panel-title-group">
+                <span class="panel-grip">⠿</span>
+                <span class="panel-title">Viewport Display</span>
+                <span class="panel-tag text-pink-600">HUD</span>
             </div>
-            <button id="btn-display-hud-minimize" class="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded px-2 py-0.5 text-xs font-mono leading-none" title="Minimize / Expand Viewport Display HUD">+</button>
+            <div class="panel-actions">
+                <button id="btn-display-hud-minimize" class="panel-btn panel-toggle-btn" title="Minimize / Expand Viewport Display HUD">+</button>
+            </div>
         </div>
 
         <div id="display-hud-collapsible" class="hidden p-3 space-y-2.5 text-[10px]">
@@ -249,17 +254,56 @@
     </aside>
 
     <!-- =====================================================================
-         4. FULL-BLEED 3D Z-UP VIEWPORT & OUTLINER (`ui/display/viewport_scene.js`)
+         4. FULL-BLEED 3D Z-UP VIEWPORT & OUTLINER (ui/display/viewport_scene.js)
          ===================================================================== -->
     <main id="canvas-container" class="flex-grow relative">
         <canvas id="overlay-canvas"></canvas>
 
-        <div id="outliner" class="absolute top-2 right-2 w-64 bg-gray-900/95 border border-gray-700 rounded shadow-xl z-20 text-[11px] text-gray-200 flex flex-col max-h-[80vh]">
-            <div class="flex items-center justify-between px-2 py-1 border-b border-gray-700 select-none">
-                <span class="font-bold tracking-widest text-[10px] text-gray-400">OUTLINER</span>
-                <button id="outliner-collapse" class="text-gray-400 hover:text-white px-1 leading-none">+</button>
+        <!-- Studio-Light Live Connection & Conversation Pairing HUD (hidden on static servers) -->
+        <div id="mcp-bridge-hud" class="mcp-bridge-hud hidden">
+            <button type="button" id="mcp-bridge-pill" class="mcp-bridge-pill" aria-expanded="false" title="Live Connection — View browser pairing, mode, and tab controls.">
+                <span id="mcp-bridge-dot" class="mcp-bridge-dot dot-unpaired"></span>
+                <span id="mcp-bridge-label" class="mcp-bridge-label">Chrome · Unpaired</span>
+                <span id="mcp-bridge-mode" class="mcp-bridge-mode mode-a">MODE A</span>
+            </button>
+            <div id="mcp-bridge-flash" class="mcp-bridge-flash hidden" aria-live="polite"></div>
+            <div id="mcp-bridge-popover" class="mcp-bridge-popover hidden" role="dialog" aria-label="Browser Connection and Pairing">
+                <div class="mcp-pop-header">
+                    <span id="mcp-bridge-surface-label" class="mcp-pop-title">Chrome · 3D Workbench</span>
+                    <span id="mcp-bridge-state-tag" class="mcp-state-tag unpaired">Unpaired</span>
+                </div>
+                <div class="mcp-pop-row">
+                    <span class="mcp-pop-key">Tab ID</span>
+                    <code id="mcp-bridge-tab-id" class="mcp-pop-code">wb_…</code>
+                    <button type="button" id="btn-mcp-copy-tab" class="cad-btn mcp-pop-btn" title="Copy Tab ID — Share exact browser tab identifier.">Copy Tab ID</button>
+                </div>
+                <div class="mcp-pop-section">
+                    <label for="inp-mcp-conv-id" class="mcp-pop-key">Conversation</label>
+                    <input id="inp-mcp-conv-id" type="text" class="mcp-pop-input" placeholder="Paste Conversation ID" autocomplete="off" spellcheck="false" title="Conversation Pairing — Enter active session ID to pair this tab.">
+                    <div class="mcp-pop-actions">
+                        <button type="button" id="btn-mcp-pair-tab" class="cad-btn primary mcp-pop-btn flex-1" title="Pair This Tab — Lock workspace updates to this conversation.">Pair This Tab</button>
+                        <button type="button" id="btn-mcp-unpair-tab" class="cad-btn mcp-pop-btn hidden" title="Unpair Tab — Clear active conversation link for this tab.">Unpair</button>
+                    </div>
+                    <div id="mcp-bridge-claim-msg" class="mcp-claim-msg hidden"></div>
+                </div>
+                <div class="mcp-pop-footer">
+                    <a id="lnk-mcp-open-launcher" href="./foundry_launcher.html" target="_blank" rel="noopener" class="cad-btn cyan mcp-pop-link" title="Foundry Launcher — Open campaign sweep with same pairing.">Foundry Launcher ↗</a>
+                </div>
             </div>
-            <div id="outliner-body" class="hidden flex flex-col min-h-0">
+        </div>
+
+        <aside id="outliner" class="floating-panel floating-outliner minimized text-[11px]">
+            <div id="outliner-drag-header" class="panel-header" title="Drag to reposition panel">
+                <div class="panel-title-group">
+                    <span class="panel-grip">⠿</span>
+                    <span class="panel-title">Outliner</span>
+                    <span class="panel-tag text-emerald-600">SCENE</span>
+                </div>
+                <div class="panel-actions">
+                    <button id="outliner-collapse" class="panel-btn panel-toggle-btn" title="Minimize / Expand Outliner">+</button>
+                </div>
+            </div>
+            <div id="outliner-body" class="sidebar-scroll-body hidden flex flex-col min-h-0">
                 <div class="flex space-x-1 p-1.5 border-b border-gray-700">
                     <button data-gizmo="off"       class="gizbtn cad-btn flex-1 seg-on" title="Select only">Sel</button>
                     <button data-gizmo="translate" class="gizbtn cad-btn flex-1" title="Move selected curve">Mv</button>
@@ -268,9 +312,11 @@
                     <button data-gizmo="cv"        class="gizbtn cad-btn flex-1" title="Edit control points">CV</button>
                 </div>
                 <div id="outliner-tree" class="overflow-y-auto p-1 flex-1 min-h-0"></div>
-                <div id="outliner-footer" class="px-2 py-1 border-t border-gray-700 text-[9.5px] text-gray-500">units: m · voxel 1 m · 3×3×4</div>
+                <div id="outliner-footer" class="px-2 py-1 border-t border-gray-700 text-[9.5px] text-gray-500 font-mono">units: m · voxel 1 m · 3×3×4</div>
             </div>
-        </div>
+            <div id="outliner-resize-e" class="sidebar-resize-handle-e hidden" title="Drag to resize outliner width"></div>
+            <div id="outliner-resize-se" class="sidebar-resize-handle-se hidden" title="Drag to resize outliner width &amp; height"></div>
+        </aside>
 
         <div id="loading-overlay" class="absolute inset-0 bg-white/80 flex items-center justify-center z-30 hidden">
             <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-gray-800"></div>

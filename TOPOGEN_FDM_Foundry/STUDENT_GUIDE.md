@@ -5,19 +5,36 @@ Every algorithm and UI panel is organized into small, zero-build-step JavaScript
 
 ---
 
-## 1. Quick Run (Zero Build Step)
+## 1. Launching TOPOGEN & Connecting to Browser Tabs (Chrome + Conversation Affinity)
 
-Start the local Foundry server from the repository root:
+Launch TOPOGEN directly in **Google Chrome** bound to your active chat/conversation (auto-starts or reuses the `:8787` daemon and keeps Desktop MCP bound):
 
 ```bash
-node TOPOGEN_FDM_Foundry/foundry_server.mjs
+# Recommended one-command launch (opens 3D Workbench in Chrome & pairs tab):
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>
+
+# Or via Desktop MCP tool (unsandboxed):
+# topogen_ui_launch({ conversationId: "<Conversation ID>" })
+
+# Inspect connected Chrome tabs & control the paired Workbench tab from CLI:
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs tabs
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui inspect --conv <Conversation ID>
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui configure --conv <Conversation ID> --preset pilot_champion --grid 2x2x3
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui step --conv <Conversation ID> --step all
 ```
 
-Then open in your browser:
-- **Interactive 6-Tab Workbench**: `http://127.0.0.1:8787/index_TOPOGEN_PQM_ELASTICA_FDM.html`
-- **Campaign Launcher & Live Tuner**: `http://127.0.0.1:8787/foundry_launcher.html`
+- **Interactive 7-Tab 3D Workbench**: `http://127.0.0.1:8787/index_TOPOGEN_PQM_ELASTICA_FDM.html` *(click the top-right **Chrome · Paired** pill to inspect or claim a tab for your conversation)*
+- **Campaign Launcher & Live Tuner**: `http://127.0.0.1:8787/foundry_launcher.html` *(or `topogen launch --launcher`)*
+- **Important Agent Rules** *(full playbook in [`../AGENTS.md`](../AGENTS.md) & [`../WISE_AI_ASSISTANT_MCP.md`](../WISE_AI_ASSISTANT_MCP.md))*:
+  - **ALWAYS** launch TOPOGEN in Google Chrome bound to `<Conversation ID>` (`topogen_ui_launch` or `topogen.mjs launch --conv <id>`) and wait for `ok: true` + `clientId` before claiming success.
+  - **NEVER** use Antigravity's built-in `browser` webview subagent to launch TOPOGEN for the user unless explicitly requested, and **NEVER** write ad-hoc `node -e "brokerCall(...)"` scripts — use `topogen_ui_*` MCP tools or `topogen.mjs ui <subcommand>`.
+  - **Multi-Tab & Large Exports**: If `AMBIGUOUS_CHROME_TABS` is returned, resolve with `topogen_ui_tabs` + `topogen_ui_connect`. For `> 150 KB` exports (e.g., 256-rod Elastica SVGs), read the returned `stagedPath` rather than expecting inline text.
+  - **Honest Mode A Boundaries**: Per-voxel `NULL`/tile pinning (`voxelPins`), `fea_animate` deflection playback, and state-preserving `topogen_ui_reload` are wired in Mode A (`BATCH-TOPOGEN-04`) under `agent/ui-action-contract.mjs` (`BATCH-TOPOGEN-05`). If any future UI action is not yet exposed on `mcp_ui_bridge.js`, report it honestly (note: `topogen_ui_reload` and `F5` both preserve tab pairing) and offer to enter Mode B to generalize & reseal.
+- **Mode A vs Mode B Code Edits**:
+  - Unlock Mode B before editing sealed `core/`, `ui/`, `launcher_ui/`, `agent/`, or `cli/` files: `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mode --B`
+  - Run all 5 deterministic verification suites (`npm run test:verifier && npm run test:guard && npm run test:core && npm run test:mcp && npm run test:cli`), then reseal and return to Mode A: `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs seal --mode B --reseal` followed by `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mode --A`
 
-*(Any static server such as `npx serve TOPOGEN_FDM_Foundry` or `python -m http.server` inside `TOPOGEN_FDM_Foundry/` also works for `index_TOPOGEN_PQM_ELASTICA_FDM.html`!)*
+*(Any static server such as `npx serve TOPOGEN_FDM_Foundry` or `python -m http.server` inside `TOPOGEN_FDM_Foundry/` also works for standalone viewing of `index_TOPOGEN_PQM_ELASTICA_FDM.html`!)*
 
 ---
 
@@ -34,8 +51,9 @@ Then open in your browser:
 | **Tab 2 Helper: `.3dm` / `.json` / `.obj` Centerline Network Importer** | `ui/tabs/tab2_network_loader.js` | ~220 lines |
 | **Tab 3: All-Quad PQ Tubular Mesh Solidifier, Subdiv, Coloring & 2D/3D Unroll** | `ui/tabs/tab4_pq_mesh.js` | ~810 lines |
 | **Tab 4: Force Density Method (Presets, 3D Click Fixed Anchors, `q` Sliders)** | `ui/tabs/tab3_fdm.js` | ~790 lines |
-| **Tab 5: 3D Space-Frame FEA Contours, Materials, Deflection Animation & Scorecard** | `ui/tabs/tab5_fea.js` | ~585 lines |
-| **Tab 6: Foundry `.JSON`, Quad `.OBJ`, Unroll `.SVG` & Multi-Layer Rhino `.3dm` Exports** | `ui/tabs/tab6_io.js` | ~660 lines |
+| **Tab 5 (Elastica): 3D Elastica Tubular Rods, Source/Sink Valency & DER Strip Unrolling** | `ui/tabs/tab_elastica.js` | ~760 lines |
+| **Tab 6: 3D Space-Frame FEA Contours, Materials, Deflection Animation & Scorecard** | `ui/tabs/tab5_fea.js` | ~585 lines |
+| **Tab 7: Foundry `.JSON`, Quad `.OBJ`, Unroll `.SVG` & Multi-Layer Rhino `.3dm` Exports** | `ui/tabs/tab6_io.js` | ~660 lines |
 | **Shared State (`appState`), Material Constants & Event Bus (`on`/`emit`)** | `ui/state/workbench_state.js` | ~320 lines |
 | **App Startup & Browser Console API (`window.WFC_WORKBENCH`)** | `ui/main.js` & `index_TOPOGEN_PQM_ELASTICA_FDM.html` | ~230–295 lines |
 
@@ -53,9 +71,12 @@ All files in `core/` are **100% pure JavaScript** (zero DOM or Three.js dependen
 | **WFC Solver & Centerline Graph Welding** | `core/wfc_graph.mjs` (~945 lines) | `runWFCSolver`, `buildWeldedGraphFromVoxels`, `extractLargestComponent`, `cleanAndWeldGraph` |
 | **Force Density Method (FDM) & Funicular Tuning** | `core/fdm_solver.mjs` (~670 lines) | `selectGroundAnchors`, `assignForceDensities`, `solveFDM`, `conditionCompressionOnlyNetwork` |
 | **All-Quad PQ Tubular Solidifier & `.OBJ` Export** | `core/pq_solidifier.mjs` (~1,250 lines) + `pq_face_loops.mjs` + `pq_subdivision.mjs` | `solidifyGraph`, `optimizeFaceLoopsToPQ`, `applyLongitudinalOnlySubdivisionToPQStrips`, `verifyManifold`, `buildQuadDominantOBJ` |
+| **Mesh-to-Skeleton Extraction & Coarse Tile Subdiv** | `core/mesh_skeletonizer.mjs` (~1,280 lines) | `extractSkeletalGraphFromMesh`, `subdivideMeshBoundaryPreserving`, `extractBoundaryPortLoops`, `createTwinTubeBifurcationCoarseMesh`, `buildCoarseMeshOBJText` |
+| **3D Elastica Tubular Rods & DER Strip Unrolling** | `core/elastica_curves.mjs` (~1,195 lines) | `traceSkeletalPathsAStar`, `optimizeElasticaCurve`, `buildElasticaRodMesh`, `generateElasticaRibbons`, `buildElasticaRibbonsSVG`, `buildHybridGraphWithElastica` |
 | **2D Per-Bar Unrolling & Laser-Sheet SVG Nesting** | `core/unroll_patterns.mjs` (~760 lines) | `unrollFaceLoop2D`, `buildUnrolledPatterns`, `verifyUnrolledPatterns`, `buildUnrolledPatternsSVG` |
 | **Generator-Side 3D Space-Frame FEA Preview** | `core/frame_fea_preview.mjs` (~925 lines) | `estimateFrameMechanics`, `analyzeSpaceFrameFEA` |
 | **End-to-End Candidate Pipeline & Unified Exports** | `core/index.mjs` (~655 lines) | `generateCandidate`, `buildFoundryTopologyJSON`, `WFC_FDM_CORE`, `loadWfcCore` |
+| **Pure-JS Core & Geometry Regression Suite (`npm run test:core`)** | `core/test_core.mjs` | Deterministic tests for `mesh_skeletonizer`, `pq_subdivision`, `frame_fea_preview`, `elastica_curves` & `generateCandidate` (zero `verifier/` imports) |
 
 ---
 
@@ -80,10 +101,11 @@ All files in `core/` are **100% pure JavaScript** (zero DOM or Three.js dependen
    node TOPOGEN_FDM_Foundry/run_generator.mjs --batch my_batch.json
    ```
 
-3. **Syntax Check Any Edit Instantly**:
+3. **Syntax Check & Pure-JS Core Tests**:
    ```bash
    node --check TOPOGEN_FDM_Foundry/ui/tabs/tab4_pq_mesh.js
    node --check TOPOGEN_FDM_Foundry/launcher_ui/tab_brief_sandbox.js
+   npm run test:core
    ```
 
 ---

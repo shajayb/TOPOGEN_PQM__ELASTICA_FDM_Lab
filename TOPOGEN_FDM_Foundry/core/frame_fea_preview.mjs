@@ -15,12 +15,16 @@
 
 import { toArr3, solveLinearSystem } from './math_tiles.mjs';
 import { computeBoundingBox } from './wfc_graph.mjs';
+import { selectGroundAnchors } from './fdm_solver.mjs';
 
 // ============================================================
 //  FIRST-PRINCIPLES SPACE-FRAME PRE-SCREENER & COMPRESSION CONDITIONING
 // ============================================================
 
 function estimateFrameMechanics(vertices, edges, anchors, sectionParams = {}, material = {}, loadCases = []) {
+    if (!Array.isArray(vertices) || !Array.isArray(edges)) {
+        return { valid: false, tensileBarCount: 0, maxAxialForceN: 0, maxDispM: Infinity, minSF_t: 0, minSF_c: 0, minSF_b: 0, lateralMinSF: 0, barMaxForcesN: [] };
+    }
     const nNodes = vertices.length;
     const nEdges = edges.length;
     if (nNodes < 2 || nEdges < 1) {
@@ -64,13 +68,17 @@ function estimateFrameMechanics(vertices, edges, anchors, sectionParams = {}, ma
 
     const Kff = Array.from({ length: nf }, () => new Float64Array(nf));
     const elemCache = new Array(nEdges);
+    const tmpM = Array.from({ length: 12 }, () => new Float64Array(12));
 
     for (let e = 0; e < nEdges; e++) {
         const [u, v] = edges[e];
+        if (!Number.isInteger(u) || !Number.isInteger(v) || u < 0 || v < 0 || u >= nNodes || v >= nNodes || u === v) {
+            return { valid: false, tensileBarCount: nEdges, maxAxialForceN: 1e6, maxDispM: Infinity, minSF_t: 0, minSF_c: 0, minSF_b: 0, lateralMinSF: 0, barMaxForcesN: [] };
+        }
         const pu = vertices[u], pv = vertices[v];
         const dx = pv[0] - pu[0], dy = pv[1] - pu[1], dz = pv[2] - pu[2];
         const L = Math.hypot(dx, dy, dz);
-        if (L < 1e-7) return { valid: false, tensileBarCount: nEdges, maxAxialForceN: 1e6, maxDispM: Infinity, minSF_t: 0, minSF_c: 0, minSF_b: 0, lateralMinSF: 0, barMaxForcesN: [] };
+        if (!Number.isFinite(L) || L < 1e-7) return { valid: false, tensileBarCount: nEdges, maxAxialForceN: 1e6, maxDispM: Infinity, minSF_t: 0, minSF_c: 0, minSF_b: 0, lateralMinSF: 0, barMaxForcesN: [] };
 
         const ex = [dx / L, dy / L, dz / L];
         const tmp = Math.abs(ex[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1];
@@ -119,7 +127,7 @@ function estimateFrameMechanics(vertices, edges, anchors, sectionParams = {}, ma
                 for (let cI = 0; cI < 3; cI++) T[o + rI][o + cI] = R3[rI][cI];
             }
         }
-        const tmpM = Array.from({ length: 12 }, () => new Float64Array(12));
+        for (let i = 0; i < 12; i++) tmpM[i].fill(0);
         for (let i = 0; i < 12; i++) {
             for (let k = 0; k < 12; k++) {
                 const vlk = kL[i][k];
@@ -324,9 +332,145 @@ function estimateFrameMechanics(vertices, edges, anchors, sectionParams = {}, ma
 }
 
 // Interactive & Batch 3D Euler-Bernoulli Space-Frame FEA Helper (Pure-JS inside wfc-fdm-core, 0 verifier imports!)
+function solveSparseBandedLDLT(nf, sparseRows, RHS, nCases) {
+    // 1. Reverse Cuthill-McKee (RCM) ordering on the DOF adjacency graph to minimize profile
+    const adj = Array.from({ length: nf }, (_, i) => {
+        const nbrs = [];
+        for (const j of sparseRows[i].keys()) {
+            if (j !== i) nbrs.push(j);
+        }
+        return nbrs;
+    });
+    const deg = Int32Array.from({ length: nf }, (_, i) => adj[i].length);
+    for (let i = 0; i < nf; i++) adj[i].sort((a, b) => deg[a] - deg[b]);
+
+    const visited = new Uint8Array(nf);
+    const rcmOrder = new Int32Array(nf);
+    let pos = 0;
+    const queue = new Int32Array(nf);
+
+    while (pos < nf) {
+        let start = -1, minDeg = Infinity;
+        for (let i = 0; i < nf; i++) {
+            if (!visited[i] && deg[i] < minDeg) {
+                minDeg = deg[i];
+                start = i;
+                if (minDeg <= 1) break;
+            }
+        }
+        let qHead = 0, qTail = 0;
+        visited[start] = 1;
+        queue[qTail++] = start;
+        while (qHead < qTail) {
+            const u = queue[qHead++];
+            rcmOrder[pos++] = u;
+            const nbrs = adj[u];
+            for (let k = 0; k < nbrs.length; k++) {
+                const v = nbrs[k];
+                if (!visited[v]) {
+                    visited[v] = 1;
+                    queue[qTail++] = v;
+                }
+            }
+        }
+    }
+
+    const perm = new Int32Array(nf);
+    const invPerm = new Int32Array(nf);
+    for (let i = 0; i < nf; i++) {
+        const oldIdx = rcmOrder[nf - 1 - i];
+        perm[i] = oldIdx;
+        invPerm[oldIdx] = i;
+    }
+
+    // 2. Exact Skyline (variable-bandwidth) lower profile: firstCol[i] = min_{j <= i, A_ij != 0} j
+    const firstCol = new Int32Array(nf);
+    for (let i = 0; i < nf; i++) {
+        let fc = i;
+        const oldI = perm[i];
+        for (const oldJ of sparseRows[oldI].keys()) {
+            const j = invPerm[oldJ];
+            if (j < fc) fc = j;
+        }
+        firstCol[i] = fc;
+    }
+
+    const rowStart = new Int32Array(nf + 1);
+    let totalProfile = 0;
+    for (let i = 0; i < nf; i++) {
+        rowStart[i] = totalProfile;
+        totalProfile += (i - firstCol[i] + 1);
+    }
+    rowStart[nf] = totalProfile;
+
+    const L = new Float64Array(totalProfile);
+    for (let i = 0; i < nf; i++) {
+        const oldI = perm[i];
+        const base = rowStart[i] - firstCol[i];
+        for (const [oldJ, val] of sparseRows[oldI]) {
+            const j = invPerm[oldJ];
+            if (j <= i) L[base + j] += val;
+        }
+    }
+
+    // 3. In-place Skyline LDL^T factorization
+    const D = new Float64Array(nf);
+    for (let i = 0; i < nf; i++) {
+        const fcI = firstCol[i];
+        const baseI = rowStart[i] - fcI;
+        for (let j = fcI; j < i; j++) {
+            const fcJ = firstCol[j];
+            const kStart = fcI > fcJ ? fcI : fcJ;
+            let sum = L[baseI + j];
+            if (kStart < j) {
+                const baseJ = rowStart[j] - fcJ;
+                for (let k = kStart; k < j; k++) {
+                    sum -= L[baseI + k] * L[baseJ + k];
+                }
+            }
+            L[baseI + j] = sum;
+        }
+        let diag = L[baseI + i];
+        for (let j = fcI; j < i; j++) {
+            const lijDj = L[baseI + j];
+            const lj = lijDj / D[j];
+            L[baseI + j] = lj;
+            diag -= lijDj * lj;
+        }
+        if (Math.abs(diag) < 1e-12) diag = diag >= 0 ? 1e-12 : -1e-12;
+        D[i] = diag;
+        L[baseI + i] = 1.0;
+    }
+
+    const Uf = Array.from({ length: nf }, () => new Float64Array(nCases));
+    const y = new Float64Array(nf);
+    for (let ci = 0; ci < nCases; ci++) {
+        for (let i = 0; i < nf; i++) {
+            let sum = RHS[perm[i]][ci];
+            const fcI = firstCol[i];
+            const baseI = rowStart[i] - fcI;
+            for (let j = fcI; j < i; j++) sum -= L[baseI + j] * y[j];
+            y[i] = sum;
+        }
+        for (let i = 0; i < nf; i++) y[i] /= D[i];
+        for (let i = nf - 1; i >= 0; i--) {
+            const xi = y[i];
+            if (xi !== 0) {
+                const fcI = firstCol[i];
+                const baseI = rowStart[i] - fcI;
+                for (let j = fcI; j < i; j++) y[j] -= L[baseI + j] * xi;
+            }
+            Uf[perm[i]][ci] = xi;
+        }
+    }
+    return Uf;
+}
+
 function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}, material = {}, loadConfig = {}) {
-    const verts = (inVertices || []).map(p => toArr3(p));
-    const edges = (inEdges || []).map(e => [e[0], e[1]]);
+    const verts = Array.isArray(inVertices) ? inVertices.map(p => toArr3(p)) : [];
+    const edges = Array.isArray(inEdges)
+        ? inEdges.filter(e => Array.isArray(e) && e.length >= 2).map(e => [e[0], e[1]])
+        : [];
     const nNodes = verts.length;
     const nEdges = edges.length;
 
@@ -362,11 +506,19 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
     });
 
     if (nNodes < 2 || nEdges < 1) return emptyInvalid();
+    for (let i = 0; i < nNodes; i++) {
+        const p = verts[i];
+        if (!Number.isFinite(p[0]) || !Number.isFinite(p[1]) || !Number.isFinite(p[2])) return emptyInvalid();
+    }
 
     const cfg = Array.isArray(loadConfig) ? { loadCases: loadConfig } : (loadConfig || {});
     let anchors = Array.isArray(inAnchors) && inAnchors.length > 0
-        ? [...new Set(inAnchors.filter(i => i >= 0 && i < nNodes))]
-        : selectGroundAnchors(verts, edges, { maxAnchors: 4, minAnchors: 3 });
+        ? [...new Set(inAnchors.filter(i => Number.isInteger(i) && i >= 0 && i < nNodes))]
+        : [];
+    if (anchors.length === 0) {
+        const autoAnchors = selectGroundAnchors(verts, edges, { maxAnchors: 4, minAnchors: 3 });
+        anchors = [...new Set((autoAnchors || []).filter(i => Number.isInteger(i) && i >= 0 && i < nNodes))];
+    }
     if (anchors.length === 0) anchors = [0];
 
     const R = Math.max(1e-4, Number(sectionParams.outerRadiusM !== undefined ? sectionParams.outerRadiusM : 0.015));
@@ -392,12 +544,57 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
 
     const nDof = 6 * nNodes;
     const anchorSet = new Set(anchors);
+    const rotFixedAnchors = new Set();
+
+    if (cfg.ensureComponentFixity) {
+        const parent = Int32Array.from({ length: nNodes }, (_, i) => i);
+        const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+        for (const [u, v] of edges) {
+            const ru = find(u), rv = find(v);
+            if (ru !== rv) parent[ru] = rv;
+        }
+        const compNodes = new Map();
+        for (let i = 0; i < nNodes; i++) {
+            const r = find(i);
+            if (!compNodes.has(r)) compNodes.set(r, []);
+            compNodes.get(r).push(i);
+        }
+        for (const nodes of compNodes.values()) {
+            const compAnchors = nodes.filter(ni => anchorSet.has(ni));
+            if (compAnchors.length === 0) {
+                const sorted = [...nodes].sort((a, b) => verts[a][2] - verts[b][2]);
+                const pickCount = Math.min(3, sorted.length);
+                for (let k = 0; k < pickCount; k++) {
+                    anchorSet.add(sorted[k]);
+                    anchors.push(sorted[k]);
+                    compAnchors.push(sorted[k]);
+                }
+            }
+            // Prevent rotational mechanisms on components with < 3 non-collinear anchors
+            let nonCollinear = false;
+            if (compAnchors.length >= 3) {
+                const p0 = verts[compAnchors[0]];
+                const p1 = verts[compAnchors[1]];
+                const ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2];
+                for (let k = 2; k < compAnchors.length; k++) {
+                    const pk = verts[compAnchors[k]];
+                    const bx = pk[0] - p0[0], by = pk[1] - p0[1], bz = pk[2] - p0[2];
+                    const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
+                    if (cx * cx + cy * cy + cz * cz > 1e-6) { nonCollinear = true; break; }
+                }
+            }
+            if (!nonCollinear || cfg.fixAllComponentRotations) {
+                for (const ai of compAnchors) rotFixedAnchors.add(ai);
+            }
+        }
+    }
+
     const fixedDof = new Uint8Array(nDof);
     for (const ai of anchorSet) {
         fixedDof[6 * ai + 0] = 1;
         fixedDof[6 * ai + 1] = 1;
         fixedDof[6 * ai + 2] = 1;
-        if (fixRotations) {
+        if (fixRotations || rotFixedAnchors.has(ai)) {
             fixedDof[6 * ai + 3] = 1;
             fixedDof[6 * ai + 4] = 1;
             fixedDof[6 * ai + 5] = 1;
@@ -415,19 +612,22 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
     const nf = freeDofs.length;
     if (nf === 0) return emptyInvalid();
 
-    const Kff = Array.from({ length: nf }, () => new Float64Array(nf));
+    const useSparse = nf > 450;
+    const Kff = useSparse ? null : Array.from({ length: nf }, () => new Float64Array(nf));
+    const Ksparse = useSparse ? Array.from({ length: nf }, () => new Map()) : null;
     const elemCache = new Array(nEdges);
     let totalLengthM = 0;
     let totalMassKg = 0;
     const edgeSpecs = Array.isArray(cfg.edgeSpecs) ? cfg.edgeSpecs : null;
+    const tmpM = Array.from({ length: 12 }, () => new Float64Array(12));
 
     for (let e = 0; e < nEdges; e++) {
         const [u, v] = edges[e];
-        if (u < 0 || v < 0 || u >= nNodes || v >= nNodes) return emptyInvalid();
+        if (!Number.isInteger(u) || !Number.isInteger(v) || u < 0 || v < 0 || u >= nNodes || v >= nNodes || u === v) return emptyInvalid();
         const pu = verts[u], pv = verts[v];
         const dx = pv[0] - pu[0], dy = pv[1] - pu[1], dz = pv[2] - pu[2];
         const L = Math.hypot(dx, dy, dz);
-        if (L < 1e-7) return emptyInvalid();
+        if (!Number.isFinite(L) || L < 1e-7) return emptyInvalid();
 
         const spec = edgeSpecs && edgeSpecs[e] ? edgeSpecs[e] : null;
         const Re = spec && spec.outerRadiusM !== undefined ? Math.max(1e-4, Number(spec.outerRadiusM)) : R;
@@ -493,7 +693,7 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
                 for (let cI = 0; cI < 3; cI++) T[o + rI][o + cI] = R3[rI][cI];
             }
         }
-        const tmpM = Array.from({ length: 12 }, () => new Float64Array(12));
+        for (let i = 0; i < 12; i++) tmpM[i].fill(0);
         for (let i = 0; i < 12; i++) {
             for (let k = 0; k < 12; k++) {
                 const vlk = kL[i][k];
@@ -517,10 +717,20 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
         for (let i = 0; i < 12; i++) {
             const fi = dofMap[gDofs[i]];
             if (fi === -1) continue;
-            for (let j = 0; j < 12; j++) {
-                const fj = dofMap[gDofs[j]];
-                if (fj === -1) continue;
-                Kff[fi][fj] += kG[i][j];
+            if (useSparse) {
+                const row = Ksparse[fi];
+                for (let j = 0; j < 12; j++) {
+                    const fj = dofMap[gDofs[j]];
+                    if (fj === -1) continue;
+                    const v = kG[i][j];
+                    if (v !== 0) row.set(fj, (row.get(fj) || 0) + v);
+                }
+            } else {
+                for (let j = 0; j < 12; j++) {
+                    const fj = dofMap[gDofs[j]];
+                    if (fj === -1) continue;
+                    Kff[fi][fj] += kG[i][j];
+                }
             }
         }
         elemCache[e] = { u, v, L, R3, kL, T, kG, gDofs, Re, re, Ae, Ie, Je, rge, Ee, Ge, rhoe, sigTe, sigCe, isElastica, initialBendStressPa };
@@ -528,7 +738,10 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
 
     // Tiny rotational regularization to prevent collinear torsional singularity on pinned nodes
     for (let i = 0; i < nf; i++) {
-        if ((freeDofs[i] % 6) >= 3) Kff[i][i] += 1e-6;
+        if ((freeDofs[i] % 6) >= 3) {
+            if (useSparse) Ksparse[i].set(i, (Ksparse[i].get(i) || 0) + 1e-6);
+            else Kff[i][i] += 1e-6;
+        }
     }
 
     const bb = computeBoundingBox(verts);
@@ -658,7 +871,7 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
         }
 
         let topNodes = [];
-        const nHostOnly = cfg.hostNodeCount !== undefined ? Number(cfg.hostNodeCount) : nNodes;
+        const nHostOnly = (cfg.hostNodeCount !== undefined && Number(cfg.hostNodeCount) > 0) ? Number(cfg.hostNodeCount) : nNodes;
         const topZCut = zMin + lc.topFrac * H;
         for (let ni = 0; ni < nHostOnly; ni++) {
             if (!anchorSet.has(ni) && verts[ni][2] >= topZCut - 1e-6) topNodes.push(ni);
@@ -688,7 +901,9 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
         }
     }
 
-    const Uf = solveLinearSystem(Kff, RHS);
+    const Uf = useSparse
+        ? solveSparseBandedLDLT(nf, Ksparse, RHS, nCases)
+        : solveLinearSystem(Kff, RHS);
     for (let i = 0; i < nf; i++) {
         for (let ci = 0; ci < nCases; ci++) {
             if (!Number.isFinite(Uf[i][ci])) return emptyInvalid();
@@ -747,7 +962,7 @@ function analyzeSpaceFrameFEA(inVertices, inEdges, inAnchors, sectionParams = {}
         let caseMaxNode = 0;
         const nodalDisps = new Array(nNodes);
         const nodalRots  = new Array(nNodes);
-        const nHostOnlyDisp = cfg.hostNodeCount !== undefined ? Number(cfg.hostNodeCount) : nNodes;
+        const nHostOnlyDisp = (cfg.hostNodeCount !== undefined && Number(cfg.hostNodeCount) > 0) ? Number(cfg.hostNodeCount) : nNodes;
         for (let ni = 0; ni < nNodes; ni++) {
             const ux = uGlobal[6 * ni + 0], uy = uGlobal[6 * ni + 1], uz = uGlobal[6 * ni + 2];
             const rx = uGlobal[6 * ni + 3], ry = uGlobal[6 * ni + 4], rz = uGlobal[6 * ni + 5];

@@ -19,8 +19,48 @@ import {
     modelBoxToWorld,
     setArctic,
     setGizmoMode,
-    selectCurve
+    selectCurve,
+    deselect,
+    requestRender,
+    setBusy
 } from './viewport_scene.js';
+
+const TAB_SHORTCUT_ORDER = [
+    'tab-tiles',
+    'tab-topo',
+    'tab-pq',
+    'tab-elastica',
+    'tab-fdm',
+    'tab-fea',
+    'tab-io'
+];
+
+export function showToast(msg, opts = {}) {
+    if (typeof document === 'undefined' || !msg) return;
+    let host = document.getElementById('workbench-toast-host');
+    if (!host) {
+        host = document.createElement('div');
+        host.id = 'workbench-toast-host';
+        host.className = 'workbench-toast-host';
+        host.setAttribute('aria-live', 'polite');
+        document.body.appendChild(host);
+    }
+    const tone = ['info', 'success', 'warn', 'error'].includes(opts.tone) ? opts.tone : 'info';
+    const durationMs = Math.max(800, Number(opts.durationMs) || 2200);
+    const toast = document.createElement('div');
+    toast.className = `workbench-toast tone-${tone}`;
+    toast.textContent = String(msg);
+    host.appendChild(toast);
+    while (host.children.length > 3) {
+        host.removeChild(host.firstChild);
+    }
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 260);
+    }, durationMs);
+}
 
 const eyeChar = v => (v ? '●' : '○');
 
@@ -155,6 +195,13 @@ export function applyOutlinerVisibility() {
         viewport.unroll3DGroup.visible = showSolid && unrollShowOn && viewport.unroll3DGroup.children.length > 0;
     } else if (activeTabId === 'tab-tiles' && tileViewMode === 'inspector' && userImportedMeshes.length === 0) {
         viewport.tilePreviewGroup.visible = true;
+        for (const ch of viewport.tilePreviewGroup.children) {
+            const role = ch.userData?.tileRole;
+            if (role === 'mesh') ch.visible = groupVis.meshes && showQuadMeshes;
+            else if (role === 'graph') ch.visible = groupVis.graph && showCenterlineGraph;
+            else if (role === 'voxel') ch.visible = groupVis.voxels && (showInactiveVoxels || showSuperposition);
+            else if (role === 'socket') ch.visible = (groupVis.meshes && showQuadMeshes) || (groupVis.voxels && (showInactiveVoxels || showSuperposition));
+        }
         viewport.meshGroup.visible = false;
         viewport.graphGroup.visible = false;
         viewport.voxelGroup.visible = false;
@@ -168,7 +215,7 @@ export function applyOutlinerVisibility() {
         viewport.tilePreviewGroup.visible = false;
         viewport.meshGroup.visible = groupVis.meshes && showQuadMeshes;
         viewport.graphGroup.visible = groupVis.graph && showCenterlineGraph;
-        viewport.voxelGroup.visible = groupVis.voxels;
+        viewport.voxelGroup.visible = groupVis.voxels && (showInactiveVoxels || showSuperposition);
         viewport.fdmGroup.visible = false;
         viewport.tubeGroup.visible = false;
         viewport.unroll3DGroup.visible = false;
@@ -180,6 +227,7 @@ export function applyOutlinerVisibility() {
     viewport.gridHelper.visible = groupVis.grid;
     viewport.axesGroup.visible = groupVis.grid;
     updateBoundingBox3D();
+    requestRender();
 }
 
 export function setGoldilocksMode(mode) {
@@ -378,16 +426,9 @@ export function initDisplayHud() {
     actions.switchTab = switchTab;
     actions.setGoldilocksMode = setGoldilocksMode;
     actions.setSidebarCompactMode = setSidebarCompactMode;
+    actions.showToast = showToast;
+    actions.setBusy = setBusy;
 
-    // Outliner collapse & tree clicks
-    const outlinerCollapse = $('outliner-collapse');
-    const outlinerBody = $('outliner-body');
-    if (outlinerCollapse && outlinerBody) {
-        outlinerCollapse.addEventListener('click', () => {
-            const hidden = outlinerBody.classList.toggle('hidden');
-            outlinerCollapse.textContent = hidden ? '+' : '–';
-        });
-    }
     const outlinerTree = $('outliner-tree');
     if (outlinerTree) {
         outlinerTree.addEventListener('click', (e) => {
@@ -597,6 +638,9 @@ export function initDisplayHud() {
     }
 
     const redrawNodeEdgeDisplay = () => {
+        if (appState.activeTabId === 'tab-tiles' && appState.tileViewMode === 'inspector' && actions.renderTileInspector3D) {
+            actions.renderTileInspector3D();
+        }
         if (actions.draw) actions.draw();
         if (appState.lastFDMResult && actions.renderFDMNetwork) {
             actions.renderFDMNetwork(appState.lastFDMResult);
@@ -693,11 +737,148 @@ export function initDisplayHud() {
         });
     }
 
-    // Floating panels (Left Sidebar, Telemetry HUD, Display HUD)
-    wireFloatingPanel($('left-sidebar'), $('sidebar-drag-header'), $('btn-sidebar-minimize'), $('sidebar-collapsible'), $('sidebar-resize-e'), $('sidebar-resize-se'), 280, 620, false);
-    wireFloatingPanel($('telemetry-panel'), $('telemetry-drag-header'), $('btn-telemetry-minimize'), $('telemetry-collapsible'), $('telemetry-resize-e'), $('telemetry-resize-se'), 250, 540, true);
+    // Floating panels (Left Sidebar, Telemetry HUD, Display HUD, Outliner)
+    wireFloatingPanel($('left-sidebar'), $('sidebar-drag-header'), $('btn-sidebar-minimize'), $('sidebar-collapsible'), $('sidebar-resize-e'), $('sidebar-resize-se'), 320, 620, false);
+    wireFloatingPanel($('telemetry-panel'), $('telemetry-drag-header'), $('btn-telemetry-minimize'), $('telemetry-collapsible'), $('telemetry-resize-e'), $('telemetry-resize-se'), 260, 560, true);
     wireFloatingPanel($('display-hud-panel'), $('display-hud-drag-header'), $('btn-display-hud-minimize'), $('display-hud-collapsible'), $('display-hud-resize-e'), $('display-hud-resize-se'), 240, 520, true);
+    wireFloatingPanel($('outliner'), $('outliner-drag-header'), $('outliner-collapse'), $('outliner-body'), $('outliner-resize-e'), $('outliner-resize-se'), 220, 480, true);
+
+    // Compact Studio-Light `?` Keyboard Shortcuts button + popover in Viewport Display HUD (FR-B05-02)
+    initKeyboardShortcutsHud();
 
     setGoldilocksMode('H1');
     setSidebarCompactMode(false);
+}
+
+function isEditableElement(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || Boolean(el.isContentEditable);
+}
+
+function initKeyboardShortcutsHud() {
+    if (typeof document === 'undefined') return;
+    const displayHeader = $('display-hud-drag-header');
+    const actionsRow = displayHeader ? displayHeader.querySelector('.panel-actions') : null;
+    let helpBtn = $('btn-shortcuts-help');
+    if (actionsRow && !helpBtn) {
+        helpBtn = document.createElement('button');
+        helpBtn.type = 'button';
+        helpBtn.id = 'btn-shortcuts-help';
+        helpBtn.className = 'panel-btn shortcuts-help-btn';
+        helpBtn.textContent = '?';
+        helpBtn.title = 'Keyboard Shortcuts (?)';
+        helpBtn.setAttribute('aria-expanded', 'false');
+        const minBtn = $('btn-display-hud-minimize');
+        if (minBtn && minBtn.parentNode === actionsRow) {
+            actionsRow.insertBefore(helpBtn, minBtn);
+        } else {
+            actionsRow.appendChild(helpBtn);
+        }
+    }
+
+    let popover = $('shortcuts-popover');
+    if (!popover) {
+        popover = document.createElement('div');
+        popover.id = 'shortcuts-popover';
+        popover.className = 'shortcuts-popover hidden';
+        popover.setAttribute('role', 'dialog');
+        popover.setAttribute('aria-label', 'Keyboard Shortcuts');
+        popover.innerHTML = `
+            <div class="shortcuts-pop-header">
+                <span class="shortcuts-pop-title">Keyboard Shortcuts</span>
+                <button type="button" id="btn-shortcuts-close" class="panel-btn panel-toggle-btn" title="Close">×</button>
+            </div>
+            <div class="shortcuts-pop-list">
+                <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">F</kbd><span class="shortcuts-desc">Zoom Fit active model</span></div>
+                <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">Esc</kbd><span class="shortcuts-desc">Clear selection &amp; correspondence arc</span></div>
+                <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">1 – 7</kbd><span class="shortcuts-desc">Switch Workbench tabs</span></div>
+                <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">Space</kbd><span class="shortcuts-desc">Toggle FEA deflection playback</span></div>
+                <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">?</kbd><span class="shortcuts-desc">Toggle this shortcuts guide</span></div>
+            </div>
+        `;
+        document.body.appendChild(popover);
+    }
+
+    const positionPopover = () => {
+        if (!helpBtn || !popover) return;
+        const rect = helpBtn.getBoundingClientRect();
+        const popW = 248;
+        const left = Math.max(8, Math.min(window.innerWidth - popW - 8, rect.right - popW));
+        popover.style.left = `${Math.round(left)}px`;
+        if (rect.top > 210) {
+            popover.style.top = 'auto';
+            popover.style.bottom = `${Math.round(window.innerHeight - rect.top + 8)}px`;
+        } else {
+            popover.style.bottom = 'auto';
+            popover.style.top = `${Math.round(rect.bottom + 8)}px`;
+        }
+    };
+
+    const setPopoverOpen = (open) => {
+        if (!popover) return;
+        popover.classList.toggle('hidden', !open);
+        if (helpBtn) helpBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) positionPopover();
+    };
+
+    if (helpBtn) {
+        helpBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = popover && !popover.classList.contains('hidden');
+            setPopoverOpen(!isOpen);
+        });
+    }
+    const closeBtn = $('btn-shortcuts-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => setPopoverOpen(false));
+
+    document.addEventListener('pointerdown', (e) => {
+        if (!popover || popover.classList.contains('hidden')) return;
+        if (popover.contains(e.target) || (helpBtn && helpBtn.contains(e.target))) return;
+        setPopoverOpen(false);
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (isEditableElement(e.target) || isEditableElement(document.activeElement)) return;
+
+        if (e.key === 'Escape') {
+            if (popover && !popover.classList.contains('hidden')) {
+                setPopoverOpen(false);
+            }
+            if (actions.selectPqLoopById) actions.selectPqLoopById(null);
+            if (appState.selectedIdx >= 0) deselect();
+            requestRender();
+            return;
+        }
+        if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+            e.preventDefault();
+            const isOpen = popover && !popover.classList.contains('hidden');
+            setPopoverOpen(!isOpen);
+            return;
+        }
+        if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            zoomToBox(modelBoxToWorld(appState.modelBox));
+            return;
+        }
+        if (e.key >= '1' && e.key <= '7') {
+            const tabId = TAB_SHORTCUT_ORDER[Number(e.key) - 1];
+            if (tabId) {
+                e.preventDefault();
+                switchTab(tabId);
+            }
+            return;
+        }
+        if (e.code === 'Space' || e.key === ' ') {
+            e.preventDefault();
+            if (appState._feaApi && typeof appState._feaApi.setFEAAnimation === 'function') {
+                appState._feaApi.setFEAAnimation(!appState.feaState?.animate);
+            } else {
+                const btnFeaAnim = $('btn-fea-animate');
+                if (btnFeaAnim) btnFeaAnim.click();
+            }
+            requestRender(15);
+        }
+    });
 }

@@ -158,6 +158,7 @@ export const appState = {
     inspectedTileId: 1,
     tileViewMode: 'inspector', // 'inspector' | 'grid'
     ccSubdivLevel: 1,
+    skeletonizeMeshTile: false,
 
     GRID_X: 3,
     GRID_Y: 3,
@@ -235,6 +236,7 @@ export const appState = {
         materialKey: 'plaster',
         topLoadKg: 25,
         restraintType: 'pinned',
+        excludeGraph: false,
         includeElastica: false,
         elasticaMaterialKey: 'gfrp_rod',
         elasticaPrestressN: 15,

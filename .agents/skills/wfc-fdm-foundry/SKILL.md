@@ -19,6 +19,49 @@ This skill coordinates three sibling skills while strictly preserving the Genera
 
 ---
 
+## 0. Launching TOPOGEN & Connecting to Browser Tabs (Chrome + Conversation Affinity)
+
+> [!IMPORTANT]
+> **Default Launch Rule**: **ALWAYS launch TOPOGEN in Google Chrome bound to the current conversation** so the user sees the full desktop 3D Workbench (`index_TOPOGEN_PQM_ELASTICA_FDM.html`) and all UI bridge mutations route deterministically to that paired Chrome tab. See [`AGENTS.md`](../../../AGENTS.md) and [`WISE_AI_ASSISTANT_MCP.md`](../../../WISE_AI_ASSISTANT_MCP.md) for the complete Desktop MCP playbook, traps, and Mode A bridge boundaries.
+
+1. **Preferred Launch (Desktop MCP — unsandboxed)**:
+   ```json
+   topogen_ui_launch({ "conversationId": "<Conversation ID>", "surface": "workbench" })
+   ```
+2. **CLI Launch (auto-starts/reuses `:8787`, binds MCP, opens Chrome, verifies `clientId` handshake)**:
+   ```bash
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>
+   # Open Campaign Launcher instead of 3D Workbench when requested:
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --launcher --conv <Conversation ID>
+   ```
+   Never claim Chrome opened until `launch` / `topogen_ui_launch` returns `ok: true` with a non-empty `clientId` and `browserKind: "chrome"`.
+3. **Strict Prohibitions & Operational Guardrails**:
+   - **NEVER** use Antigravity's built-in `browser` webview subagent to launch TOPOGEN for the user unless the user explicitly asks for the internal webview pane (hidden webviews stay alive, trigger `UPLOAD_NEEDS_PERMISSION` stalls, and collide with Chrome).
+   - **NEVER** write ad-hoc `node -e "brokerCall(...)"` scripts or pass `args` instead of `arguments`. Always use `topogen_ui_*` MCP tools (passing `conversationId`) or `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui <inspect|tabs|connect|load-file|configure|step|export>`.
+   - **NEVER** restart the daemon with `--no-bind-mcp` during normal sessions (`mcp_config.json` uses sessionless binding + atomic `latest-session.json` discovery).
+   - **Multi-Tab, Large Exports & Mode A Honesty**: Resolve `AMBIGUOUS_CHROME_TABS` via `topogen_ui_tabs` + `topogen_ui_connect`; read `stagedPath` on `> 150 KB` `topogen_ui_export` responses; and report unexposed Mode A controls honestly (e.g., per-voxel `NULL` pinning, `fea_animate`, remote browser `reload` — `F5` in Chrome preserves tab pairing) rather than faking or bypassing Mode A.
+   - **MCP Subprocess Reload & Zero-Fake-Green Check**: Restarting `foundry_server.mjs` does **not** reload Antigravity's running `mcp.mjs` child process; after editing `agent/tools.mjs` or `agent/mcp.mjs` in Mode B, refresh `topogen_fdm_foundry` in Antigravity MCP settings (or open a new chat). Never treat mocked-tab unit tests alone as GUI proof—confirm real `browserKind: "chrome"` + `visible: true` desktop window readiness.
+4. **Live Tab Inspection & Pairing**:
+   ```bash
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs tabs
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui connect --conv <Conversation ID> --focused-chrome
+   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui inspect --conv <Conversation ID>
+   ```
+5. **Mode A vs Mode B Governance Workflow**:
+   - **Mode A (Sealed — Default)**: Cryptographically locks `core/**`, `ui/**`, `agent/**`, `cli/**`, and `verifier/**`; only `briefs/**`, `runs/**`, `skills/**`, and `specs/**` are mutable.
+   - **Mode B (Code Evolution)**: When editing sealed generator, UI, CLI, or agent code:
+     ```bash
+     # 1. Unlock Mode B on the active daemon
+     node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mode --B
+     # 2. Apply surgical edits and run verification suites (test_verifier.mjs, test-mcp.mjs, test-cli.mjs)
+     # 3. Reseal manifest in Mode B and return daemon to Mode A
+     node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs seal --mode B --reseal
+     node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mode --A
+     node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs seal --mode A --verify
+     ```
+
+---
+
 ## 1. The Non-Negotiable Air-Gap Contract
 
 To guarantee that structural verification is never gamed or coupled to form-finding assumptions:

@@ -22,6 +22,8 @@ import {
     viewport,
     sharedMaterials,
     clearGroup,
+    makeFatLineSegments,
+    makeFatMaterial,
     recomputeModelBox,
     zoomToBox,
     modelBoxToWorld
@@ -98,21 +100,28 @@ export function mountTab1Tiles() {
             <input type="file" id="mesh-module-input" accept=".3dm,.obj" multiple class="block w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10.5px] file:font-semibold file:bg-pink-600/80 file:text-white hover:file:bg-pink-500 cursor-pointer transition-colors" />
 
             <div class="bg-gray-950/70 border border-gray-800 rounded p-2 space-y-1.5">
+                <div class="flex items-center justify-between pb-1.5 border-b border-gray-800 text-[10px]">
+                    <label class="flex items-center space-x-1.5 cursor-pointer font-semibold text-gray-200" title="Curve-Skeleton Tile — Extract medial centerline graph instead of surface mesh edges.">
+                        <input type="checkbox" id="chk-skeletonize-mesh" autocomplete="off" class="accent-pink-500 rounded">
+                        <span>Skeletonize Mesh → Centerline Tile</span>
+                    </label>
+                    <button type="button" id="skel-mode-badge" class="font-mono text-[8.5px] px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-400 cursor-pointer" title="Toggle Mesh-to-Graph vs Curve-Skeleton mode">Mesh→Graph</button>
+                </div>
                 <div class="flex items-center justify-between text-[10px] font-mono">
                     <span class="text-gray-300">Catmull-Clark Subdiv (n)</span>
                     <span id="cc-level-label" class="text-pink-400 font-semibold">n = 1</span>
                 </div>
                 <div class="flex items-center space-x-2 text-[10px] font-mono">
-                    <input type="range" id="rng-cc-level" min="0" max="4" step="1" value="1" class="flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-pink-500">
-                    <input type="number" id="num-cc-level" min="0" max="4" step="1" value="1" class="w-11 px-1 py-0.5 bg-gray-800 border border-gray-700 rounded text-right text-gray-100">
+                    <input type="range" id="rng-cc-level" autocomplete="off" min="0" max="4" step="1" value="1" class="flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-pink-500">
+                    <input type="number" id="num-cc-level" autocomplete="off" min="0" max="4" step="1" value="1" class="w-11 px-1 py-0.5 bg-gray-800 border border-gray-700 rounded text-right text-gray-100">
                 </div>
                 <div class="flex items-center justify-between pt-0.5 text-[10px] text-gray-400">
                     <label class="flex items-center space-x-1.5 cursor-pointer" title="Center and scale each imported mesh uniformly to fit inside the unit tile voxel">
-                        <input type="checkbox" id="chk-norm-voxel" checked class="accent-pink-500 rounded">
+                        <input type="checkbox" id="chk-norm-voxel" autocomplete="off" checked class="accent-pink-500 rounded">
                         <span>Fit to Tile Voxel</span>
                     </label>
                     <label class="flex items-center space-x-1.5 cursor-pointer" title="Disable built-in tiles when importing custom modules">
-                        <input type="checkbox" id="chk-disable-builtin" checked class="accent-pink-500 rounded">
+                        <input type="checkbox" id="chk-disable-builtin" autocomplete="off" checked class="accent-pink-500 rounded">
                         <span>Custom Only</span>
                     </label>
                 </div>
@@ -123,6 +132,45 @@ export function mountTab1Tiles() {
                 <button id="btn-clear-custom-tiles" disabled class="cad-btn" title="Remove imported custom graph tiles">✕ Clear</button>
             </div>
             <div id="mesh-module-feedback" class="text-[10px] text-center font-mono text-gray-400"></div>
+        </div>
+
+        <!-- Import Meshes Directly as 3D Tiles (Without Converting to Graph) -->
+        <div class="bg-gray-900/90 border border-cyan-500/40 rounded p-2.5 space-y-2">
+            <div class="flex items-center justify-between">
+                <label class="block text-[10.5px] font-semibold uppercase tracking-wider text-cyan-300">Mesh → Tiles (No Graph)</label>
+                <span id="mesh-only-tile-badge" class="text-[10px] font-mono text-cyan-400">0 mesh</span>
+            </div>
+            <p class="goldilocks-guide-prose text-[9.5px] text-gray-400 leading-snug">
+                Import .3dm / .obj meshes directly as 3D tiles for Topo propagation, without converting to centerline graph.
+            </p>
+            <input type="file" id="mesh-only-tile-input" accept=".3dm,.obj" multiple class="block w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10.5px] file:font-semibold file:bg-cyan-600/80 file:text-white hover:file:bg-cyan-500 cursor-pointer transition-colors" />
+
+            <div class="bg-gray-950/70 border border-gray-800 rounded p-2 space-y-1.5">
+                <div class="flex items-center justify-between text-[10px] font-mono">
+                    <span class="text-gray-300">Catmull-Clark Subdiv (n)</span>
+                    <span id="mesh-only-cc-label" class="text-cyan-400 font-semibold">n = 0</span>
+                </div>
+                <div class="flex items-center space-x-2 text-[10px] font-mono">
+                    <input type="range" id="rng-mesh-only-cc" autocomplete="off" min="0" max="4" step="1" value="0" class="flex-1 h-1.5 bg-gray-700 rounded-lg cursor-pointer accent-cyan-500">
+                    <input type="number" id="num-mesh-only-cc" autocomplete="off" min="0" max="4" step="1" value="0" class="w-11 px-1 py-0.5 bg-gray-800 border border-gray-700 rounded text-right text-gray-100">
+                </div>
+                <div class="flex items-center justify-between pt-0.5 text-[10px] text-gray-400">
+                    <label class="flex items-center space-x-1.5 cursor-pointer" title="Center and scale each imported mesh uniformly to fit inside the unit tile voxel">
+                        <input type="checkbox" id="chk-mesh-only-norm" autocomplete="off" checked class="accent-cyan-500 rounded">
+                        <span>Fit to Tile Voxel</span>
+                    </label>
+                    <label class="flex items-center space-x-1.5 cursor-pointer" title="Disable built-in tiles when importing mesh tiles">
+                        <input type="checkbox" id="chk-mesh-only-custom-only" autocomplete="off" checked class="accent-cyan-500 rounded">
+                        <span>Custom Only</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex space-x-1">
+                <button id="btn-reapply-mesh-only-cc" disabled class="cad-btn cyan flex-1" title="Re-subdivide imported mesh-only tiles with current Catmull-Clark level n">↻ Re-Subdiv (n)</button>
+                <button id="btn-clear-mesh-only-tiles" disabled class="cad-btn" title="Remove imported mesh-only tiles">✕ Clear</button>
+            </div>
+            <div id="mesh-only-tile-feedback" class="text-[10px] text-center font-mono text-gray-400"></div>
         </div>
     `;
 }
@@ -140,9 +188,18 @@ export function appendTileInstance3D(targetGroup, tileDef, center, scale = 1.0, 
     for (const ed of boxEdges) {
         bPos.push(center.x + ed[0], center.y + ed[1], center.z + ed[2], center.x + ed[3], center.y + ed[4], center.z + ed[5]);
     }
-    const bGeo = new THREE.BufferGeometry();
-    bGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bPos), 3));
-    targetGroup.add(new THREE.LineSegments(bGeo, isHero ? matInspectBox : matGalleryBox));
+    const nodeMult = appState.nodeDisplayScale || 1.0;
+    const edgePx = appState.edgeDisplayWidthPx || 1.5;
+    const boxLines = makeFatLineSegments(
+        new Float32Array(bPos),
+        makeFatMaterial(isHero ? 0x0891b2 : 0x64748b, Math.max(0.75, edgePx * (isHero ? 0.85 : 0.65)), {
+            disposeOnClear: true,
+            transparent: true,
+            opacity: isHero ? 0.55 : 0.30
+        })
+    );
+    boxLines.userData.tileRole = 'voxel';
+    targetGroup.add(boxLines);
 
     if (isHero) {
         const pr = hs * 1.16;
@@ -153,9 +210,16 @@ export function appendTileInstance3D(targetGroup, tileDef, center, scale = 1.0, 
             center.x + pr, center.y + pr, pz,  center.x - pr, center.y + pr, pz,
             center.x - pr, center.y + pr, pz,  center.x - pr, center.y - pr, pz
         ];
-        const pedGeo = new THREE.BufferGeometry();
-        pedGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pedPos), 3));
-        targetGroup.add(new THREE.LineSegments(pedGeo, matInspectPedestal));
+        const pedLines = makeFatLineSegments(
+            new Float32Array(pedPos),
+            makeFatMaterial(0xdb2777, Math.max(0.75, edgePx * 0.8), {
+                disposeOnClear: true,
+                transparent: true,
+                opacity: 0.40
+            })
+        );
+        pedLines.userData.tileRole = 'voxel';
+        targetGroup.add(pedLines);
     }
 
     const faceQuads = (tileDef.quads && tileDef.quads.length > 0)
@@ -192,12 +256,20 @@ export function appendTileInstance3D(targetGroup, tileDef, center, scale = 1.0, 
         const tileMesh = new THREE.Mesh(mGeo, appState.arcticOn ? sharedMaterials.arctic : baseMat);
         tileMesh.userData.arcticTarget = true;
         tileMesh.userData.baseMaterial = baseMat;
+        tileMesh.userData.tileRole = 'mesh';
         targetGroup.add(tileMesh);
 
         if (wire.length > 0) {
-            const wGeo = new THREE.BufferGeometry();
-            wGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wire), 3));
-            targetGroup.add(new THREE.LineSegments(wGeo, sharedMaterials.quadWire));
+            const wLines = makeFatLineSegments(
+                new Float32Array(wire),
+                makeFatMaterial(0x1e293b, Math.max(0.75, edgePx * 0.75), {
+                    disposeOnClear: true,
+                    transparent: true,
+                    opacity: 0.35
+                })
+            );
+            wLines.userData.tileRole = 'mesh';
+            targetGroup.add(wLines);
         }
     }
 
@@ -211,14 +283,16 @@ export function appendTileInstance3D(targetGroup, tileDef, center, scale = 1.0, 
             gPos[o]     = center.x + p0[0] * scale; gPos[o + 1] = center.y + p0[1] * scale; gPos[o + 2] = center.z + p0[2] * scale;
             gPos[o + 3] = center.x + p1[0] * scale; gPos[o + 4] = center.y + p1[1] * scale; gPos[o + 5] = center.z + p1[2] * scale;
         }
-        const gGeo = new THREE.BufferGeometry();
-        gGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3));
-        const gLines = new THREE.LineSegments(gGeo, sharedMaterials.graphEdge);
+        const gLines = makeFatLineSegments(
+            gPos,
+            makeFatMaterial(0xef4444, edgePx, { disposeOnClear: true })
+        );
         gLines.renderOrder = 14;
+        gLines.userData.tileRole = 'graph';
         targetGroup.add(gLines);
 
         if (te.length <= 64) {
-            const nodeR = Math.max(0.005 * scale, Math.min(0.018 * scale, (0.095 * scale) / Math.sqrt(Math.max(6, tv.length))));
+            const nodeR = Math.max(0.005 * scale, Math.min(0.018 * scale, (0.095 * scale) / Math.sqrt(Math.max(6, tv.length)))) * nodeMult;
             const nGeo = new THREE.SphereGeometry(nodeR, 10, 10);
             const inst = new THREE.InstancedMesh(nGeo, sharedMaterials.graphNode, tv.length);
             const dummy = new THREE.Object3D();
@@ -229,26 +303,29 @@ export function appendTileInstance3D(targetGroup, tileDef, center, scale = 1.0, 
             }
             inst.instanceMatrix.needsUpdate = true;
             inst.renderOrder = 15;
+            inst.userData.tileRole = 'graph';
             targetGroup.add(inst);
         }
     }
 
     if (showSockets && Array.isArray(tileDef.sockets)) {
         const faceOffsets = [[hs, 0, 0], [-hs, 0, 0], [0, hs, 0], [0, -hs, 0], [0, 0, hs], [0, 0, -hs]];
-        const openR = 0.052 * scale;
-        const closedR = 0.028 * scale;
+        const openR = 0.052 * scale * nodeMult;
+        const closedR = 0.028 * scale * nodeMult;
         for (let d = 0; d < 6; d++) {
             const isOpen = !!tileDef.sockets[d];
             const sGeo = new THREE.SphereGeometry(isOpen ? openR : closedR, 12, 12);
             const sMesh = new THREE.Mesh(sGeo, isOpen ? matSocketOpen : matSocketClosed);
             sMesh.position.set(center.x + faceOffsets[d][0], center.y + faceOffsets[d][1], center.z + faceOffsets[d][2]);
             sMesh.renderOrder = 18;
+            sMesh.userData.tileRole = 'socket';
             targetGroup.add(sMesh);
         }
     }
 }
 
 export function renderTileInspector3D() {
+    actions.renderTileInspector3D = renderTileInspector3D;
     ensureTileMaterials();
     clearGroup(viewport.tilePreviewGroup);
     appState.tilePreviewBounds.makeEmpty();
@@ -305,8 +382,9 @@ export function renderTileCatalogUI() {
         const chkBadge = t.enabled
             ? `<span data-toggle-tile="${t.id}" class="w-3.5 h-3.5 rounded-sm bg-emerald-500/25 border border-emerald-400 text-emerald-300 flex items-center justify-center text-[8.5px] leading-none flex-none hover:bg-emerald-500/40" title="Toggle enabled state in Topo Gen">✓</span>`
             : `<span data-toggle-tile="${t.id}" class="w-3.5 h-3.5 rounded-sm bg-gray-950 border border-gray-600 text-gray-500 flex items-center justify-center text-[8.5px] leading-none flex-none hover:border-gray-400" title="Toggle enabled state in Topo Gen"></span>`;
+        const shortTileName = String(t.name || 'Tile').replace(/"/g, '').slice(0, 24);
         return `
-        <button data-tile-id="${t.id}" class="tile-toggle-btn flex items-center justify-between px-1.5 py-1 rounded border text-left transition ${ringCls}" title="Click to inspect ${t.name} in 3D (${qCount} quads, ${eCount} graph edges${t.isCustomGraph ? ', CC n=' + t.ccLevel : ''}) · Click ✓ box or Shift+Click to toggle enabled">
+        <button data-tile-id="${t.id}" class="tile-toggle-btn flex items-center justify-between px-1.5 py-1 rounded border text-left transition ${ringCls}" title="${shortTileName} — Click to inspect 3D tile; Shift-click toggles active.">
             <span class="flex items-center space-x-1.5 truncate">
                 ${chkBadge}
                 <span class="w-2 h-2 rounded-sm inline-block flex-none" style="background:${t.hex}"></span>
@@ -361,12 +439,19 @@ export function renderTileCatalogUI() {
         });
     });
 
-    const customCount = TILES.filter(t => t.isCustomGraph).length;
+    const customCount = TILES.filter(t => t.isCustomGraph && !t.meshOnly).length;
     setTxt('custom-tile-badge', `${customCount} custom`);
     const btnReapplyCC = $('btn-reapply-cc');
     const btnClearCustomTiles = $('btn-clear-custom-tiles');
     if (btnReapplyCC) btnReapplyCC.disabled = customCount === 0;
     if (btnClearCustomTiles) btnClearCustomTiles.disabled = customCount === 0;
+
+    const meshOnlyCount = TILES.filter(t => t.isCustomGraph && t.meshOnly).length;
+    setTxt('mesh-only-tile-badge', `${meshOnlyCount} mesh`);
+    const btnReapplyMeshOnlyCC = $('btn-reapply-mesh-only-cc');
+    const btnClearMeshOnly = $('btn-clear-mesh-only-tiles');
+    if (btnReapplyMeshOnlyCC) btnReapplyMeshOnlyCC.disabled = meshOnlyCount === 0;
+    if (btnClearMeshOnly) btnClearMeshOnly.disabled = meshOnlyCount === 0;
 }
 
 export function setTileViewMode(mode) {
@@ -656,42 +741,75 @@ export function parse3dmCurvesAsGraph(arrayBuffer, fallbackName = '3DM_Curves') 
     let scale = 1.0;
     try { scale = getUnitScale(doc.settings().modelUnitSystem); } catch (e) { scale = 1.0; }
 
+    const sampleSingleCurve = (crv) => {
+        let pts = [];
+        if (!crv) return pts;
+        try {
+            if (typeof crv.pointCount === 'number' && typeof crv.point === 'function' && crv.pointCount >= 2) {
+                for (let k = 0; k < crv.pointCount; k++) pts.push(crv.point(k));
+                return pts;
+            }
+            if (typeof crv.isLinear === 'function' && crv.isLinear()) {
+                const p0 = crv.pointAtStart;
+                const p1 = crv.pointAtEnd;
+                if (p0 && p1) return [p0, p1];
+            }
+            if (typeof crv.toPolyline === 'function') {
+                const pl = crv.toPolyline(0, 0, 0.1, 0.1, 0, 0, 0, 0, true);
+                if (pl && typeof pl.count === 'number' && pl.count >= 2) {
+                    for (let k = 0; k < pl.count; k++) pts.push(pl.get(k));
+                } else if (pl && typeof pl.pointCount === 'number' && typeof pl.point === 'function' && pl.pointCount >= 2) {
+                    for (let k = 0; k < pl.pointCount; k++) pts.push(pl.point(k));
+                }
+                if (pl && typeof pl.delete === 'function') pl.delete();
+                if (pts.length >= 2) return pts;
+            }
+        } catch (e) {}
+
+        try {
+            if (crv.domain && typeof crv.pointAt === 'function') {
+                const dom = crv.domain;
+                const d0 = Array.isArray(dom) ? dom[0] : dom.t0;
+                const d1 = Array.isArray(dom) ? dom[1] : dom.t1;
+                if (Number.isFinite(d0) && Number.isFinite(d1) && Math.abs(d1 - d0) > 1e-12) {
+                    const steps = (typeof crv.degree === 'number' && crv.degree === 1 && typeof crv.points === 'function' && crv.points().count >= 2)
+                        ? Math.max(1, crv.points().count - 1)
+                        : 16;
+                    for (let k = 0; k <= steps; k++) {
+                        const t = d0 + ((d1 - d0) * k) / steps;
+                        pts.push(crv.pointAt(t));
+                    }
+                }
+            }
+        } catch (e) {}
+        return pts;
+    };
+
     const rawVerts = [];
     const rawEdges = [];
+    const appendPts = (pts) => {
+        if (!pts || pts.length < 2) return;
+        const baseIdx = rawVerts.length;
+        for (const p of pts) rawVerts.push([p[0] * scale, p[1] * scale, p[2] * scale]);
+        for (let k = 0; k < pts.length - 1; k++) rawEdges.push([baseIdx + k, baseIdx + k + 1]);
+    };
+
     const objects = doc.objects();
     for (let i = 0; i < objects.count; i++) {
         const obj = objects.get(i);
         const geom = obj.geometry();
         if (!geom || geom.objectType !== rhino.ObjectType.Curve) continue;
 
-        let pts = [];
-        try {
-            if (typeof geom.isLinear === 'function' && geom.isLinear()) {
-                const p0 = geom.pointAtStart;
-                const p1 = geom.pointAtEnd;
-                pts = [p0, p1];
-            } else if (typeof geom.toPolyline === 'function') {
-                const pl = geom.toPolyline(0, 0, 0.1, 0.1, 0, 0, 0, 0, true);
-                if (pl && typeof pl.count === 'number' && pl.count >= 2) {
-                    for (let k = 0; k < pl.count; k++) pts.push(pl.get(k));
+        if (typeof geom.segmentCount === 'number' && typeof geom.segmentCurve === 'function' && geom.segmentCount > 0) {
+            for (let s = 0; s < geom.segmentCount; s++) {
+                const seg = geom.segmentCurve(s);
+                if (seg) {
+                    appendPts(sampleSingleCurve(seg));
+                    if (typeof seg.delete === 'function') seg.delete();
                 }
-                if (pl && typeof pl.delete === 'function') pl.delete();
             }
-        } catch (e) {}
-
-        if (pts.length < 2 && geom.domain && typeof geom.pointAt === 'function') {
-            const dom = geom.domain;
-            const steps = 16;
-            for (let k = 0; k <= steps; k++) {
-                const t = dom[0] + ((dom[1] - dom[0]) * k) / steps;
-                pts.push(geom.pointAt(t));
-            }
-        }
-
-        if (pts.length >= 2) {
-            const baseIdx = rawVerts.length;
-            for (const p of pts) rawVerts.push([p[0] * scale, p[1] * scale, p[2] * scale]);
-            for (let k = 0; k < pts.length - 1; k++) rawEdges.push([baseIdx + k, baseIdx + k + 1]);
+        } else {
+            appendPts(sampleSingleCurve(geom));
         }
     }
     doc.delete();
@@ -779,27 +897,63 @@ function buildPreviewQuadsFromSubMesh(verts, faces) {
     return out;
 }
 
+function syncSkeletonModeBadge() {
+    const chk = $('chk-skeletonize-mesh');
+    if (chk) chk.checked = Boolean(appState.skeletonizeMeshTile);
+    const btnReapply = $('btn-reapply-cc');
+    if (btnReapply) {
+        btnReapply.textContent = appState.skeletonizeMeshTile ? '↻ Re-Skeletonize (n)' : '↻ Re-Subdiv (n)';
+    }
+    const badge = $('skel-mode-badge');
+    if (!badge) return;
+    if (appState.skeletonizeMeshTile) {
+        badge.textContent = 'Skeleton (S)';
+        badge.className = 'font-mono text-[8.5px] px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500 text-emerald-700 font-bold cursor-pointer';
+    } else {
+        badge.textContent = 'Mesh→Graph';
+        badge.className = 'font-mono text-[8.5px] px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-400 cursor-pointer';
+    }
+}
+
 export function importMeshModuleFromData(name, rawVerts, rawFaces, options = {}) {
-    const chkNormVoxel = $('chk-norm-voxel');
-    const ccIterations = options.ccLevel !== undefined ? options.ccLevel : appState.ccSubdivLevel;
+    const meshOnly = Boolean(options.meshOnly);
+    const chkNormVoxel = $(meshOnly ? 'chk-mesh-only-norm' : 'chk-norm-voxel');
+    const chkSkel = $('chk-skeletonize-mesh');
+    const numMeshOnlyCC = $('num-mesh-only-cc');
+    const defaultMeshOnlyCC = numMeshOnlyCC ? Math.max(0, Math.min(4, Math.round(Number(numMeshOnlyCC.value) || 0))) : 0;
+    const ccIterations = options.ccLevel !== undefined ? options.ccLevel : (meshOnly ? defaultMeshOnlyCC : appState.ccSubdivLevel);
     const normalize = options.normalize !== undefined ? options.normalize : (chkNormVoxel ? chkNormVoxel.checked : true);
+    const useSkeleton = !meshOnly && (options.skeletonize !== undefined
+        ? Boolean(options.skeletonize)
+        : (chkSkel ? chkSkel.checked : Boolean(appState.skeletonizeMeshTile)));
     const welded = weldMeshVertices(rawVerts, rawFaces, 1e-5);
     if (welded.verts.length === 0 || welded.faces.length === 0) return null;
 
     const baseVerts = normalize ? normalizeMeshToUnitVoxel(welded.verts) : welded.verts;
     const sub = catmullClarkSubdivide(baseVerts, welded.faces, ccIterations);
-    const graph = extractGraphFromMesh(sub.verts, sub.faces);
-    const sockets = detectTileSocketsFromGraph(graph.vertices);
+    let graph;
+    if (meshOnly) {
+        graph = { vertices: [], edges: [] };
+    } else if (useSkeleton && typeof CORE.extractSkeletalGraphFromMesh === 'function') {
+        const skel = CORE.extractSkeletalGraphFromMesh(baseVerts, welded.faces);
+        graph = (skel && skel.edges && skel.edges.length > 0)
+            ? { vertices: skel.vertices, edges: skel.edges }
+            : extractGraphFromMesh(sub.verts, sub.faces);
+    } else {
+        graph = extractGraphFromMesh(sub.verts, sub.faces);
+    }
+    const sockets = detectTileSocketsFromGraph(meshOnly ? sub.verts : graph.vertices);
     const previewQuads = buildPreviewQuadsFromSubMesh(sub.verts, sub.faces);
 
     const customIdx = appState.TILES.filter(t => t.isCustomGraph).length;
     const pal = CUSTOM_TILE_PALETTE[customIdx % CUSTOM_TILE_PALETTE.length];
     const cleanName = String(name || `MeshMod_${customIdx + 1}`).replace(/\.(3dm|obj)$/i, '').slice(0, 22);
-    const shortCode = (`M${customIdx + 1}` + cleanName.replace(/[^A-Za-z0-9]/g, '').slice(0, 1)).toUpperCase().slice(0, 3);
+    const prefix = meshOnly ? 'T' : (useSkeleton ? 'S' : 'M');
+    const shortCode = (prefix + `${customIdx + 1}` + cleanName.replace(/[^A-Za-z0-9]/g, '').slice(0, 1)).toUpperCase().slice(0, 3);
 
     const tile = {
         id: appState.TILES.length,
-        key: `custom_mesh_${Date.now()}_${customIdx}`,
+        key: `${meshOnly ? 'custom_meshtile' : 'custom_mesh'}_${Date.now()}_${customIdx}`,
         name: cleanName,
         short: shortCode,
         color: pal.color,
@@ -807,11 +961,13 @@ export function importMeshModuleFromData(name, rawVerts, rawFaces, options = {})
         enabled: true,
         weight: 1.5,
         sockets,
-        quads: [],
-        previewQuads,
+        quads: meshOnly ? previewQuads : [],
+        previewQuads: meshOnly ? [] : previewQuads,
         subMesh: { verts: sub.verts, faces: sub.faces },
         graph,
         isCustomGraph: true,
+        meshOnly,
+        skeletonized: useSkeleton,
         ccLevel: ccIterations,
         rawMesh: { verts: baseVerts, faces: welded.faces }
     };
@@ -822,21 +978,34 @@ export function importMeshModuleFromData(name, rawVerts, rawFaces, options = {})
 }
 
 export function resubdivideImportedTiles(newLevel) {
-    appState.ccSubdivLevel = Math.max(0, Math.min(4, Math.round(Number(newLevel) || 0)));
+    if (newLevel !== undefined) {
+        appState.ccSubdivLevel = Math.max(0, Math.min(4, Math.round(Number(newLevel) || 0)));
+    }
     const rngCC = $('rng-cc-level'), numCC = $('num-cc-level');
     if (rngCC) rngCC.value = String(appState.ccSubdivLevel);
     if (numCC) numCC.value = String(appState.ccSubdivLevel);
     setTxt('cc-level-label', `n = ${appState.ccSubdivLevel}`);
+    syncSkeletonModeBadge();
 
-    let updated = 0, lastCustomId = null;
+    const useSkeleton = Boolean(appState.skeletonizeMeshTile);
+    let updated = 0, totalEdges = 0, lastCustomId = null;
     for (const t of appState.TILES) {
-        if (!t.isCustomGraph || !t.rawMesh) continue;
+        if (!t.isCustomGraph || t.meshOnly || !t.rawMesh) continue;
         const sub = catmullClarkSubdivide(t.rawMesh.verts, t.rawMesh.faces, appState.ccSubdivLevel);
         t.subMesh = { verts: sub.verts, faces: sub.faces };
         t.previewQuads = buildPreviewQuadsFromSubMesh(sub.verts, sub.faces);
-        t.graph = extractGraphFromMesh(sub.verts, sub.faces);
+        if (useSkeleton && typeof CORE.extractSkeletalGraphFromMesh === 'function') {
+            const skel = CORE.extractSkeletalGraphFromMesh(t.rawMesh.verts, t.rawMesh.faces);
+            t.graph = (skel && skel.edges && skel.edges.length > 0)
+                ? { vertices: skel.vertices, edges: skel.edges }
+                : extractGraphFromMesh(sub.verts, sub.faces);
+        } else {
+            t.graph = extractGraphFromMesh(sub.verts, sub.faces);
+        }
+        t.skeletonized = useSkeleton;
         t.sockets = detectTileSocketsFromGraph(t.graph.vertices);
         t.ccLevel = appState.ccSubdivLevel;
+        totalEdges += t.graph.edges.length;
         lastCustomId = t.id;
         updated++;
     }
@@ -849,18 +1018,84 @@ export function resubdivideImportedTiles(newLevel) {
         if (actions.draw) actions.draw();
         const fb = $('mesh-module-feedback');
         if (fb) {
-            fb.textContent = `Re-subdivided ${updated} custom module(s) (CC n=${appState.ccSubdivLevel})`;
+            fb.textContent = useSkeleton
+                ? `Skeletonized ${updated} mesh module(s) → ${totalEdges} centerline edges`
+                : `Re-subdivided ${updated} custom module(s) (CC n=${appState.ccSubdivLevel}) → ${totalEdges} graph edges`;
             fb.className = 'text-[10px] text-center font-mono text-emerald-400';
         }
     }
     return updated;
 }
 
-export function clearCustomGraphTiles() {
-    appState.TILES = appState.TILES.filter(t => !t.isCustomGraph);
+export function resubdivideMeshOnlyTiles(newLevel) {
+    const level = Math.max(0, Math.min(4, Math.round(Number(newLevel) || 0)));
+    const rng = $('rng-mesh-only-cc'), num = $('num-mesh-only-cc');
+    if (rng) rng.value = String(level);
+    if (num) num.value = String(level);
+    setTxt('mesh-only-cc-label', `n = ${level}`);
+
+    let updated = 0, totalQuads = 0, lastTileId = null;
+    for (const t of appState.TILES) {
+        if (!t.isCustomGraph || !t.meshOnly || !t.rawMesh) continue;
+        const sub = catmullClarkSubdivide(t.rawMesh.verts, t.rawMesh.faces, level);
+        t.subMesh = { verts: sub.verts, faces: sub.faces };
+        t.quads = buildPreviewQuadsFromSubMesh(sub.verts, sub.faces);
+        t.previewQuads = [];
+        t.graph = { vertices: [], edges: [] };
+        t.sockets = detectTileSocketsFromGraph(sub.verts);
+        t.ccLevel = level;
+        totalQuads += t.quads.length;
+        lastTileId = t.id;
+        updated++;
+    }
+    if (updated > 0) {
+        if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
+        if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
+        if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate(lastTileId);
+        renderTileCatalogUI();
+        if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
+        if (actions.draw) actions.draw();
+        const fb = $('mesh-only-tile-feedback');
+        if (fb) {
+            fb.textContent = `Re-subdivided ${updated} mesh tile(s) (CC n=${level}) → ${totalQuads} quads (no graph)`;
+            fb.className = 'text-[10px] text-center font-mono text-emerald-400';
+        }
+    }
+    return updated;
+}
+
+export function clearMeshOnlyTiles() {
+    appState.TILES = appState.TILES.filter(t => !(t.isCustomGraph && t.meshOnly));
     appState.TILES.forEach((t, idx) => { t.id = idx; });
     if (!appState.TILES.some(t => t.enabled)) appState.TILES.slice(0, 4).forEach(t => { t.enabled = true; });
-    appState.inspectedTileId = CORE.TILE_CROSS;
+    if (!appState.TILES[appState.inspectedTileId]) appState.inspectedTileId = CORE.TILE_CROSS;
+    if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
+    if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
+    if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate(CORE.TILE_CROSS);
+    renderTileCatalogUI();
+    if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
+    if (actions.draw) actions.draw();
+    zoomToBox(modelBoxToWorld(appState.modelBox));
+    const fb = $('mesh-only-tile-feedback');
+    if (fb) {
+        fb.textContent = 'Cleared mesh-only tiles.';
+        fb.className = 'text-[10px] text-center font-mono text-gray-400';
+    }
+}
+
+export function setSkeletonizeMeshTile(on, liveReapply = true) {
+    appState.skeletonizeMeshTile = Boolean(on);
+    syncSkeletonModeBadge();
+    if (liveReapply && appState.TILES.some(t => t.isCustomGraph && t.rawMesh)) {
+        resubdivideImportedTiles(appState.ccSubdivLevel);
+    }
+}
+
+export function clearCustomGraphTiles() {
+    appState.TILES = appState.TILES.filter(t => !(t.isCustomGraph && !t.meshOnly));
+    appState.TILES.forEach((t, idx) => { t.id = idx; });
+    if (!appState.TILES.some(t => t.enabled)) appState.TILES.slice(0, 4).forEach(t => { t.enabled = true; });
+    if (!appState.TILES[appState.inspectedTileId]) appState.inspectedTileId = CORE.TILE_CROSS;
     if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
     if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
     if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate(CORE.TILE_CROSS);
@@ -931,6 +1166,25 @@ export function initTab1Tiles() {
         el.addEventListener('change', (e) => { if (actions.setVoxelSize) actions.setVoxelSize(parseFloat(e.target.value), { zoom: true }); });
     });
 
+    const chkSkelMesh = $('chk-skeletonize-mesh');
+    if (chkSkelMesh) {
+        chkSkelMesh.checked = Boolean(appState.skeletonizeMeshTile);
+        chkSkelMesh.addEventListener('change', (e) => setSkeletonizeMeshTile(e.target.checked, true));
+    }
+    const skelBadgeBtn = $('skel-mode-badge');
+    if (skelBadgeBtn) {
+        skelBadgeBtn.addEventListener('click', () => setSkeletonizeMeshTile(!appState.skeletonizeMeshTile, true));
+    }
+    if (typeof window !== 'undefined') {
+        window.addEventListener('pageshow', () => {
+            const c = $('chk-skeletonize-mesh');
+            if (c && Boolean(c.checked) !== Boolean(appState.skeletonizeMeshTile)) {
+                setSkeletonizeMeshTile(c.checked, true);
+            }
+        });
+    }
+    syncSkeletonModeBadge();
+
     const rngCC = $('rng-cc-level'), numCC = $('num-cc-level');
     if (rngCC) rngCC.addEventListener('input', (e) => setCCSubdivLevel(e.target.value, true));
     if (numCC) {
@@ -938,7 +1192,13 @@ export function initTab1Tiles() {
         numCC.addEventListener('change', (e) => setCCSubdivLevel(e.target.value, true));
     }
     const btnReapplyCC = $('btn-reapply-cc');
-    if (btnReapplyCC) btnReapplyCC.addEventListener('click', () => resubdivideImportedTiles(appState.ccSubdivLevel));
+    if (btnReapplyCC) {
+        btnReapplyCC.addEventListener('click', () => {
+            const c = $('chk-skeletonize-mesh');
+            if (c) appState.skeletonizeMeshTile = Boolean(c.checked);
+            resubdivideImportedTiles(appState.ccSubdivLevel);
+        });
+    }
     const btnClearCustom = $('btn-clear-custom-tiles');
     if (btnClearCustom) btnClearCustom.addEventListener('click', clearCustomGraphTiles);
 
@@ -950,6 +1210,11 @@ export function initTab1Tiles() {
             const loadingOverlay = $('loading-overlay');
             const chkDisableBuiltin = $('chk-disable-builtin');
             const chkNormVoxel = $('chk-norm-voxel');
+            const chkSkelNow = $('chk-skeletonize-mesh');
+            if (chkSkelNow) {
+                appState.skeletonizeMeshTile = Boolean(chkSkelNow.checked);
+                syncSkeletonModeBadge();
+            }
             const fb = $('mesh-module-feedback');
             if (loadingOverlay) loadingOverlay.classList.remove('hidden');
             let importedCount = 0, totalEdges = 0, lastImportedTile = null;
@@ -969,14 +1234,15 @@ export function initTab1Tiles() {
                                 const tile = importCurveModuleFromData(crvMod.name, crvMod.verts, crvMod.edges, {
                                     normalize: chkNormVoxel ? chkNormVoxel.checked : true
                                 });
-                                if (tile) { importedCount++; lastImportedId = tile.id; }
+                                if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; }
                             }
                         }
                     }
                     for (const mod of parsedModules) {
                         const tile = importMeshModuleFromData(mod.name, mod.verts, mod.faces, {
                             ccLevel: appState.ccSubdivLevel,
-                            normalize: chkNormVoxel ? chkNormVoxel.checked : true
+                            normalize: chkNormVoxel ? chkNormVoxel.checked : true,
+                            skeletonize: appState.skeletonizeMeshTile
                         });
                         if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; }
                     }
@@ -1000,11 +1266,16 @@ export function initTab1Tiles() {
                     if (actions.draw) actions.draw();
                     zoomToBox(modelBoxToWorld(appState.modelBox));
                     if (fb) {
-                        fb.textContent = `Imported ${importedCount} module(s) (CC n=${appState.ccSubdivLevel}) → ${totalEdges} graph edges`;
+                        const isCurveOnly = !lastImportedTile.rawMesh;
+                        fb.textContent = isCurveOnly
+                            ? `Imported ${importedCount} curve module(s) → ${totalEdges} graph edges`
+                            : (appState.skeletonizeMeshTile
+                                ? `Skeletonized ${importedCount} mesh module(s) → ${totalEdges} centerline edges`
+                                : `Imported ${importedCount} module(s) (CC n=${appState.ccSubdivLevel}) → ${totalEdges} graph edges`);
                         fb.className = 'text-[10px] text-center font-mono text-emerald-400';
                     }
                 } else if (fb) {
-                    fb.textContent = 'No meshes found in selected file(s).';
+                    fb.textContent = 'No meshes or curves found in selected file(s).';
                     fb.className = 'text-[10px] text-center font-mono text-amber-400';
                 }
             } catch (err) {
@@ -1015,6 +1286,95 @@ export function initTab1Tiles() {
                 }
             } finally {
                 meshModuleInput.value = '';
+                if (loadingOverlay) loadingOverlay.classList.add('hidden');
+            }
+        });
+    }
+
+    const getMeshOnlyCC = () => {
+        const el = $('num-mesh-only-cc');
+        return el ? Math.max(0, Math.min(4, Math.round(Number(el.value) || 0))) : 0;
+    };
+    const rngMeshOnlyCC = $('rng-mesh-only-cc'), numMeshOnlyCC = $('num-mesh-only-cc');
+    const onMeshOnlyCCInput = (val) => {
+        const n = Math.max(0, Math.min(4, Math.round(Number(val) || 0)));
+        if (rngMeshOnlyCC) rngMeshOnlyCC.value = String(n);
+        if (numMeshOnlyCC) numMeshOnlyCC.value = String(n);
+        setTxt('mesh-only-cc-label', `n = ${n}`);
+        if (appState.TILES.some(t => t.isCustomGraph && t.meshOnly)) {
+            resubdivideMeshOnlyTiles(n);
+        }
+    };
+    if (rngMeshOnlyCC) rngMeshOnlyCC.addEventListener('input', (e) => onMeshOnlyCCInput(e.target.value));
+    if (numMeshOnlyCC) {
+        numMeshOnlyCC.addEventListener('input', (e) => onMeshOnlyCCInput(e.target.value));
+        numMeshOnlyCC.addEventListener('change', (e) => onMeshOnlyCCInput(e.target.value));
+    }
+    const btnReapplyMeshOnlyCC = $('btn-reapply-mesh-only-cc');
+    if (btnReapplyMeshOnlyCC) btnReapplyMeshOnlyCC.addEventListener('click', () => resubdivideMeshOnlyTiles(getMeshOnlyCC()));
+    const btnClearMeshOnly = $('btn-clear-mesh-only-tiles');
+    if (btnClearMeshOnly) btnClearMeshOnly.addEventListener('click', clearMeshOnlyTiles);
+
+    const meshOnlyInput = $('mesh-only-tile-input');
+    if (meshOnlyInput) {
+        meshOnlyInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files || []);
+            if (!files.length) return;
+            const loadingOverlay = $('loading-overlay');
+            const chkCustomOnly = $('chk-mesh-only-custom-only');
+            const chkNorm = $('chk-mesh-only-norm');
+            const fb = $('mesh-only-tile-feedback');
+            if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+            let importedCount = 0, totalQuads = 0, lastImportedTile = null;
+            try {
+                await appState.rhinoReady;
+                const ccLevel = getMeshOnlyCC();
+                const disableBuiltins = chkCustomOnly ? chkCustomOnly.checked : true;
+                for (const file of files) {
+                    const ext = file.name.toLowerCase().split('.').pop();
+                    let parsedModules = [];
+                    if (ext === 'obj') parsedModules = parseOBJMeshes(await file.text(), file.name);
+                    else if (ext === '3dm') parsedModules = parse3dmMeshes(await file.arrayBuffer(), file.name);
+                    for (const mod of parsedModules) {
+                        const tile = importMeshModuleFromData(mod.name, mod.verts, mod.faces, {
+                            ccLevel,
+                            normalize: chkNorm ? chkNorm.checked : true,
+                            meshOnly: true
+                        });
+                        if (tile) { importedCount++; totalQuads += tile.quads.length; lastImportedTile = tile; }
+                    }
+                }
+                if (importedCount > 0 && lastImportedTile) {
+                    if (disableBuiltins) appState.TILES.forEach(t => { if (!t.isCustomGraph) t.enabled = false; });
+                    appState.inspectedTileId = lastImportedTile.id;
+                    if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
+                    if (actions.clearUserImportedMeshes) actions.clearUserImportedMeshes();
+                    appState.showQuadMeshes = true;
+                    appState.groupVis.meshes = true;
+                    const chkShowMeshes = $('chk-show-meshes');
+                    if (chkShowMeshes) chkShowMeshes.checked = true;
+                    if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
+                    if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate(lastImportedTile.id);
+                    renderTileCatalogUI();
+                    if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
+                    if (actions.draw) actions.draw();
+                    zoomToBox(modelBoxToWorld(appState.modelBox));
+                    if (fb) {
+                        fb.textContent = `Imported ${importedCount} mesh tile(s) (CC n=${ccLevel}) → ${totalQuads} quads (no graph)`;
+                        fb.className = 'text-[10px] text-center font-mono text-emerald-400';
+                    }
+                } else if (fb) {
+                    fb.textContent = 'No meshes found in selected file(s).';
+                    fb.className = 'text-[10px] text-center font-mono text-amber-400';
+                }
+            } catch (err) {
+                console.error('Mesh-only tile import error:', err);
+                if (fb) {
+                    fb.textContent = `Import error: ${err.message || err}`;
+                    fb.className = 'text-[10px] text-center font-mono text-rose-400';
+                }
+            } finally {
+                meshOnlyInput.value = '';
                 if (loadingOverlay) loadingOverlay.classList.add('hidden');
             }
         });

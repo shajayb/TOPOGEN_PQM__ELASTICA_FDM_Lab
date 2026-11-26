@@ -16,7 +16,7 @@ import {
     DIRS,
     TILE_NULL, TILE_CROSS, TILE_VTUBE, TILE_HTUBE, TILE_HTUBE_Y,
     TILE_XBRACE_XZ, TILE_XBRACE_YZ, TILE_DIAG_PYR, TILE_ARCH_VAULT, TILE_TRIPOD_LEG, TILE_DIAPHRAGM,
-    TILE_FUNICULAR_VAULT, TILE_SLENDER_DIAGRID, TILE_HYPERBOLOID, TILE_CATENARY_QUADRIPOD,
+    TILE_FUNICULAR_VAULT, TILE_SLENDER_DIAGRID, TILE_HYPERBOLOID, TILE_CATENARY_QUADRIPOD, TILE_TWIN_BIFURCATION,
     buildBoxArmQuads,
     buildStrutQuads,
     buildQuadsFromGraph,
@@ -100,6 +100,14 @@ import {
     buildElasticaRibbonsSVG,
     buildHybridGraphWithElastica
 } from './elastica_curves.mjs';
+
+import {
+    subdivideMeshBoundaryPreserving,
+    extractBoundaryPortLoops,
+    extractSkeletalGraphFromMesh,
+    createTwinTubeBifurcationCoarseMesh,
+    buildCoarseMeshOBJText
+} from './mesh_skeletonizer.mjs';
 
 // --- Neutral Interchange Contract JSON Builder (wfc-fdm-topology/v1) ---
 function buildFoundryTopologyJSON(fdmResult, sectionParams = {}, metadata = {}, extraBlocks = {}) {
@@ -540,7 +548,7 @@ export const WFC_FDM_CORE = {
     DIRS,
     TILE_NULL, TILE_CROSS, TILE_VTUBE, TILE_HTUBE, TILE_HTUBE_Y,
     TILE_XBRACE_XZ, TILE_XBRACE_YZ, TILE_DIAG_PYR, TILE_ARCH_VAULT, TILE_TRIPOD_LEG, TILE_DIAPHRAGM,
-    TILE_FUNICULAR_VAULT, TILE_SLENDER_DIAGRID, TILE_HYPERBOLOID, TILE_CATENARY_QUADRIPOD,
+    TILE_FUNICULAR_VAULT, TILE_SLENDER_DIAGRID, TILE_HYPERBOLOID, TILE_CATENARY_QUADRIPOD, TILE_TWIN_BIFURCATION,
     buildBoxArmQuads,
     buildStrutQuads,
     buildQuadsFromGraph,
@@ -606,7 +614,12 @@ export const WFC_FDM_CORE = {
     packElasticaRibbons2D,
     generateElasticaRibbons,
     buildElasticaRibbonsSVG,
-    buildHybridGraphWithElastica
+    buildHybridGraphWithElastica,
+    subdivideMeshBoundaryPreserving,
+    extractBoundaryPortLoops,
+    extractSkeletalGraphFromMesh,
+    createTwinTubeBifurcationCoarseMesh,
+    buildCoarseMeshOBJText
 };
 
 globalThis.WFC_FDM_CORE = WFC_FDM_CORE;
@@ -623,7 +636,7 @@ export {
     DIRS,
     TILE_NULL, TILE_CROSS, TILE_VTUBE, TILE_HTUBE, TILE_HTUBE_Y,
     TILE_XBRACE_XZ, TILE_XBRACE_YZ, TILE_DIAG_PYR, TILE_ARCH_VAULT, TILE_TRIPOD_LEG, TILE_DIAPHRAGM,
-    TILE_FUNICULAR_VAULT, TILE_SLENDER_DIAGRID, TILE_HYPERBOLOID, TILE_CATENARY_QUADRIPOD,
+    TILE_FUNICULAR_VAULT, TILE_SLENDER_DIAGRID, TILE_HYPERBOLOID, TILE_CATENARY_QUADRIPOD, TILE_TWIN_BIFURCATION,
     buildBoxArmQuads,
     buildStrutQuads,
     buildQuadsFromGraph,
@@ -689,7 +702,12 @@ export {
     packElasticaRibbons2D,
     generateElasticaRibbons,
     buildElasticaRibbonsSVG,
-    buildHybridGraphWithElastica
+    buildHybridGraphWithElastica,
+    subdivideMeshBoundaryPreserving,
+    extractBoundaryPortLoops,
+    extractSkeletalGraphFromMesh,
+    createTwinTubeBifurcationCoarseMesh,
+    buildCoarseMeshOBJText
 };
 
 export default WFC_FDM_CORE;
