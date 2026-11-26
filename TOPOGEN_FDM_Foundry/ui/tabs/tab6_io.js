@@ -34,6 +34,8 @@ import { computeUnrolledSheetGridLayout, buildUnrolledPatternsDataForUI } from '
 import {
     getChain,
     getLoadedChain,
+    getActiveStageIndex,
+    getLoadedSourceLabel,
     clearChain,
     exportChainDownload,
     saveChainToRepo,
@@ -41,6 +43,7 @@ import {
     loadChain,
     loadChainFromRepoPath,
     playChain,
+    jumpToStage,
     stepNextChain,
     onChainChange
 } from '../state/procedural_recorder.js';
@@ -74,6 +77,7 @@ export function mountTab6Io() {
             <div class="space-y-1.5 pt-1 border-t border-gray-200">
                 <div class="chain-row">
                     <label class="text-[9px] font-semibold uppercase tracking-wider text-gray-500">Load Chain (.chain.json)</label>
+                    <span id="chain-loaded-file-badge" class="text-[8.5px] font-mono text-cyan-600 truncate max-w-[165px]" title="Active loaded chain file">Live Session</span>
                 </div>
                 <input type="file" id="chain-file-input" accept=".json,.chain.json" class="block w-full text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9.5px] file:font-semibold file:bg-pink-600/85 file:text-white hover:file:bg-pink-500 cursor-pointer" />
 
@@ -712,10 +716,17 @@ export function initTab6Io() {
     };
     const updateStepBadge = () => {
         const badge = $('chain-step-count-badge');
-        if (!badge) return;
-        const active = getLoadedChain();
-        const n = active?.steps?.length || 0;
-        badge.textContent = `${n} step${n === 1 ? '' : 's'}`;
+        if (badge) {
+            const active = getLoadedChain();
+            const n = active?.steps?.length || 0;
+            badge.textContent = `${n} step${n === 1 ? '' : 's'}`;
+        }
+        const loadedBadge = $('chain-loaded-file-badge');
+        if (loadedBadge) {
+            const src = getLoadedSourceLabel();
+            loadedBadge.textContent = src || 'Live Session';
+            loadedBadge.title = src || 'Recording live session';
+        }
     };
 
     const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -789,12 +800,45 @@ export function initTab6Io() {
         if (snap.event === 'clear') {
             renderCaptureGallery([]);
             setChainProgress(0);
+        } else if (snap.event === 'stage' && snap.activeChain?.steps?.length) {
+            const total = snap.activeChain.steps.length;
+            const idx = snap.activeStageIndex ?? 0;
+            setChainProgress(((idx + 1) / total) * 100);
+            if (snap.step) {
+                setChainStatus(`Stage ${idx + 1}/${total}: ${snap.step.label || snap.step.op}`);
+            }
         }
     });
     updateStepBadge();
     populateCorpusDropdown();
 
+    let _selectedLocalFile = null;
+
+    const loadAndReplayLocalFile = async (file) => {
+        const text = await file.text();
+        const res = await loadChain(text, { fileName: file.name, sourceLabel: file.name });
+        setChainProgress(0);
+        renderCaptureGallery([]);
+        setChainStatus(`Loaded "${res.chain.name}" (${res.stepCount} steps) · Replaying…`);
+        if (res.stepCount > 0) {
+            const playRes = await playChain(null, {
+                captureStages: false,
+                onStage: ({ index, total, step }) => {
+                    setChainProgress(((index + 1) / Math.max(1, total)) * 100);
+                    setChainStatus(`Stage ${index + 1}/${total}: ${step.label || step.op}`);
+                }
+            });
+            setChainProgress(100);
+            setChainStatus(`Loaded & replayed "${res.chain.name}" (${playRes.stepsExecuted}/${res.stepCount} stages).`);
+        } else {
+            setChainStatus(`Loaded "${res.chain.name}" (0 steps).`);
+        }
+    };
+
     bind('btn-chain-clear', () => {
+        _selectedLocalFile = null;
+        const fi = $('chain-file-input');
+        if (fi) fi.value = '';
         clearChain();
         setChainStatus('Cleared procedural chain.');
     });
@@ -825,16 +869,11 @@ export function initTab6Io() {
         chainFileInput.addEventListener('change', async (e) => {
             const file = e.target.files && e.target.files[0];
             if (!file) return;
+            _selectedLocalFile = file;
             try {
-                const text = await file.text();
-                const res = await loadChain(text);
-                setChainStatus(`Loaded "${res.chain.name}" (${res.stepCount} steps, ${res.assetCount} assets).`);
-                setChainProgress(0);
-                renderCaptureGallery([]);
+                await loadAndReplayLocalFile(file);
             } catch (err) {
-                setChainStatus(`Load error: ${err.message}`);
-            } finally {
-                chainFileInput.value = '';
+                setChainStatus(`Load error (${file.name}): ${err.message}`);
             }
         });
     }
@@ -845,15 +884,35 @@ export function initTab6Io() {
         const sel = $('sel-chain-corpus');
         const repoPath = sel ? sel.value : '';
         if (!repoPath) {
-            setChainStatus('Select a corpus or saved chain from the dropdown first.');
+            if (_selectedLocalFile) {
+                try {
+                    await loadAndReplayLocalFile(_selectedLocalFile);
+                } catch (err) {
+                    setChainStatus(`Load error (${_selectedLocalFile.name}): ${err.message}`);
+                }
+                return;
+            }
+            setChainStatus('Select a corpus/repo chain or choose a local .chain.json file first.');
             return;
         }
         try {
             setChainStatus(`Loading ${repoPath}…`);
             const res = await loadChainFromRepoPath(repoPath);
-            setChainStatus(`Loaded "${res.chain.name}" (${res.stepCount} steps, ${res.assetCount} assets).`);
             setChainProgress(0);
             renderCaptureGallery([]);
+            if (res.stepCount > 0) {
+                const playRes = await playChain(null, {
+                    captureStages: false,
+                    onStage: ({ index, total, step }) => {
+                        setChainProgress(((index + 1) / Math.max(1, total)) * 100);
+                        setChainStatus(`Stage ${index + 1}/${total}: ${step.label || step.op}`);
+                    }
+                });
+                setChainProgress(100);
+                setChainStatus(`Loaded & replayed "${res.chain.name}" (${playRes.stepsExecuted}/${res.stepCount} stages).`);
+            } else {
+                setChainStatus(`Loaded "${res.chain.name}" (${res.stepCount} steps, ${res.assetCount} assets).`);
+            }
         } catch (err) {
             setChainStatus(`Load failed: ${err.message}`);
         }

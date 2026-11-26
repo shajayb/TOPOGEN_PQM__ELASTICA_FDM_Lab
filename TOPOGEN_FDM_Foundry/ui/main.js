@@ -22,6 +22,7 @@ import {
     initProceduralRecorder,
     getChain,
     getLoadedChain,
+    getActiveStageIndex,
     clearChain,
     recordStep,
     stageAssetToRepo,
@@ -31,9 +32,12 @@ import {
     loadChain,
     loadChainFromRepoPath,
     playChain,
+    jumpToStage,
     stepNextChain,
-    getLastCaptures
+    getLastCaptures,
+    onChainChange
 } from './state/procedural_recorder.js';
+import { createChainTimeline } from './display/chain_timeline.js';
 import {
     viewport,
     initViewportScene,
@@ -169,6 +173,39 @@ actions.applyTilePresetUI = applyTilePresetUI;
 actions.runFDMOnActiveGraph = runFDMOnActiveGraph;
 actions.generateElasticaFromUI = generateElasticaFromUI;
 actions.runSpaceFrameFEAFromUI = runSpaceFrameFEAFromUI;
+
+// Direct-over-viewport clickable stage timeline (BATCH-TOPOGEN-06 follow-up)
+const chainTimeline = createChainTimeline({
+    container: $('canvas-container') || document.body,
+    onSelectStage: async (index) => {
+        try {
+            await jumpToStage(index, { captureStages: false });
+        } catch (err) {
+            console.error('[chainTimeline jumpToStage]', err);
+        }
+    }
+});
+actions.chainTimeline = chainTimeline;
+onChainChange((snap) => {
+    const activeChain = snap.loadedChain;
+    if (snap.event === 'clear' || !activeChain || !Array.isArray(activeChain.steps) || activeChain.steps.length === 0) {
+        if (snap.event === 'clear') chainTimeline.hide();
+        return;
+    }
+    if (snap.event === 'load') {
+        chainTimeline.setChain(activeChain, -1);
+        chainTimeline.show();
+    } else if (snap.event === 'play_start') {
+        chainTimeline.setChain(activeChain, snap.activeStageIndex ?? -1);
+        chainTimeline.setBusy(true);
+        chainTimeline.show();
+    } else if (snap.event === 'stage') {
+        chainTimeline.setActiveStage(snap.activeStageIndex ?? 0, snap.step?.label || snap.step?.op || '');
+    } else if (snap.event === 'play_complete') {
+        chainTimeline.setBusy(false);
+        chainTimeline.setActiveStage(snap.activeStageIndex ?? (activeChain.steps.length - 1));
+    }
+});
 
 // 4. Initial Scene & Tab 1 Tiles Showcase Startup
 setup({ collapseAll: true });
@@ -356,6 +393,7 @@ const workbenchApi = {
     chain: {
         get: getChain,
         getLoaded: getLoadedChain,
+        getActiveStageIndex,
         clear: clearChain,
         record: recordStep,
         stageAsset: stageAssetToRepo,
@@ -365,9 +403,11 @@ const workbenchApi = {
         load: loadChain,
         loadFromRepo: loadChainFromRepoPath,
         play: playChain,
+        jumpToStage,
         stepNext: stepNextChain,
         captureStages: (chainObj = null, opts = {}) => playChain(chainObj, { ...opts, captureStages: true }),
-        getLastCaptures
+        getLastCaptures,
+        timeline: chainTimeline
     }
 };
 

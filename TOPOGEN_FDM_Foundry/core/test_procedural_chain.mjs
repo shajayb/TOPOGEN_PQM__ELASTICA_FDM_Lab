@@ -433,5 +433,105 @@ await runTest('serve_lab.mjs HTTP API round-trip (stage, repo-file, chains, chai
     }
 });
 
+// 7. Regression test: exact user-exported 5-step live-session JSON round-trip
+await runTest('User-exported 5-step live-session JSON (4 tile_toggle + 1 grid_config 2x2x1) parses and validates with 0 errors', () => {
+    const userExported = {
+        schema: 'topogen-procedural-chain/v1',
+        id: 'live-session',
+        name: 'Live Session',
+        createdAt: '2026-11-26T12:10:00.000Z',
+        updatedAt: '2026-11-26T12:12:00.000Z',
+        notes: 'User-exported live session regression fixture',
+        assets: [],
+        bookmarks: DEFAULT_CAMERA_BOOKMARKS.map((b) => structuredClone(b)),
+        steps: [
+            {
+                index: 0,
+                id: 'step-01-tile_toggle',
+                op: 'tile_toggle',
+                label: 'Disable Vertical Tube',
+                params: { id: 2, key: 'vtube', enabled: false }
+            },
+            {
+                index: 1,
+                id: 'step-02-tile_toggle',
+                op: 'tile_toggle',
+                label: 'Disable Null',
+                params: { id: 0, key: 'null', enabled: false }
+            },
+            {
+                index: 2,
+                id: 'step-03-tile_toggle',
+                op: 'tile_toggle',
+                label: 'Disable Cross',
+                params: { id: 1, key: 'cross', enabled: false }
+            },
+            {
+                index: 3,
+                id: 'step-04-tile_toggle',
+                op: 'tile_toggle',
+                label: 'Enable Diagrid Octa',
+                params: { id: 7, key: 'diag_pyramid', enabled: true }
+            },
+            {
+                index: 4,
+                id: 'step-05-grid_config',
+                op: 'grid_config',
+                label: 'Configure Grid 2x2x1',
+                params: { x: 2, y: 2, z: 1, voxelSize: 1, algorithm: 'wfc' }
+            }
+        ]
+    };
+
+    const jsonText = JSON.stringify(userExported, null, 2);
+    const parsed = parseProceduralChain(jsonText);
+    const check = validateProceduralChain(parsed);
+    assert.equal(check.ok, true, `Validation failed: ${check.errors.join('; ')}`);
+    assert.equal(check.errors.length, 0);
+    assert.equal(check.warnings.length, 0);
+    assert.equal(parsed.id, 'live-session');
+    assert.equal(parsed.assets.length, 0);
+    assert.equal(parsed.bookmarks.length, 7);
+    assert.equal(parsed.steps.length, 5);
+    assert.equal(parsed.steps[3].params.id, 7);
+    assert.equal(parsed.steps[3].params.enabled, true);
+    assert.deepEqual(parsed.steps[4].params, { x: 2, y: 2, z: 1, voxelSize: 1, algorithm: 'wfc' });
+
+    const reserialized = serializeProceduralChain(parsed, { pretty: false });
+    const reparsed = parseProceduralChain(reserialized);
+    assert.equal(reparsed.steps.length, 5);
+});
+
+// 8. Static & contract invariants for tab-lock, jumpToStage, file-load, and direct-over-viewport timeline
+await runTest('UI playback contract invariants: tab-lock, jumpToStage, file-load, and frameless viewport timeline', () => {
+    const recorderSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'state', 'procedural_recorder.js'), 'utf8');
+    const tab6Src = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'tabs', 'tab6_io.js'), 'utf8');
+    const mainSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'main.js'), 'utf8');
+    const timelineSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'display', 'chain_timeline.js'), 'utf8');
+    const cssSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'styles', 'workbench.css'), 'utf8');
+
+    // Air-gap: zero verifier/ imports
+    assert.equal(/verifier\//.test(recorderSrc), false, 'procedural_recorder.js must not import verifier/');
+    assert.equal(/verifier\//.test(timelineSrc), false, 'chain_timeline.js must not import verifier/');
+
+    // Image 1 fix: never switch active tab during replay
+    assert.equal(/\bswitchTab\s*\(/.test(recorderSrc), false, 'procedural_recorder.js must not call switchTab() during replay');
+    assert.match(recorderSrc, /restoreActiveTabInPlace/, 'procedural_recorder.js must restore active tab in-place');
+
+    // Image 3 fix: jumpToStage & file load feedback
+    assert.match(recorderSrc, /export\s+async\s+function\s+jumpToStage\b|export\s+function\s+jumpToStage\b/, 'procedural_recorder.js must export jumpToStage');
+    assert.match(recorderSrc, /export\s+function\s+getActiveStageIndex\b/, 'procedural_recorder.js must export getActiveStageIndex');
+    assert.match(tab6Src, /chain-file-input/, 'tab6_io.js must wire #chain-file-input');
+    assert.match(tab6Src, /chain-loaded-file-badge/, 'tab6_io.js must display #chain-loaded-file-badge');
+
+    // Image 2 feature: direct-over-viewport frameless clickable stage timeline
+    assert.match(timelineSrc, /export\s+function\s+createChainTimeline\b/, 'chain_timeline.js must export createChainTimeline');
+    assert.match(timelineSrc, /viewport-chain-timeline/, 'chain_timeline.js must mount #viewport-chain-timeline');
+    assert.match(cssSrc, /\.chain-tl-/, 'workbench.css must define .chain-tl-* frameless timeline styles');
+    assert.match(cssSrc, /pointer-events:\s*none/, 'workbench.css must keep outer timeline wrapper pointer-events: none');
+    assert.match(mainSrc, /createChainTimeline/, 'main.js must wire createChainTimeline');
+    assert.match(mainSrc, /jumpToStage/, 'main.js must connect timeline selection to jumpToStage');
+});
+
 console.log(`\nSummary: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

@@ -45,8 +45,7 @@ import {
 } from '../display/camera_bookmarks.js';
 import {
     applyOutlinerVisibility,
-    refreshOutliner,
-    switchTab
+    refreshOutliner
 } from '../display/display_hud.js';
 
 const COALESCE_OPS = new Set(['pq_config', 'grid_config', 'fdm_config']);
@@ -57,22 +56,28 @@ let _chain = createProceduralChain({
     bookmarks: exportBookmarks()
 });
 let _loadedChain = null;
+let _loadedSourceLabel = '';
 let _loadedAssets = new Map();
 let _isReplaying = false;
 let _stepCursor = 0;
+let _currentStageIndex = -1;
 let _lastCaptures = [];
 const _listeners = new Set();
 
-function notifyListeners(event = 'update') {
+function notifyListeners(event = 'update', extra = {}) {
     const snapshot = {
         event,
         chain: _chain,
         loadedChain: _loadedChain,
+        activeChain: _loadedChain || _chain,
+        loadedSourceLabel: _loadedSourceLabel,
         stepCount: _chain.steps.length,
         loadedStepCount: _loadedChain ? _loadedChain.steps.length : _chain.steps.length,
         stepCursor: _stepCursor,
+        activeStageIndex: _currentStageIndex,
         isReplaying: _isReplaying,
-        captures: _lastCaptures
+        captures: _lastCaptures,
+        ...extra
     };
     for (const fn of _listeners) {
         try { fn(snapshot); } catch (err) { console.error('[procedural_recorder listener]', err); }
@@ -106,6 +111,14 @@ export function getStepCursor() {
     return _stepCursor;
 }
 
+export function getActiveStageIndex() {
+    return _currentStageIndex;
+}
+
+export function getLoadedSourceLabel() {
+    return _loadedSourceLabel;
+}
+
 export function getLastCaptures() {
     return _lastCaptures.slice();
 }
@@ -118,8 +131,10 @@ export function clearChain(meta = {}) {
         bookmarks: exportBookmarks()
     });
     _loadedChain = null;
+    _loadedSourceLabel = '';
     _loadedAssets.clear();
     _stepCursor = 0;
+    _currentStageIndex = -1;
     _lastCaptures = [];
     notifyListeners('clear');
     return _chain;
@@ -314,10 +329,10 @@ export async function fetchRepoFile(repoRelativePath, { binary = false } = {}) {
 
 export async function loadChainFromRepoPath(repoRelativePath) {
     const fetched = await fetchRepoFile(repoRelativePath, { binary: false });
-    return await loadChain(fetched.text);
+    return await loadChain(fetched.text, { sourceLabel: repoRelativePath });
 }
 
-export async function loadChain(chainOrJson) {
+export async function loadChain(chainOrJson, opts = {}) {
     let parsed = null;
     if (typeof chainOrJson === 'string') {
         parsed = parseProceduralChain(chainOrJson);
@@ -378,13 +393,16 @@ export async function loadChain(chainOrJson) {
     }
 
     _loadedChain = parsed;
+    _loadedSourceLabel = String(opts.sourceLabel || opts.fileName || parsed.name || parsed.id || '').trim();
     _stepCursor = 0;
+    _currentStageIndex = -1;
     _lastCaptures = [];
     notifyListeners('load');
 
     return {
         ok: true,
         chain: parsed,
+        sourceLabel: _loadedSourceLabel,
         stepCount: parsed.steps.length,
         assetCount: _loadedAssets.size,
         warnings: assetWarnings
@@ -506,7 +524,26 @@ function resetWorkbenchForReplay() {
     if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
 }
 
-async function executeStep(step, chain) {
+function restoreActiveTabInPlace(savedTabId) {
+    if (!savedTabId) return;
+    if (appState.activeTabId !== savedTabId) {
+        appState.activeTabId = savedTabId;
+    }
+    if (typeof document === 'undefined') return;
+    $$('.ui-tab').forEach((b) => {
+        const active = b.dataset.tab === savedTabId;
+        b.classList.toggle('border-pink-500', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('bg-gray-800/70', active);
+        b.classList.toggle('border-transparent', !active);
+        b.classList.toggle('text-gray-400', !active);
+    });
+    $$('.tab-pane').forEach((pane) => {
+        pane.classList.toggle('hidden', pane.id !== savedTabId);
+    });
+}
+
+async function executeStep(step, chain, savedTabId = appState.activeTabId) {
     const op = step.op;
     const p = step.params || {};
 
@@ -521,17 +558,23 @@ async function executeStep(step, chain) {
                         set.has(String(t.name || '').toLowerCase()) ||
                         set.has(String(t.id));
                 }
+                if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
                 if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
+                if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate();
                 if (actions.renderTileCatalogUI) actions.renderTileCatalogUI();
                 if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
             } else if (p.preset === 'all_on') {
                 appState.TILES.forEach((t, idx) => { t.enabled = idx > 0; });
+                if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
                 if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
+                if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate();
                 if (actions.renderTileCatalogUI) actions.renderTileCatalogUI();
                 if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
             } else if (p.preset === 'default_ortho' || p.preset === 'ortho') {
                 appState.TILES.forEach((t, idx) => { t.enabled = (idx >= 0 && idx <= 3); });
+                if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
                 if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
+                if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate();
                 if (actions.renderTileCatalogUI) actions.renderTileCatalogUI();
                 if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
             } else if (typeof p.preset === 'string' && actions.applyTilePresetUI) {
@@ -546,10 +589,14 @@ async function executeStep(step, chain) {
         }
 
         case 'tile_toggle': {
+            let lastToggled = null;
             if (Array.isArray(p.tiles)) {
                 for (const item of p.tiles) {
                     const t = findTileBySpecifier(item.tileKey ?? item.key ?? item.tileId ?? item.id ?? item.tileName ?? item.name);
-                    if (t) t.enabled = item.enabled !== undefined ? Boolean(item.enabled) : !t.enabled;
+                    if (t) {
+                        t.enabled = item.enabled !== undefined ? Boolean(item.enabled) : !t.enabled;
+                        lastToggled = t;
+                    }
                 }
             } else {
                 const spec = p.tileKey ?? p.key ?? p.tileId ?? p.id ?? p.tileName ?? p.name ?? p.tile;
@@ -557,6 +604,7 @@ async function executeStep(step, chain) {
                 if (t) {
                     t.enabled = p.enabled !== undefined ? Boolean(p.enabled) : !t.enabled;
                     appState.inspectedTileId = t.id;
+                    lastToggled = t;
                 }
             }
             if (!appState.TILES.some((t) => t.enabled) && appState.TILES[CORE.TILE_CROSS]) {
@@ -564,6 +612,10 @@ async function executeStep(step, chain) {
             }
             if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
             if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
+            if (actions.collapseFullGridImmediate) {
+                const seedId = (lastToggled && lastToggled.enabled && lastToggled.id !== CORE.TILE_NULL) ? lastToggled.id : null;
+                actions.collapseFullGridImmediate(seedId);
+            }
             if (actions.renderTileCatalogUI) actions.renderTileCatalogUI();
             if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
             if (actions.draw) actions.draw();
@@ -653,21 +705,27 @@ async function executeStep(step, chain) {
             const nx = p.x ?? p.nx ?? p.grid?.[0] ?? appState.GRID_X;
             const ny = p.y ?? p.ny ?? p.grid?.[1] ?? appState.GRID_Y;
             const nz = p.z ?? p.nz ?? p.grid?.[2] ?? appState.GRID_Z;
-            if (p.algorithm === 'wfc' || p.algorithm === 'growth') {
-                appState.currentAlgorithm = p.algorithm;
+            const algo = p.algorithm || p.mode;
+            if (algo === 'wfc' || algo === 'growth') {
+                appState.currentAlgorithm = algo;
             }
             if (Number.isFinite(Number(p.voxelSize ?? p.voxelSizeM))) {
                 appState.VOXEL_SIZE = Math.max(0.05, Math.min(20.0, Number(p.voxelSize ?? p.voxelSizeM)));
             }
             if (actions.setGridResolution) {
                 actions.setGridResolution(nx, ny, nz, { collapseAll: p.collapseAll !== false, zoom: false });
+            } else {
+                appState.GRID_X = nx;
+                appState.GRID_Y = ny;
+                appState.GRID_Z = nz;
+                if (actions.setup) actions.setup({ collapseAll: p.collapseAll !== false });
+                if (actions.draw) actions.draw();
             }
             syncGridControlsFromState();
             break;
         }
 
         case 'wfc_collapse': {
-            switchTab('tab-topo');
             const algo = p.algorithm || p.mode;
             if (algo === 'wfc' || algo === 'growth') {
                 appState.currentAlgorithm = algo;
@@ -708,7 +766,6 @@ async function executeStep(step, chain) {
         }
 
         case 'pq_solidify': {
-            switchTab('tab-pq');
             if (actions.solidifyActiveGraph) {
                 actions.solidifyActiveGraph({ keepCamera: true });
             }
@@ -719,7 +776,6 @@ async function executeStep(step, chain) {
         }
 
         case 'pq_subdiv_ring': {
-            switchTab('tab-pq');
             const levels = Math.max(1, Math.round(Number(p.levels ?? p.iterations ?? 1)));
             for (let k = 0; k < levels; k++) {
                 if (actions.applyRingSubdivPQFromUI) actions.applyRingSubdivPQFromUI();
@@ -728,7 +784,6 @@ async function executeStep(step, chain) {
         }
 
         case 'pq_subdiv_long': {
-            switchTab('tab-pq');
             const levels = Math.max(1, Math.round(Number(p.levels ?? p.iterations ?? 1)));
             for (let k = 0; k < levels; k++) {
                 if (actions.applyLongitudinalSubdivPQFromUI) actions.applyLongitudinalSubdivPQFromUI();
@@ -737,7 +792,6 @@ async function executeStep(step, chain) {
         }
 
         case 'pq_subdiv_cc': {
-            switchTab('tab-pq');
             const levels = Math.max(1, Math.round(Number(p.levels ?? p.iterations ?? 1)));
             for (let k = 0; k < levels; k++) {
                 if (actions.applyCatmullClarkSubdivPQFromUI) actions.applyCatmullClarkSubdivPQFromUI();
@@ -746,13 +800,11 @@ async function executeStep(step, chain) {
         }
 
         case 'pq_optimize': {
-            switchTab('tab-pq');
             if (actions.applyOnlyPQOptimizationFromUI) actions.applyOnlyPQOptimizationFromUI();
             break;
         }
 
         case 'pq_swap_long_ring': {
-            switchTab('tab-pq');
             if (actions.swapPqLongRing) actions.swapPqLongRing();
             break;
         }
@@ -771,7 +823,6 @@ async function executeStep(step, chain) {
         }
 
         case 'fdm_solve': {
-            switchTab('tab-fdm');
             if (actions.runFDMOnActiveGraph) {
                 actions.runFDMOnActiveGraph({ keepCamera: true });
             }
@@ -779,7 +830,6 @@ async function executeStep(step, chain) {
         }
 
         case 'elastica_trace': {
-            switchTab('tab-elastica');
             if (p.pairMode) appState.elasticaState.pairMode = p.pairMode;
             if (p.smoothMode) appState.elasticaState.smoothMode = p.smoothMode;
             if (p.smoothLevel !== undefined) appState.elasticaState.smoothLevel = Math.round(Number(p.smoothLevel));
@@ -789,7 +839,6 @@ async function executeStep(step, chain) {
         }
 
         case 'fea_run': {
-            switchTab('tab-fea');
             if (p.materialKey) appState.feaState.materialKey = p.materialKey;
             if (p.topLoadKg !== undefined) appState.feaState.topLoadKg = Number(p.topLoadKg);
             if (p.restraintType) appState.feaState.restraintType = p.restraintType;
@@ -812,6 +861,8 @@ async function executeStep(step, chain) {
             break;
     }
 
+    // Strictly preserve the user's active tab during replay
+    restoreActiveTabInPlace(savedTabId);
     recomputeModelBox();
     applyOutlinerVisibility();
     refreshOutliner();
@@ -820,7 +871,7 @@ async function executeStep(step, chain) {
     if (op !== 'camera_bookmark' && step.bookmarkId && viewport.applyCameraBookmark) {
         const bm = getBookmarkById(step.bookmarkId) || (chain?.bookmarks || []).find((b) => b.id === step.bookmarkId);
         if (bm) viewport.applyCameraBookmark(bm, { animate: false });
-    } else if (op === 'wfc_collapse' || op === 'tile_import') {
+    } else if (op === 'wfc_collapse' || op === 'tile_import' || op === 'grid_config') {
         zoomToBox(modelBoxToWorld(appState.modelBox));
     }
 }
@@ -883,19 +934,22 @@ export async function playChain(chainObj = null, options = {}) {
 
     const captures = [];
     const manifestStages = [];
+    const savedTabId = appState.activeTabId;
     _isReplaying = true;
     notifyListeners('play_start');
 
     try {
         if (fromIdx === 0) {
             resetWorkbenchForReplay();
+            restoreActiveTabInPlace(savedTabId);
             await waitForRenderSettle();
         }
 
         for (let i = fromIdx; i <= toIdx; i++) {
             const step = steps[i];
-            await executeStep(step, activeChain);
+            await executeStep(step, activeChain, savedTabId);
             await waitForRenderSettle();
+            _currentStageIndex = i;
             _stepCursor = i + 1;
 
             const metrics = collectStageMetrics();
@@ -990,6 +1044,7 @@ export async function playChain(chainObj = null, options = {}) {
                 }
             }
 
+            notifyListeners('stage', { stageIndex: i, step, metrics });
             if (typeof onStage === 'function') {
                 onStage({
                     index: i,
@@ -1001,6 +1056,7 @@ export async function playChain(chainObj = null, options = {}) {
             }
         }
     } finally {
+        restoreActiveTabInPlace(savedTabId);
         _isReplaying = false;
     }
 
@@ -1012,7 +1068,31 @@ export async function playChain(chainObj = null, options = {}) {
         chainId: activeChain.id,
         chainName: activeChain.name,
         stepsExecuted: toIdx - fromIdx + 1,
+        activeStageIndex: _currentStageIndex,
         captures
+    };
+}
+
+export async function jumpToStage(targetIndex, options = {}) {
+    const activeChain = _loadedChain || getChain();
+    const steps = Array.isArray(activeChain?.steps) ? activeChain.steps : [];
+    if (steps.length === 0) return { ok: false, message: 'No steps in chain.' };
+
+    const clamped = Math.max(0, Math.min(steps.length - 1, Math.round(Number(targetIndex) || 0)));
+    const startIndex = (_currentStageIndex < 0 || clamped <= _currentStageIndex)
+        ? 0
+        : _currentStageIndex + 1;
+
+    const res = await playChain(null, {
+        ...options,
+        startIndex,
+        endIndex: clamped
+    });
+    return {
+        ...res,
+        stepIndex: clamped,
+        step: steps[clamped],
+        done: clamped >= steps.length - 1
     };
 }
 
@@ -1023,6 +1103,7 @@ export async function stepNextChain(options = {}) {
 
     if (_stepCursor >= steps.length) {
         _stepCursor = 0;
+        _currentStageIndex = -1;
     }
     const idx = _stepCursor;
     const res = await playChain(null, {
@@ -1055,6 +1136,8 @@ export function initProceduralRecorder() {
     return {
         getChain,
         getLoadedChain,
+        getActiveStageIndex,
+        getLoadedSourceLabel,
         clearChain,
         recordStep,
         stageAssetToRepo,
@@ -1065,6 +1148,7 @@ export function initProceduralRecorder() {
         loadChain,
         loadChainFromRepoPath,
         playChain,
+        jumpToStage,
         stepNextChain,
         getLastCaptures,
         onChainChange
