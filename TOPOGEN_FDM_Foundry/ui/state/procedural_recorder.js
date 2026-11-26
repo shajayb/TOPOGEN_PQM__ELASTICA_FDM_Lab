@@ -49,6 +49,12 @@ import {
 } from '../display/display_hud.js';
 
 const COALESCE_OPS = new Set(['pq_config', 'grid_config', 'fdm_config', 'elastica_trace']);
+const DOWNSTREAM_OPS = new Set([
+    'pq_config', 'pq_solidify', 'pq_subdiv_ring', 'pq_subdiv_long', 'pq_subdiv_cc',
+    'pq_optimize', 'pq_swap_long_ring', 'fdm_config', 'fdm_solve', 'elastica_trace', 'fea_run'
+]);
+const BASELINE_TILE_OPS = new Set(['tile_preset', 'tile_toggle', 'tile_import']);
+const BASELINE_GRID_OPS = new Set(['grid_config', 'wfc_collapse']);
 
 let _chain = createProceduralChain({
     id: 'live-session',
@@ -152,20 +158,111 @@ export function clearChain(meta = {}) {
     return _chain;
 }
 
+function captureCompactVoxelGrid() {
+    if (!Array.isArray(appState.voxels) || appState.voxels.length === 0) return [];
+    return appState.voxels.map((v) => (v && v.collapsed && Number.isInteger(v.tile)) ? v.tile : CORE.TILE_NULL);
+}
+
+function captureEnabledTileIds() {
+    return (appState.TILES || []).filter((t) => t && t.enabled).map((t) => t.id);
+}
+
+function reindexChainSteps(chain) {
+    if (!chain || !Array.isArray(chain.steps)) return;
+    chain.steps.forEach((st, idx) => {
+        st.index = idx;
+        if (!st.id || /^step-\d+-/.test(st.id)) {
+            st.id = `step-${String(idx + 1).padStart(2, '0')}-${st.op}`;
+        }
+    });
+}
+
+export function ensureBaselineSteps(chain = _chain) {
+    if (!chain || !Array.isArray(chain.steps)) return false;
+    const hasTileStep = chain.steps.some((s) => s && BASELINE_TILE_OPS.has(s.op));
+    const hasGridStep = chain.steps.some((s) => s && BASELINE_GRID_OPS.has(s.op));
+    if (hasTileStep || hasGridStep) return false;
+
+    const enabledIds = captureEnabledTileIds();
+    const enabledKeys = (appState.TILES || []).filter((t) => t && t.enabled).map((t) => t.key).filter(Boolean);
+    const gx = appState.GRID_X || 3;
+    const gy = appState.GRID_Y || 3;
+    const gz = appState.GRID_Z || 4;
+    const algo = appState.currentAlgorithm || 'wfc';
+    const voxelGrid = captureCompactVoxelGrid();
+
+    const baselineSteps = [
+        {
+            index: 0,
+            id: 'step-01-tile_preset',
+            op: 'tile_preset',
+            label: 'Baseline Tiles',
+            params: {
+                enabledTileIds: enabledIds,
+                enabledTiles: enabledKeys
+            }
+        },
+        {
+            index: 1,
+            id: 'step-02-grid_config',
+            op: 'grid_config',
+            label: `Grid ${gx}×${gy}×${gz}`,
+            params: {
+                x: gx,
+                y: gy,
+                z: gz,
+                voxelSize: Number(appState.VOXEL_SIZE || 1.0),
+                algorithm: algo
+            }
+        },
+        {
+            index: 2,
+            id: 'step-03-wfc_collapse',
+            op: 'wfc_collapse',
+            label: `WFC Topology (${gx}×${gy}×${gz})`,
+            params: {
+                algorithm: algo,
+                grid: [gx, gy, gz],
+                voxelGrid
+            }
+        }
+    ];
+
+    chain.steps = [...baselineSteps, ...chain.steps];
+    reindexChainSteps(chain);
+    chain.updatedAt = new Date().toISOString();
+    return true;
+}
+
 export function recordStep(op, params = {}, opts = {}) {
     if (_isReplaying) return null;
     if (!SUPPORTED_STEP_OPS.includes(op)) return null;
 
+    if (DOWNSTREAM_OPS.has(op)) {
+        ensureBaselineSteps(_chain);
+    }
+
     const cleanParams = (params && typeof params === 'object') ? { ...params } : {};
+    if (op === 'wfc_collapse' && !Array.isArray(cleanParams.voxelGrid)) {
+        const vg = captureCompactVoxelGrid();
+        if (vg.length > 0) cleanParams.voxelGrid = vg;
+    }
+
     if (opts.coalesce !== false && COALESCE_OPS.has(op) && _chain.steps.length > 0) {
         const prev = _chain.steps[_chain.steps.length - 1];
         if (prev && prev.op === op) {
-            prev.params = { ...(prev.params || {}), ...cleanParams };
-            if (typeof opts.label === 'string' && opts.label.trim()) prev.label = opts.label.trim();
-            if (typeof opts.bookmarkId === 'string' && opts.bookmarkId.trim()) prev.bookmarkId = opts.bookmarkId.trim();
-            _chain.updatedAt = new Date().toISOString();
-            notifyListeners('record');
-            return prev;
+            const allowCoalesce = op !== 'elastica_trace' || (
+                Boolean(prev.params?.showUnrolled3D) === Boolean(cleanParams.showUnrolled3D) &&
+                String(prev.params?.stageKind || 'trace') === String(cleanParams.stageKind || 'trace')
+            );
+            if (allowCoalesce) {
+                prev.params = { ...(prev.params || {}), ...cleanParams };
+                if (typeof opts.label === 'string' && opts.label.trim()) prev.label = opts.label.trim();
+                if (typeof opts.bookmarkId === 'string' && opts.bookmarkId.trim()) prev.bookmarkId = opts.bookmarkId.trim();
+                _chain.updatedAt = new Date().toISOString();
+                notifyListeners('record');
+                return prev;
+            }
         }
     }
 
@@ -264,6 +361,9 @@ export async function stageAssetToRepo(fileOrInfo) {
 
 export function exportChain(opts = {}) {
     const chain = getChain();
+    if (chain.steps.length > 0) {
+        ensureBaselineSteps(chain);
+    }
     const check = validateProceduralChain(chain);
     if (!check.ok) {
         console.warn('[procedural_recorder] Chain validation warnings/errors:', check.errors);
@@ -273,6 +373,9 @@ export function exportChain(opts = {}) {
 
 export function exportChainDownload(fileName = null) {
     const chain = getChain();
+    if (chain.steps.length > 0) {
+        ensureBaselineSteps(chain);
+    }
     const jsonText = exportChain({ pretty: true });
     const safeName = fileName || `${chain.id || 'procedural_chain'}.chain.json`;
     downloadBlob(new Blob([jsonText], { type: 'application/json' }), safeName.endsWith('.json') ? safeName : `${safeName}.chain.json`);
@@ -281,6 +384,9 @@ export function exportChainDownload(fileName = null) {
 
 export async function saveChainToRepo(chainObj = null, { fileName = null, target = 'chains' } = {}) {
     const targetChain = chainObj || getChain();
+    if (targetChain.steps.length > 0) {
+        ensureBaselineSteps(targetChain);
+    }
     targetChain.bookmarks = exportBookmarks();
     const res = await fetch('/api/chains/save', {
         method: 'POST',
@@ -687,7 +793,17 @@ async function executeStep(step, chain, savedTabId = appState.activeTabId, camer
 
     switch (op) {
         case 'tile_preset': {
-            if (Array.isArray(p.enabledTiles) || Array.isArray(p.enabledKeys)) {
+            if (Array.isArray(p.enabledTileIds) && p.enabledTileIds.length > 0) {
+                const idSet = new Set(p.enabledTileIds.map((v) => Number(v)));
+                for (const t of appState.TILES) {
+                    t.enabled = idSet.has(t.id);
+                }
+                if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
+                if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
+                if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate();
+                if (actions.renderTileCatalogUI) actions.renderTileCatalogUI();
+                if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
+            } else if (Array.isArray(p.enabledTiles) || Array.isArray(p.enabledKeys)) {
                 const list = (p.enabledTiles || p.enabledKeys).map((v) => String(v).toLowerCase());
                 const set = new Set(list);
                 for (const t of appState.TILES) {
@@ -868,12 +984,40 @@ async function executeStep(step, chain, savedTabId = appState.activeTabId, camer
             if (algo === 'wfc' || algo === 'growth') {
                 appState.currentAlgorithm = algo;
             }
+            if (Array.isArray(p.grid) && p.grid.length === 3) {
+                const [gx, gy, gz] = p.grid.map((n) => Math.max(1, Math.min(20, Math.round(Number(n) || 1))));
+                if (gx !== appState.GRID_X || gy !== appState.GRID_Y || gz !== appState.GRID_Z) {
+                    appState.GRID_X = gx;
+                    appState.GRID_Y = gy;
+                    appState.GRID_Z = gz;
+                    appState.GRID_ORIGIN.set(-(gx * appState.VOXEL_SIZE) * 0.5, -(gy * appState.VOXEL_SIZE) * 0.5, 0);
+                    syncGridControlsFromState();
+                }
+            }
             if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
-            if (actions.collapseFullGridImmediate) {
+            const expectedCount = appState.GRID_X * appState.GRID_Y * appState.GRID_Z;
+            if (Array.isArray(p.voxelGrid) && p.voxelGrid.length === expectedCount) {
+                if (actions.setup) actions.setup({ collapseAll: false });
+                const nTiles = appState.TILES.length;
+                for (let idx = 0; idx < expectedCount; idx++) {
+                    const cell = appState.voxels[idx];
+                    if (!cell) continue;
+                    const rawTile = Number(p.voxelGrid[idx]);
+                    const tileId = (Number.isInteger(rawTile) && rawTile >= 0 && rawTile < nTiles) ? rawTile : CORE.TILE_NULL;
+                    cell.collapsed = true;
+                    cell.tile = tileId;
+                    cell.domain = Array(nTiles).fill(false);
+                    cell.domain[tileId] = true;
+                    cell.inFrontier = false;
+                }
+                appState.simRunning = false;
+                appState.simStepCount = expectedCount;
+            } else if (actions.collapseFullGridImmediate) {
                 const seedTile = p.seedTile !== undefined ? findTileBySpecifier(p.seedTile)?.id ?? null : null;
                 actions.collapseFullGridImmediate(seedTile);
             }
             if (actions.draw) actions.draw();
+            if (actions.refreshHostGraph) actions.refreshHostGraph({ preserveFixed: false });
             break;
         }
 

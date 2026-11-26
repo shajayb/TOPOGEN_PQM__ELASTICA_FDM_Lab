@@ -560,9 +560,10 @@ export function generateElasticaFromUI() {
     return data;
 }
 
-function buildElasticaRecordParams() {
+function buildElasticaRecordParams(stageKind = 'trace') {
     const st = appState.elasticaState || {};
     return {
+        stageKind: String(stageKind || 'trace'),
         pairMode: String(st.pairMode || 'all_pairs'),
         smoothMode: String(st.smoothMode || 'der_inextensible'),
         inextensible: st.inextensible !== false,
@@ -581,11 +582,13 @@ function buildElasticaRecordParams() {
     };
 }
 
-function recordElasticaChainStep(label = null) {
+function recordElasticaChainStep(label = null, opts = {}) {
     if (!actions.recordChainStep) return;
-    const params = buildElasticaRecordParams();
+    const stageKind = opts.stageKind || 'trace';
+    const params = buildElasticaRecordParams(stageKind);
     actions.recordChainStep('elastica_trace', params, {
-        label: label || `Elastica Rods (${params.pairMode}, R=${params.rodRadius}m)`
+        label: label || `Elastica Rods (${params.pairMode}, R=${params.rodRadius}m)`,
+        coalesce: opts.coalesce !== undefined ? opts.coalesce : true
     });
 }
 
@@ -600,7 +603,10 @@ export function toggleElasticaUnroll3DFromUI(forceState = undefined) {
     renderElasticaUnroll3D();
     applyOutlinerVisibility();
     recomputeModelBox();
-    recordElasticaChainStep(appState.elasticaState.showUnrolled3D ? 'Elastica Rods + Unroll 3D' : 'Elastica Rods');
+    recordElasticaChainStep(
+        appState.elasticaState.showUnrolled3D ? 'Elastica 3D Unrolled Rods (ON)' : 'Elastica 3D Unrolled Rods (OFF)',
+        { stageKind: 'unroll', coalesce: false }
+    );
     return appState.elasticaState.showUnrolled3D;
 }
 

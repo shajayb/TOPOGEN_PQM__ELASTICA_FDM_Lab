@@ -20,6 +20,7 @@ import {
 } from './display/camera_bookmarks.js';
 import {
     initProceduralRecorder,
+    ensureBaselineSteps,
     getChain,
     getLoadedChain,
     getActiveStageIndex,
@@ -177,6 +178,36 @@ actions.runFDMOnActiveGraph = runFDMOnActiveGraph;
 actions.generateElasticaFromUI = generateElasticaFromUI;
 actions.runSpaceFrameFEAFromUI = runSpaceFrameFEAFromUI;
 
+// Preserve 3D Elastica rods & unrolled strips when switching from Elastica tab to Tab 7 (I/O)
+function preserveElasticaVisibilityOnIoTab() {
+    if (appState.activeTabId !== 'tab-io') return;
+    const hasElastica = Boolean(
+        appState.lastElasticaData &&
+        Array.isArray(appState.lastElasticaData.curves) &&
+        appState.lastElasticaData.curves.length > 0
+    );
+    if (!hasElastica) return;
+    if (viewport.meshGroup) viewport.meshGroup.visible = false;
+    if (viewport.elasticaGroup) viewport.elasticaGroup.visible = true;
+    if (viewport.elasticaUnroll3DGroup) {
+        viewport.elasticaUnroll3DGroup.visible = Boolean(
+            appState.elasticaState?.showUnrolled3D &&
+            viewport.elasticaUnroll3DGroup.children.length > 0
+        );
+    }
+    if (viewport.requestRender) viewport.requestRender(4);
+}
+
+const ioTabBtn = typeof document !== 'undefined' ? document.querySelector('.ui-tab[data-tab="tab-io"]') : null;
+if (ioTabBtn) {
+    ioTabBtn.addEventListener('click', () => preserveElasticaVisibilityOnIoTab());
+}
+
+const switchTabWithElasticaPreserved = (targetId) => {
+    switchTab(targetId);
+    preserveElasticaVisibilityOnIoTab();
+};
+
 // Direct-over-viewport clickable stage timeline (BATCH-TOPOGEN-06 follow-up)
 const chainTimeline = createChainTimeline({
     container: $('canvas-container') || document.body,
@@ -241,7 +272,7 @@ const workbenchApi = {
     get voxelGroup() { return viewport.voxelGroup; },
     get substepGroup() { return viewport.substepGroup; },
     core: CORE,
-    switchTab,
+    switchTab: switchTabWithElasticaPreserved,
     get activeTab() { return appState.activeTabId; },
     get inspectedTileId() { return appState.inspectedTileId; },
     applyTilePreset: applyTilePresetUI,
@@ -397,6 +428,7 @@ const workbenchApi = {
         get: getChain,
         getLoaded: getLoadedChain,
         getActiveStageIndex,
+        ensureBaselineSteps,
         setPlaybackCameraMode,
         getPlaybackCameraMode,
         buildStageUIOverlay,

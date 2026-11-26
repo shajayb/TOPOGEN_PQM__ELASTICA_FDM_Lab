@@ -616,5 +616,83 @@ await runTest('Round 3 invariants: Elastica recorder hooks, Active View playback
     assert.match(viewportSrc, /drawStageUIOverlay/, 'viewport_scene.js must implement drawStageUIOverlay 2D compositing');
 });
 
+// 11. Round 4 regression test: multi-stage baseline + voxelGrid + Elastica trace & unroll chain
+await runTest('Multi-stage Elastica chain (baseline tile_preset + grid_config + voxelGrid wfc_collapse + trace + unroll) round-trips cleanly', () => {
+    const voxelGrid36 = Array.from({ length: 36 }, (_, i) => (i % 4 === 0 ? 1 : i % 3 === 0 ? 2 : 3));
+    const chain = createProceduralChain({
+        id: 'elastica-multistage-baseline',
+        name: 'Default 3x3x4 -> Elastica Rods -> 3D Unrolled Rods',
+        notes: 'Regression test for auto-prepended baseline + exact voxelGrid + non-coalesced unroll stage'
+    });
+    appendChainStep(chain, {
+        op: 'tile_preset',
+        label: 'Baseline Active Tiles',
+        params: { preset: 'default_ortho', enabledTileIds: [0, 1, 2, 3] }
+    });
+    appendChainStep(chain, {
+        op: 'grid_config',
+        label: 'Baseline Grid 3x3x4',
+        params: { x: 3, y: 3, z: 4, voxelSize: 1.0, algorithm: 'wfc' }
+    });
+    appendChainStep(chain, {
+        op: 'wfc_collapse',
+        label: 'Baseline WFC Collapse (3x3x4)',
+        params: { voxelGrid: voxelGrid36, algorithm: 'wfc' }
+    });
+    appendChainStep(chain, {
+        op: 'elastica_trace',
+        label: 'Elastica Rods (Trace)',
+        params: {
+            stageKind: 'trace',
+            rodR: 0.015,
+            rodSides: 8,
+            showUnrolled3D: false
+        }
+    });
+    appendChainStep(chain, {
+        op: 'elastica_trace',
+        label: 'Elastica 3D Unrolled Rods (ON)',
+        params: {
+            stageKind: 'unroll',
+            rodR: 0.015,
+            rodSides: 8,
+            showUnrolled3D: true
+        }
+    });
+
+    const check = validateProceduralChain(chain);
+    assert.equal(check.ok, true, `Multi-stage Elastica chain failed validation: ${check.errors.join('; ')}`);
+    assert.equal(check.errors.length, 0);
+    assert.equal(check.warnings.length, 0);
+
+    const compact = serializeProceduralChain(chain, { pretty: false });
+    assert.ok(Buffer.byteLength(compact, 'utf8') < 6144, '5-stage chain with 36-int voxelGrid must stay lightweight (< 6 KB)');
+
+    const reparsed = parseProceduralChain(compact);
+    assert.equal(reparsed.steps.length, 5);
+    assert.deepEqual(reparsed.steps[0].params.enabledTileIds, [0, 1, 2, 3]);
+    assert.deepEqual(reparsed.steps[2].params.voxelGrid, voxelGrid36);
+    assert.equal(reparsed.steps[3].params.stageKind, 'trace');
+    assert.equal(reparsed.steps[3].params.showUnrolled3D, false);
+    assert.equal(reparsed.steps[4].params.stageKind, 'unroll');
+    assert.equal(reparsed.steps[4].params.showUnrolled3D, true);
+});
+
+// 12. Round 4 contract invariants: ensureBaselineSteps, voxelGrid restore, stageKind:'unroll', Tab 7 Elastica visibility
+await runTest('Round 4 invariants: ensureBaselineSteps, voxelGrid restore, non-coalesced unroll stage, and Tab 7 Elastica visibility', () => {
+    const recorderSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'state', 'procedural_recorder.js'), 'utf8');
+    const elasticaSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'tabs', 'tab_elastica.js'), 'utf8');
+    const mainSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'main.js'), 'utf8');
+
+    assert.match(recorderSrc, /ensureBaselineSteps/, 'procedural_recorder.js must define/call ensureBaselineSteps');
+    assert.match(recorderSrc, /enabledTileIds/, 'procedural_recorder.js must capture and restore enabledTileIds');
+    assert.match(recorderSrc, /voxelGrid/, 'procedural_recorder.js must capture and deterministically restore voxelGrid');
+    assert.match(recorderSrc, /stageKind/, 'procedural_recorder.js must distinguish Elastica stageKind during coalescing');
+    assert.match(elasticaSrc, /stageKind/, 'tab_elastica.js must tag trace vs unroll stages with stageKind');
+    assert.match(elasticaSrc, /['"]unroll['"]/, 'tab_elastica.js must record stageKind "unroll" for 3D unrolled rods');
+    assert.match(mainSrc, /elasticaGroup/, 'main.js must preserve viewport.elasticaGroup visibility on Tab 7 I/O');
+    assert.match(mainSrc, /elasticaUnroll3DGroup/, 'main.js must preserve viewport.elasticaUnroll3DGroup visibility on Tab 7 I/O');
+});
+
 console.log(`\nSummary: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);
