@@ -112,9 +112,20 @@ export function applyOutlinerVisibility() {
     const hasFea = !!lastFEAResult;
     const tubeShowOn = tubeState.show;
     const unrollShowOn = !!faceLoopState.showUnrolled3D;
+    const isElasticaView = activeTabId === 'tab-elastica' || (
+        activeTabId === 'tab-io' &&
+        Boolean(appState.lastElasticaData) &&
+        Boolean(viewport.elasticaGroup && viewport.elasticaGroup.visible)
+    );
+    const isFeaView = (activeTabId === 'tab-fea' && hasFea) || (
+        activeTabId === 'tab-io' &&
+        hasFea &&
+        Boolean(viewport.feaGroup && viewport.feaGroup.visible) &&
+        !isElasticaView
+    );
 
     if (appState.fdmNodePickMeshes && appState.fdmNodePickMeshes.length > 0) {
-        const isElastica = (activeTabId === 'tab-elastica');
+        const isElastica = isElasticaView;
         const showElasticaLeaves = isElastica && !!appState.elasticaState?.showLeaves;
         const hasCustomElastica = showElasticaLeaves && (appState.elasticaSourceSet?.size > 0 || appState.elasticaSinkSet?.size > 0);
         const autoLeaves = (showElasticaLeaves && !hasCustomElastica && appState.lastElasticaData?.leaves)
@@ -124,7 +135,7 @@ export function applyOutlinerVisibility() {
             if (sph.userData.fdmOrigScale === undefined) sph.userData.fdmOrigScale = sph.scale.x;
             sph.visible = true;
             if (isElastica) {
-                // On Elastica tab, never color FDM anchors green (green is reserved for Elastica Source nodes)
+                // On Elastica view, never color FDM anchors green (green is reserved for Elastica Source nodes)
                 sph.material = sharedMaterials.freeNodeSphere;
                 const idx = sph.userData.fdmNodeIndex;
                 const isLeafHighlight = showElasticaLeaves && (
@@ -140,7 +151,7 @@ export function applyOutlinerVisibility() {
         }
     }
 
-    if (activeTabId === 'tab-fea' && hasFea) {
+    if (isFeaView) {
         viewport.tilePreviewGroup.visible = false;
         viewport.meshGroup.visible = false;
         viewport.graphGroup.visible = false;
@@ -151,7 +162,7 @@ export function applyOutlinerVisibility() {
         if (viewport.elasticaGroup) viewport.elasticaGroup.visible = false;
         if (viewport.elasticaUnroll3DGroup) viewport.elasticaUnroll3DGroup.visible = false;
         viewport.feaGroup.visible = true;
-    } else if (activeTabId === 'tab-elastica') {
+    } else if (isElasticaView) {
         viewport.tilePreviewGroup.visible = false;
         viewport.meshGroup.visible = false;
         viewport.feaGroup.visible = false;
@@ -648,6 +659,10 @@ export function initDisplayHud() {
     }
 
     const redrawNodeEdgeDisplay = () => {
+        const wasElasticaVisible = Boolean(viewport.elasticaGroup && viewport.elasticaGroup.visible);
+        const wasElasticaUnrollVisible = Boolean(viewport.elasticaUnroll3DGroup && viewport.elasticaUnroll3DGroup.visible);
+        const wasFeaVisible = Boolean(viewport.feaGroup && viewport.feaGroup.visible);
+
         if (appState.activeTabId === 'tab-tiles' && appState.tileViewMode === 'inspector' && actions.renderTileInspector3D) {
             actions.renderTileInspector3D();
         }
@@ -657,8 +672,22 @@ export function initDisplayHud() {
         } else if (actions.renderHostNetworkInFdmGroup && (appState.lastHostGraph || viewport.fdmGroup.children.length > 0)) {
             actions.renderHostNetworkInFdmGroup();
         }
-        if (appState.lastElasticaData && actions.renderElastica3D) actions.renderElastica3D();
-        if (appState.lastFEAResult && actions.renderFEAResults3D) actions.renderFEAResults3D();
+        if (appState.lastElasticaData && actions.renderElastica3D) {
+            actions.renderElastica3D();
+            if (wasElasticaVisible && viewport.elasticaGroup) {
+                viewport.elasticaGroup.visible = true;
+            }
+            if (wasElasticaUnrollVisible && viewport.elasticaUnroll3DGroup && viewport.elasticaUnroll3DGroup.children.length > 0) {
+                viewport.elasticaUnroll3DGroup.visible = true;
+            }
+        }
+        if (appState.lastFEAResult && actions.renderFEAResults3D) {
+            actions.renderFEAResults3D();
+            if (wasFeaVisible && viewport.feaGroup) {
+                viewport.feaGroup.visible = true;
+            }
+        }
+        applyOutlinerVisibility();
     };
     const rngDispNodeSize = $('rng-disp-node-size');
     if (rngDispNodeSize) {
