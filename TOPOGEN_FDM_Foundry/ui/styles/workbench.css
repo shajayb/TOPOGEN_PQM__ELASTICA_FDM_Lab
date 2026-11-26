@@ -1165,3 +1165,607 @@ body.goldilocks-h3 .goldilocks-guide-prose {
     opacity: 0;
     transform: translateY(4px);
 }
+
+/* ==========================================================================
+   Camera Bookmarks Strip & Ortho/Persp Badge (FR-B06-02)
+   ========================================================================== */
+.cam-proj-badge {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0 6px;
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+}
+
+.cam-proj-badge.is-ortho {
+    background: #ecfdf5;
+    border-color: #6ee7b7;
+    color: #047857;
+}
+
+.cam-bm-section {
+    padding-top: 8px;
+    margin-top: 2px;
+    border-top: 1px solid #cbd5e1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cam-bm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.cam-bm-title {
+    font: 700 9.5px/1.2 var(--font-ui);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #334155;
+}
+
+.cam-bm-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cam-bm-proj-btn {
+    font: 700 9px/1.2 var(--font-mono);
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #93c5fd;
+    background: #eff6ff;
+    color: #1d4ed8;
+    cursor: pointer;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.cam-bm-proj-btn.is-ortho {
+    background: #ecfdf5;
+    border-color: #6ee7b7;
+    color: #047857;
+}
+
+.cam-bm-save-btn {
+    font-size: 9px;
+    padding: 2px 6px;
+    letter-spacing: 0.03em;
+}
+
+.cam-bm-save-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cam-bm-save-row.hidden,
+.cam-bm-custom-wrap.hidden {
+    display: none !important;
+}
+
+.cam-bm-input {
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+    padding: 2px 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #0f172a;
+    font: 500 10px/1.2 var(--font-ui);
+    box-sizing: border-box;
+}
+
+.cam-bm-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
+}
+
+.cam-bm-mini-btn {
+    height: 22px;
+    padding: 0 7px;
+    font-size: 9.5px;
+    line-height: 1;
+}
+
+.cam-bm-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.cam-bm-group-tag {
+    width: 34px;
+    flex-shrink: 0;
+    font: 700 8.5px/1.2 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+}
+
+.cam-bm-grid {
+    flex: 1;
+    display: grid;
+    gap: 4px;
+}
+
+.cam-bm-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cam-bm-grid-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.cam-bm-btn {
+    font-size: 9px;
+    padding: 3px 4px;
+    text-align: center;
+    letter-spacing: 0.02em;
+}
+
+.cam-bm-btn.is-active {
+    background: #eff6ff !important;
+    border-color: #2563eb !important;
+    color: #1d4ed8 !important;
+}
+
+.cam-bm-custom-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    padding-top: 2px;
+}
+
+.cam-bm-custom-list {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.cam-bm-pill {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 9999px;
+    overflow: hidden;
+    transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.cam-bm-pill:hover {
+    border-color: #94a3b8;
+    background: #f8fafc;
+}
+
+.cam-bm-pill.is-active {
+    background: #eff6ff;
+    border-color: #2563eb;
+}
+
+.cam-bm-pill-apply {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border: none;
+    background: transparent;
+    color: #1e293b;
+    font: 600 9.5px/1.2 var(--font-ui);
+    cursor: pointer;
+    min-width: 0;
+}
+
+.cam-bm-pill-proj {
+    font: 700 8px/1 var(--font-mono);
+    color: #1d4ed8;
+    background: #e0f2fe;
+    border-radius: 3px;
+    padding: 1px 3px;
+}
+
+.cam-bm-pill-name {
+    max-width: 112px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cam-bm-pill-del {
+    border: none;
+    border-left: 1px solid #e2e8f0;
+    background: transparent;
+    color: #64748b;
+    font: 700 10px/1 var(--font-mono);
+    padding: 2px 5px;
+    cursor: pointer;
+}
+
+.cam-bm-pill-del:hover {
+    background: #fff1f2;
+    color: #be123c;
+}
+
+/* ==========================================================================
+   Procedural Chain Playback & Stage Capture Panel (FR-B06-03)
+   ========================================================================== */
+.chain-panel {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.chain-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.chain-title {
+    font: 700 10px/1.2 var(--font-ui);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #0f172a;
+}
+
+.chain-badge {
+    font: 700 9px/1.2 var(--font-mono);
+    padding: 2px 6px;
+    border-radius: 9999px;
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    color: #1d4ed8;
+    white-space: nowrap;
+}
+
+.chain-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.chain-select {
+    flex: 1;
+    min-width: 120px;
+    height: 24px;
+    padding: 0 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #0f172a;
+    font: 500 10px/1.2 var(--font-mono);
+}
+
+.chain-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+}
+
+.chain-controls-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.chain-progress {
+    width: 100%;
+    height: 5px;
+    background: #e2e8f0;
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.chain-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent-primary);
+    transition: width 0.18s ease;
+}
+
+.chain-status {
+    font: 500 9.5px/1.3 var(--font-mono);
+    color: #475569;
+}
+
+.chain-gallery {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.chain-card {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.chain-thumb {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    display: block;
+}
+
+.chain-card-meta {
+    padding: 5px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.chain-card-title {
+    font: 700 9.5px/1.2 var(--font-ui);
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chain-metric-pill {
+    font: 600 8.5px/1.2 var(--font-mono);
+    color: #475569;
+}
+
+.chain-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-top: 2px;
+}
+
+.chain-card-link {
+    font: 600 8.5px/1.2 var(--font-mono);
+    color: #1d4ed8;
+    text-decoration: none;
+}
+
+.chain-card-link:hover {
+    text-decoration: underline;
+}
+
+/* ==========================================================================
+   Direct-Over-Viewport Clickable Stage Timeline (FR-B06-03 — Frameless)
+   Transparent over 3D canvas above bottom status bar; outer container
+   pointer-events: none so 3D viewport orbiting/panning is never blocked.
+   ========================================================================== */
+.chain-tl-overlay {
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%);
+    z-index: 24;
+    width: min(680px, calc(100vw - 440px));
+    min-width: 260px;
+    max-width: calc(100vw - 32px);
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    pointer-events: none;
+    user-select: none;
+    font-family: var(--font-ui);
+}
+
+.chain-tl-overlay.hidden {
+    display: none !important;
+}
+
+.chain-tl-inner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    background: transparent;
+    pointer-events: none;
+}
+
+.chain-tl-meta-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    max-width: 168px;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
+.chain-tl-name {
+    font: 700 10px/1.15 var(--font-ui);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #0f172a;
+    text-shadow: 0 0 6px rgba(255, 255, 255, 0.96), 0 1px 2px rgba(255, 255, 255, 0.95);
+    max-width: 168px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chain-tl-status {
+    font: 600 9px/1.15 var(--font-mono);
+    color: #475569;
+    text-shadow: 0 0 6px rgba(255, 255, 255, 0.96), 0 1px 2px rgba(255, 255, 255, 0.95);
+    max-width: 168px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chain-tl-track-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    pointer-events: auto;
+}
+
+.chain-tl-rail {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    background: rgba(100, 116, 139, 0.36);
+    border-radius: 9999px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.chain-tl-rail-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent-primary);
+    border-radius: 9999px;
+    transition: width 0.2s ease;
+}
+
+.chain-tl-nodes {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.chain-tl-node {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    pointer-events: auto;
+    outline: none;
+}
+
+.chain-tl-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0;
+    line-height: 0;
+    box-sizing: border-box;
+    transition: transform 0.14s ease, background-color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.chain-tl-node.is-pending .chain-tl-dot {
+    background: rgba(255, 255, 255, 0.94);
+    border: 2px solid #94a3b8;
+}
+
+.chain-tl-node.is-done .chain-tl-dot {
+    background: var(--accent-primary);
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.45);
+}
+
+.chain-tl-node.is-active .chain-tl-dot {
+    width: 13px;
+    height: 13px;
+    background: var(--accent-primary);
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+}
+
+.chain-tl-overlay.is-busy .chain-tl-node.is-active .chain-tl-dot {
+    box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.34);
+}
+
+.chain-tl-node:hover .chain-tl-dot,
+.chain-tl-node:focus-visible .chain-tl-dot {
+    transform: scale(1.22);
+    border-color: var(--accent-primary);
+}
+
+.chain-tl-tooltip {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(2px);
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.92);
+    color: #f8fafc;
+    font: 600 9.5px/1.25 var(--font-mono);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
+}
+
+.chain-tl-node:hover .chain-tl-tooltip,
+.chain-tl-node:focus-visible .chain-tl-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.chain-tl-dismiss {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 9999px;
+    background: transparent;
+    color: #64748b;
+    font: 700 13px/1 var(--font-mono);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    pointer-events: auto;
+    text-shadow: 0 0 6px rgba(255, 255, 255, 0.96);
+    transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.chain-tl-dismiss:hover {
+    color: #0f172a;
+    background: rgba(226, 232, 240, 0.72);
+}
+
+@media (max-width: 1120px) {
+    .chain-tl-overlay {
+        width: calc(100vw - 44px);
+    }
+    .chain-tl-meta-left {
+        max-width: 124px;
+    }
+}

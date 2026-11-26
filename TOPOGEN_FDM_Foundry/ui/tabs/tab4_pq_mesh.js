@@ -1147,10 +1147,31 @@ export function ensurePqTabReady(opts = {}) {
     }
 }
 
+function recordPqConfigStep() {
+    if (!actions.recordChainStep) return;
+    const ts = appState.tubeState;
+    actions.recordChainStep('pq_config', {
+        outerR: ts.radius,
+        innerR: ts.innerRadiusM,
+        sides: ts.nSides,
+        subdivL: ts.longitudinalSubdivLevels,
+        bisector: Boolean(ts.stitchAtBisectors),
+        miterClamp: ts.miterClamp !== false,
+        planarize: Boolean(ts.pqOptimization),
+        caps: Boolean(ts.capLeafEnds),
+        colorMode: ts.colorMode
+    }, { label: `PQ Config (Ro=${ts.radius}m, N=${ts.nSides})` });
+}
+
 export function initTab4PqMesh() {
     actions.syncTubeWallRadiiUI = syncTubeWallRadiiUI;
     actions.renderTubularMesh = renderTubularMesh;
     actions.solidifyActiveGraph = solidifyActiveGraph;
+    actions.applyLongitudinalSubdivPQFromUI = applyLongitudinalSubdivPQFromUI;
+    actions.applyRingSubdivPQFromUI = applyRingSubdivPQFromUI;
+    actions.applyCatmullClarkSubdivPQFromUI = applyCatmullClarkSubdivPQFromUI;
+    actions.applyOnlyPQOptimizationFromUI = applyOnlyPQOptimizationFromUI;
+    actions.setTubeColorMode = setTubeColorMode;
     actions.toggleUnroll3DFromUI = toggleUnroll3DFromUI;
     actions.drawUnrolledLoopCanvas = drawUnrolledLoopCanvas;
     actions.selectPqLoopById = selectPqLoopById;
@@ -1201,6 +1222,7 @@ export function initTab4PqMesh() {
     bindSlider('rng-tube-radius', 'val-tube-radius', 'm', v => {
         appState.tubeState.radius = v;
         syncTubeWallRadiiUI();
+        recordPqConfigStep();
         scheduleInteractiveTubeSolidify({ preview: true });
     });
     bindTubeCommit('rng-tube-radius');
@@ -1208,6 +1230,7 @@ export function initTab4PqMesh() {
     bindSlider('rng-tube-inner-radius', 'val-tube-inner-radius', 'm', v => {
         appState.tubeState.innerRadiusM = v;
         syncTubeWallRadiiUI();
+        recordPqConfigStep();
         if (!appState.lastSolidData) {
             scheduleInteractiveTubeSolidify({ preview: true });
             return;
@@ -1224,27 +1247,30 @@ export function initTab4PqMesh() {
 
     bindSlider('rng-tube-sides', 'val-tube-sides', '', v => {
         appState.tubeState.nSides = Math.round(v);
+        recordPqConfigStep();
         scheduleInteractiveTubeSolidify({ preview: true });
     });
     bindTubeCommit('rng-tube-sides');
 
     bindSlider('rng-tube-offset', 'val-tube-offset', 'm', v => {
         appState.tubeState.endOffset = v;
+        recordPqConfigStep();
         scheduleInteractiveTubeSolidify({ preview: true });
     });
     bindTubeCommit('rng-tube-offset');
 
     bindSlider('rng-tube-subdiv', 'val-tube-subdiv', '', v => {
         appState.tubeState.longitudinalSubdivLevels = Math.round(v);
+        recordPqConfigStep();
         scheduleInteractiveTubeSolidify({ preview: true });
     });
     bindTubeCommit('rng-tube-subdiv');
 
     const bindChk = (id, fn) => { const el = $(id); if (el) el.addEventListener('change', () => fn(el.checked)); };
-    bindChk('chk-tube-bisector', c => { appState.tubeState.stitchAtBisectors = c; sched({ solidify: true }); });
-    bindChk('chk-tube-miter-clamp', c => { appState.tubeState.miterClamp = c; syncTubeWallRadiiUI(); sched({ solidify: true }); });
-    bindChk('chk-tube-pq', c => { appState.tubeState.pqOptimization = c; sched({ solidify: true }); });
-    bindChk('chk-tube-cap-leaves', c => { appState.tubeState.capLeafEnds = c; sched({ solidify: true }); });
+    bindChk('chk-tube-bisector', c => { appState.tubeState.stitchAtBisectors = c; recordPqConfigStep(); sched({ solidify: true }); });
+    bindChk('chk-tube-miter-clamp', c => { appState.tubeState.miterClamp = c; syncTubeWallRadiiUI(); recordPqConfigStep(); sched({ solidify: true }); });
+    bindChk('chk-tube-pq', c => { appState.tubeState.pqOptimization = c; recordPqConfigStep(); sched({ solidify: true }); });
+    bindChk('chk-tube-cap-leaves', c => { appState.tubeState.capLeafEnds = c; recordPqConfigStep(); sched({ solidify: true }); });
     bindChk('chk-tube-show', c => {
         appState.tubeState.show = c;
         appState.showQuadMeshes = c;
@@ -1267,17 +1293,35 @@ export function initTab4PqMesh() {
     const bindClick = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', fn); };
     bindClick('btn-solidify-tubes', () => {
         const solid = solidifyActiveGraph({ keepCamera: true });
+        if (actions.recordChainStep) {
+            actions.recordChainStep('pq_solidify', { colorMode: appState.tubeState.colorMode }, { label: 'Solidify → All-Quad PQ' });
+        }
         if (solid && actions.showToast) {
             actions.showToast(`Solidified PQ mesh (${solid.quads.length} quads)`, { tone: 'success' });
         }
     });
     bindClick('btn-reset-pq-default', () => resetPQTubeToDefault());
     bindClick('btn-reset-pq-graph', () => resetPQMeshToGraph());
-    bindClick('btn-long-subdiv-pq', () => applyLongitudinalSubdivPQFromUI());
-    bindClick('btn-cc-subdiv-pq', () => applyCatmullClarkSubdivPQFromUI());
-    bindClick('btn-ring-subdiv-pq', () => applyRingSubdivPQFromUI());
-    bindClick('btn-only-pq-opt', () => applyOnlyPQOptimizationFromUI());
-    bindClick('btn-swap-long-ring', () => swapLongRingDirectionsFromUI());
+    bindClick('btn-long-subdiv-pq', () => {
+        applyLongitudinalSubdivPQFromUI();
+        if (actions.recordChainStep) actions.recordChainStep('pq_subdiv_long', { levels: 1 }, { label: 'Longitudinal Subdiv + PQ' });
+    });
+    bindClick('btn-cc-subdiv-pq', () => {
+        applyCatmullClarkSubdivPQFromUI();
+        if (actions.recordChainStep) actions.recordChainStep('pq_subdiv_cc', { levels: 1 }, { label: 'Catmull-Clark + PQ' });
+    });
+    bindClick('btn-ring-subdiv-pq', () => {
+        applyRingSubdivPQFromUI();
+        if (actions.recordChainStep) actions.recordChainStep('pq_subdiv_ring', { levels: 1 }, { label: 'Ring Subdiv + PQ' });
+    });
+    bindClick('btn-only-pq-opt', () => {
+        applyOnlyPQOptimizationFromUI();
+        if (actions.recordChainStep) actions.recordChainStep('pq_optimize', {}, { label: 'Only PQ Optimization' });
+    });
+    bindClick('btn-swap-long-ring', () => {
+        swapLongRingDirectionsFromUI();
+        if (actions.recordChainStep) actions.recordChainStep('pq_swap_long_ring', {}, { label: 'Swap Long ↔ Ring' });
+    });
     bindClick('btn-toggle-unroll-3d', () => toggleUnroll3DFromUI());
 
     $$('.tube-color-btn').forEach(btn => btn.addEventListener('click', () => setTubeColorMode(btn.dataset.tubeColor)));

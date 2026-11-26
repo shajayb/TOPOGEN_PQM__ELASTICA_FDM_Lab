@@ -1,0 +1,76 @@
+{
+  "schema": "topogen-corpus-manifest/v1",
+  "batch": "BATCH-TOPOGEN-06",
+  "updatedAt": "2026-11-26T12:00:00.000Z",
+  "description": "3-case reference test corpus for TOPOGEN procedural chain persistence, camera bookmarks, and stage playback documentation.",
+  "cases": [
+    {
+      "id": "case1_arch_vault_pq_ring_subdiv",
+      "name": "Case 1 — Arch Vault + PQ Ring Subdiv (Miter Clamp ON)",
+      "referenceImage": "Image 1",
+      "chainPath": "TOPOGEN_FDM_Foundry/corpus/case1_arch_vault_pq_ring_subdiv.chain.json",
+      "expectedStepCount": 8,
+      "expectedCaptureCount": 4,
+      "grid": [3, 3, 4],
+      "assets": [],
+      "cameraBookmarks": ["persp-iso", "persp-front-left", "persp-low"],
+      "pqSummary": {
+        "outerR": 0.073,
+        "innerR": 0,
+        "sides": 8,
+        "subdivL": 1,
+        "bisector": true,
+        "miterClamp": true,
+        "planarize": true,
+        "caps": true,
+        "postOp": "pq_subdiv_ring"
+      }
+    },
+    {
+      "id": "case2_arch_vault_pq_long_subdiv",
+      "name": "Case 2 — Arch Vault + PQ Longitudinal Subdiv (Miter Clamp OFF)",
+      "referenceImage": "Image 2",
+      "chainPath": "TOPOGEN_FDM_Foundry/corpus/case2_arch_vault_pq_long_subdiv.chain.json",
+      "expectedStepCount": 8,
+      "expectedCaptureCount": 4,
+      "grid": [3, 3, 4],
+      "assets": [],
+      "cameraBookmarks": ["persp-iso", "persp-front-left", "persp-low"],
+      "pqSummary": {
+        "outerR": 0.073,
+        "innerR": 0,
+        "sides": 8,
+        "subdivL": 1,
+        "bisector": true,
+        "miterClamp": false,
+        "planarize": true,
+        "caps": true,
+        "postOp": "pq_subdiv_long"
+      }
+    },
+    {
+      "id": "case3_batwing_1x1x1_pq",
+      "name": "Case 3 — Batwing Custom Tile 1x1x1 + PQ Solidify",
+      "referenceImage": "Image 3",
+      "chainPath": "TOPOGEN_FDM_Foundry/corpus/case3_batwing_1x1x1_pq.chain.json",
+      "expectedStepCount": 6,
+      "expectedCaptureCount": 4,
+      "grid": [1, 1, 1],
+      "assets": [
+        "TOPOGEN_FDM_Foundry/assets/inputs/batwing.obj"
+      ],
+      "cameraBookmarks": ["persp-iso", "persp-front-left", "persp-low"],
+      "pqSummary": {
+        "outerR": 0.073,
+        "innerR": 0,
+        "sides": 8,
+        "subdivL": 1,
+        "bisector": true,
+        "miterClamp": false,
+        "planarize": true,
+        "caps": true,
+        "postOp": null
+      }
+    }
+  ]
+}

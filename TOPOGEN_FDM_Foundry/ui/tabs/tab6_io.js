@@ -31,6 +31,25 @@ import {
 } from '../display/viewport_scene.js';
 import { applyOutlinerVisibility, refreshOutliner } from '../display/display_hud.js';
 import { computeUnrolledSheetGridLayout, buildUnrolledPatternsDataForUI } from './tab4_pq_mesh.js';
+import {
+    getChain,
+    getLoadedChain,
+    getActiveStageIndex,
+    getLoadedSourceLabel,
+    setPlaybackCameraMode,
+    getPlaybackCameraMode,
+    clearChain,
+    exportChainDownload,
+    saveChainToRepo,
+    listRepoChains,
+    loadChain,
+    loadChainFromRepoPath,
+    playChain,
+    jumpToStage,
+    stepNextChain,
+    onChainChange
+} from '../state/procedural_recorder.js';
+import { getDefaultBookmarks } from '../display/camera_bookmarks.js';
 
 export function mountTab6Io() {
     const pane = $('tab-io');
@@ -42,6 +61,69 @@ export function mountTab6Io() {
                 <button id="btn-export" class="cad-btn primary py-1.5 text-[9.5px]" title="Export all active pipeline layers in one multi-layer Rhino .3dm file">Export All (.3dm)</button>
                 <button id="btn-export-parts" class="cad-btn py-1.5 text-[9.5px]" title="Export individual files: Quad .obj, Foundry .json, Unroll .svg, Welded Graph .3dm &amp; .json">Export Parts (Files)</button>
             </div>
+        </div>
+
+        <!-- Procedural Chain & Stage Documentation (BATCH-TOPOGEN-06) -->
+        <div class="chain-panel space-y-2 mt-2">
+            <div class="chain-header">
+                <span class="chain-title">Procedural Chain &amp; Stage Documentation</span>
+                <span id="chain-step-count-badge" class="chain-badge">0 steps</span>
+            </div>
+
+            <div class="chain-controls-3">
+                <button id="btn-chain-clear" class="cad-btn text-[9px] py-1" title="Clear recorded procedural chain">✕ Clear</button>
+                <button id="btn-chain-export" class="cad-btn text-[9px] py-1" title="Download current procedural chain as .chain.json">↓ Export .chain.json</button>
+                <button id="btn-chain-save-repo" class="cad-btn cyan text-[9px] py-1" title="Save current procedural chain into repository chains/">⇪ Save to Repo</button>
+            </div>
+
+            <div class="space-y-1.5 pt-1 border-t border-gray-200">
+                <div class="chain-row">
+                    <label class="text-[9px] font-semibold uppercase tracking-wider text-gray-500">Load Chain (.chain.json)</label>
+                    <span id="chain-loaded-file-badge" class="text-[8.5px] font-mono text-cyan-600 truncate max-w-[165px]" title="Active loaded chain file">Live Session</span>
+                </div>
+                <input type="file" id="chain-file-input" accept=".json,.chain.json" class="block w-full text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9.5px] file:font-semibold file:bg-pink-600/85 file:text-white hover:file:bg-pink-500 cursor-pointer" />
+
+                <div class="chain-row gap-1.5">
+                    <select id="sel-chain-corpus" class="chain-select flex-1" title="Quick-load a stored corpus or saved chain from the repository">
+                        <option value="">Corpus / Repo Chains…</option>
+                    </select>
+                    <button id="btn-chain-load-corpus" class="cad-btn text-[9px] py-1 px-2" title="Load selected repository chain">Load</button>
+                    <button id="btn-chain-refresh-corpus" class="cad-btn text-[9px] py-1 px-1.5" title="Refresh chain list from GET /api/chains">↻</button>
+                </div>
+            </div>
+
+            <div class="space-y-1.5 pt-1 border-t border-gray-200">
+                <div class="chain-controls">
+                    <select id="sel-chain-capture-res" class="chain-select" title="Hi-Fi PNG capture resolution">
+                        <option value="1920x1080" selected>1920×1080 (FHD)</option>
+                        <option value="2560x1440">2560×1440 (QHD)</option>
+                    </select>
+                    <select id="sel-chain-capture-views" class="chain-select" title="Camera view mode for Playback &amp; Capture (Active View overrides stored bookmarks)">
+                        <option value="active">Active View</option>
+                        <option value="stage" selected>Stage Bookmark</option>
+                        <option value="defaults">All Default Views</option>
+                    </select>
+                </div>
+
+                <label class="flex items-center space-x-1.5 text-[9px] text-gray-500 cursor-pointer select-none" title="Composite the relevant tab's live UI parameters &amp; metrics onto each captured PNG">
+                    <input type="checkbox" id="chain-capture-include-ui" class="accent-cyan-500 rounded">
+                    <span>Capture Stage UI (Overlay + Manifest)</span>
+                </label>
+
+                <div class="chain-controls">
+                    <button id="btn-chain-play-all" class="cad-btn primary text-[9.5px] py-1" title="Deterministically replay all steps in the active chain">▶ Play All</button>
+                    <button id="btn-chain-step-next" class="cad-btn text-[9.5px] py-1" title="Execute the next step in the active chain">⏭ Step Next</button>
+                </div>
+
+                <button id="btn-chain-play-capture" class="cad-btn cyan w-full py-1.5 text-[9.5px] font-semibold" title="Replay every stage and capture high-fidelity PNG screenshots + manifest">📷 Play &amp; Capture All Stages (Hi-Fi PNG)</button>
+
+                <div class="chain-progress">
+                    <div id="chain-progress-bar" class="chain-progress-bar" style="width: 0%;"></div>
+                </div>
+                <div id="chain-status-text" class="chain-status">Ready · record live edits or load a corpus chain.</div>
+            </div>
+
+            <div id="chain-capture-gallery" class="chain-gallery"></div>
         </div>
     `;
 }
@@ -629,4 +711,301 @@ export function initTab6Io() {
     bind('btn-footer-foundry-json', () => exportFoundryTopologyJSONFromUI());
     bind('btn-footer-unroll-svg', () => exportUnrolledSVGFromUI());
     bind('btn-footer-graph-3dm', () => exportWeldedGraph3dm());
+
+    // --- Procedural Chain & Stage Documentation UI ---
+    const setChainStatus = (msg) => {
+        const el = $('chain-status-text');
+        if (el) el.textContent = msg;
+    };
+    const setChainProgress = (pct) => {
+        const bar = $('chain-progress-bar');
+        if (bar) bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    };
+    const updateStepBadge = () => {
+        const badge = $('chain-step-count-badge');
+        if (badge) {
+            const active = getLoadedChain();
+            const n = active?.steps?.length || 0;
+            badge.textContent = `${n} step${n === 1 ? '' : 's'}`;
+        }
+        const loadedBadge = $('chain-loaded-file-badge');
+        if (loadedBadge) {
+            const src = getLoadedSourceLabel();
+            loadedBadge.textContent = src || 'Live Session';
+            loadedBadge.title = src || 'Recording live session';
+        }
+    };
+
+    const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    const renderCaptureGallery = (captures = []) => {
+        const gal = $('chain-capture-gallery');
+        if (!gal) return;
+        if (!captures || captures.length === 0) {
+            gal.innerHTML = '';
+            return;
+        }
+        gal.innerHTML = captures.map((cap, idx) => {
+            const m = cap.metrics || {};
+            const vTxt = m.vertices ? `V:${m.vertices}` : '';
+            const qTxt = m.quads ? `Q:${m.quads}` : '';
+            const pqTxt = m.maxPlanarityMm !== null && m.maxPlanarityMm !== undefined ? `PQ:${m.maxPlanarityMm}mm` : '';
+            const openHref = cap.repoRelativePath
+                ? `/api/repo-file?path=${encodeURIComponent(cap.repoRelativePath)}`
+                : cap.dataUrl;
+            const stageTitle = `${String((cap.stepIndex ?? idx) + 1).padStart(2, '0')} · ${cap.label || cap.op || 'Stage'}`;
+            const viewBadge = cap.bookmarkName ? ` (${cap.bookmarkName})` : '';
+            return `
+                <div class="chain-card">
+                    <img class="chain-thumb" src="${cap.dataUrl}" alt="${escapeHtml(stageTitle)}" loading="lazy" />
+                    <div class="chain-card-meta">
+                        <div class="chain-card-title" title="${escapeHtml(stageTitle + viewBadge)}">${escapeHtml(stageTitle)}${escapeHtml(viewBadge)}</div>
+                        <div class="flex flex-wrap gap-1 mt-0.5">
+                            ${vTxt ? `<span class="chain-metric-pill">${vTxt}</span>` : ''}
+                            ${qTxt ? `<span class="chain-metric-pill">${qTxt}</span>` : ''}
+                            ${pqTxt ? `<span class="chain-metric-pill">${pqTxt}</span>` : ''}
+                        </div>
+                        <div class="chain-card-actions">
+                            <a class="chain-card-link" href="${cap.dataUrl}" download="${escapeHtml(cap.stageFile || `stage_${idx + 1}.png`)}">Download PNG</a>
+                            <a class="chain-card-link" href="${openHref}" target="_blank" rel="noopener">Open</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    };
+
+    const populateCorpusDropdown = async () => {
+        const sel = $('sel-chain-corpus');
+        if (!sel) return;
+        const chains = await listRepoChains();
+        const prev = sel.value;
+        sel.innerHTML = `<option value="">Corpus / Repo Chains (${chains.length})…</option>` + chains.map((c) => {
+            const tag = c.source === 'corpus' ? '[Corpus]' : '[Saved]';
+            const label = `${tag} ${c.name || c.fileName} (${c.stepCount || 0} steps)`;
+            return `<option value="${escapeHtml(c.repoRelativePath)}">${escapeHtml(label)}</option>`;
+        }).join('');
+        if (prev && chains.some((c) => c.repoRelativePath === prev)) sel.value = prev;
+    };
+
+    const parseCaptureOptions = () => {
+        const resVal = ($('sel-chain-capture-res')?.value || '1920x1080').split('x');
+        const captureWidth = parseInt(resVal[0], 10) || 1920;
+        const captureHeight = parseInt(resVal[1], 10) || 1080;
+        const viewMode = $('sel-chain-capture-views')?.value || 'stage';
+        const includeStageUI = Boolean($('chain-capture-include-ui')?.checked);
+        let bookmarkIds = [];
+        if (viewMode === 'defaults') {
+            bookmarkIds = getDefaultBookmarks().map((b) => b.id);
+        } else if (viewMode === 'active') {
+            bookmarkIds = [];
+        }
+        return { captureWidth, captureHeight, viewMode, bookmarkIds, includeStageUI };
+    };
+
+    const selViews = $('sel-chain-capture-views');
+    if (selViews) {
+        setPlaybackCameraMode(selViews.value || 'stage');
+        selViews.addEventListener('change', (e) => {
+            setPlaybackCameraMode(e.target.value);
+        });
+    }
+
+    onChainChange((snap) => {
+        updateStepBadge();
+        if (snap.event === 'clear') {
+            renderCaptureGallery([]);
+            setChainProgress(0);
+        } else if (snap.event === 'stage' && snap.activeChain?.steps?.length) {
+            const total = snap.activeChain.steps.length;
+            const idx = snap.activeStageIndex ?? 0;
+            setChainProgress(((idx + 1) / total) * 100);
+            if (snap.step) {
+                setChainStatus(`Stage ${idx + 1}/${total}: ${snap.step.label || snap.step.op}`);
+            }
+        }
+    });
+    updateStepBadge();
+    populateCorpusDropdown();
+
+    let _selectedLocalFile = null;
+
+    const loadAndReplayLocalFile = async (file) => {
+        const text = await file.text();
+        const res = await loadChain(text, { fileName: file.name, sourceLabel: file.name });
+        setChainProgress(0);
+        renderCaptureGallery([]);
+        setChainStatus(`Loaded "${res.chain.name}" (${res.stepCount} steps) · Replaying…`);
+        if (res.stepCount > 0) {
+            const playRes = await playChain(null, {
+                captureStages: false,
+                cameraMode: getPlaybackCameraMode(),
+                onStage: ({ index, total, step }) => {
+                    setChainProgress(((index + 1) / Math.max(1, total)) * 100);
+                    setChainStatus(`Stage ${index + 1}/${total}: ${step.label || step.op}`);
+                }
+            });
+            setChainProgress(100);
+            setChainStatus(`Loaded & replayed "${res.chain.name}" (${playRes.stepsExecuted}/${res.stepCount} stages).`);
+        } else {
+            setChainStatus(`Loaded "${res.chain.name}" (0 steps).`);
+        }
+    };
+
+    bind('btn-chain-clear', () => {
+        _selectedLocalFile = null;
+        const fi = $('chain-file-input');
+        if (fi) fi.value = '';
+        clearChain();
+        setChainStatus('Cleared procedural chain.');
+    });
+
+    bind('btn-chain-export', () => {
+        const res = exportChainDownload();
+        setChainStatus(`Exported ${res.fileName} (${res.bytes} bytes).`);
+    });
+
+    bind('btn-chain-save-repo', async () => {
+        const chain = getLoadedChain();
+        if (!chain || !chain.steps || !chain.steps.length) {
+            setChainStatus('Nothing to save — perform actions or load a chain first.');
+            return;
+        }
+        try {
+            setChainStatus('Saving chain to repo…');
+            const saved = await saveChainToRepo(chain, { fileName: `${chain.id || 'session'}.chain.json`, target: 'chains' });
+            setChainStatus(`Saved → ${saved.repoRelativePath}`);
+            populateCorpusDropdown();
+        } catch (err) {
+            setChainStatus(`Save failed: ${err.message}`);
+        }
+    });
+
+    const chainFileInput = $('chain-file-input');
+    if (chainFileInput) {
+        chainFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            _selectedLocalFile = file;
+            try {
+                await loadAndReplayLocalFile(file);
+            } catch (err) {
+                setChainStatus(`Load error (${file.name}): ${err.message}`);
+            }
+        });
+    }
+
+    bind('btn-chain-refresh-corpus', () => populateCorpusDropdown());
+
+    bind('btn-chain-load-corpus', async () => {
+        const sel = $('sel-chain-corpus');
+        const repoPath = sel ? sel.value : '';
+        if (!repoPath) {
+            if (_selectedLocalFile) {
+                try {
+                    await loadAndReplayLocalFile(_selectedLocalFile);
+                } catch (err) {
+                    setChainStatus(`Load error (${_selectedLocalFile.name}): ${err.message}`);
+                }
+                return;
+            }
+            setChainStatus('Select a corpus/repo chain or choose a local .chain.json file first.');
+            return;
+        }
+        try {
+            setChainStatus(`Loading ${repoPath}…`);
+            const res = await loadChainFromRepoPath(repoPath);
+            setChainProgress(0);
+            renderCaptureGallery([]);
+            if (res.stepCount > 0) {
+                const playRes = await playChain(null, {
+                    captureStages: false,
+                    cameraMode: getPlaybackCameraMode(),
+                    onStage: ({ index, total, step }) => {
+                        setChainProgress(((index + 1) / Math.max(1, total)) * 100);
+                        setChainStatus(`Stage ${index + 1}/${total}: ${step.label || step.op}`);
+                    }
+                });
+                setChainProgress(100);
+                setChainStatus(`Loaded & replayed "${res.chain.name}" (${playRes.stepsExecuted}/${res.stepCount} stages).`);
+            } else {
+                setChainStatus(`Loaded "${res.chain.name}" (${res.stepCount} steps, ${res.assetCount} assets).`);
+            }
+        } catch (err) {
+            setChainStatus(`Load failed: ${err.message}`);
+        }
+    });
+
+    bind('btn-chain-play-all', async () => {
+        try {
+            const { viewMode } = parseCaptureOptions();
+            setPlaybackCameraMode(viewMode);
+            setChainProgress(0);
+            setChainStatus('Replaying procedural chain…');
+            const res = await playChain(null, {
+                captureStages: false,
+                cameraMode: viewMode,
+                onStage: ({ index, total, step }) => {
+                    setChainProgress(((index + 1) / Math.max(1, total)) * 100);
+                    setChainStatus(`Stage ${index + 1}/${total}: ${step.label || step.op}`);
+                }
+            });
+            setChainProgress(100);
+            setChainStatus(`Replayed ${res.stepsExecuted} stage(s) of "${res.chainName || res.chainId}".`);
+        } catch (err) {
+            setChainStatus(`Playback error: ${err.message}`);
+        }
+    });
+
+    bind('btn-chain-step-next', async () => {
+        try {
+            const { viewMode } = parseCaptureOptions();
+            setPlaybackCameraMode(viewMode);
+            const res = await stepNextChain({ captureStages: false, cameraMode: viewMode });
+            if (!res.ok) {
+                setChainStatus(res.message || 'No steps to execute.');
+                return;
+            }
+            const total = getLoadedChain()?.steps?.length || 1;
+            setChainProgress((((res.stepIndex ?? 0) + 1) / total) * 100);
+            setChainStatus(`Step ${(res.stepIndex ?? 0) + 1}/${total}: ${res.step?.label || res.step?.op}${res.done ? ' (Complete)' : ''}`);
+        } catch (err) {
+            setChainStatus(`Step error: ${err.message}`);
+        }
+    });
+
+    bind('btn-chain-play-capture', async () => {
+        try {
+            const { captureWidth, captureHeight, viewMode, bookmarkIds, includeStageUI } = parseCaptureOptions();
+            setPlaybackCameraMode(viewMode);
+            const liveCaptures = [];
+            setChainProgress(0);
+            renderCaptureGallery([]);
+            setChainStatus(`Capturing stages at ${captureWidth}×${captureHeight}${includeStageUI ? ' (+ Stage UI)' : ''}…`);
+            const res = await playChain(null, {
+                captureStages: true,
+                captureWidth,
+                captureHeight,
+                cameraMode: viewMode,
+                bookmarkIds: viewMode === 'defaults' ? bookmarkIds : [],
+                useStageBookmark: viewMode !== 'active',
+                includeStageUI,
+                saveCapturesToRepo: true,
+                onStage: ({ index, total, step, captures }) => {
+                    setChainProgress(((index + 1) / Math.max(1, total)) * 100);
+                    setChainStatus(`Captured ${index + 1}/${total}: ${step.label || step.op}`);
+                    if (Array.isArray(captures) && captures.length > 0) {
+                        liveCaptures.push(...captures);
+                        renderCaptureGallery(liveCaptures);
+                    }
+                }
+            });
+            setChainProgress(100);
+            renderCaptureGallery(res.captures || liveCaptures);
+            const savedCount = (res.captures || []).filter((c) => c.repoRelativePath).length;
+            setChainStatus(`Done · ${res.captures.length} PNG(s) captured${savedCount ? ` (${savedCount} saved to repo)` : ''}.`);
+        } catch (err) {
+            setChainStatus(`Capture error: ${err.message}`);
+        }
+    });
 }

@@ -348,3 +348,61 @@ TOPOGEN already implements compact state-delta inspection (`verbose: true` opt-i
 | **`Step 5`**<br>`FR-B05-02`<br>`BR-B05-02` | **Workbench UX Polish** | `TOPOGEN_FDM_Foundry/ui/display/{viewport_scene.js, display_hud.js}`, `ui/tabs/tab4_pq_mesh.js`, `ui/styles/workbench.css` | **Esc/Empty-Click Loop Deselect, `?` Shortcuts Popover & Busy Toast**: Clear 3D $\leftrightarrow$ 2D arc on `Esc` or empty click; add compact `?` keyboard-shortcut popover (`F`, `Esc`, `1–7`, `Space`) and non-blocking busy indicator. | `node --check` PASS across all UI modules + Goldilocks progressive-disclosure compliance. | **`CERTIFIED`** |
 | **`Step 6`**<br>`FR-B05-03`<br>`REV-B05-04` | **Core Unit Test Suite** | `TOPOGEN_FDM_Foundry/core/test_core.mjs`, `package.json`, `scripts/verify_live_desktop_mcp.mjs` | **Pure-JS Core Regression Suite (`npm run test:core`)**: Automated benchmarks for `mesh_skeletonizer`, `pq_subdivision`, `frame_fea_preview`, and `generateCandidate` wired into `package.json` & Gate 1. | `npm run test:core` (`7/7` PASS, `0` `verifier/` cross-imports) + Gate 1 updated. | **`CERTIFIED`** |
 | **`Step 7`**<br>`REV-B05-05`<br>`BR-B05-03` | **Codebase & Doc Hygiene** | `circle_prompt0.txt` *(deleted)*, `AGENTS.md`, `WISE_AI_ASSISTANT_MCP.md`, `TOPOGEN_FDM_Foundry/STUDENT_GUIDE.md` | **Remove Stray Files & Sync Docs**: Deleted `circle_prompt0.txt`, removed resolved `BATCH-TOPOGEN-04` gaps, documented `mesh_skeletonizer.mjs`, `ui-action-contract.mjs`, and `test:core`. | `seal --mode A --verify` (`ok: true`, `0` offending files, `0` air-gap violations). | **`CERTIFIED`** |
+
+---
+
+## 6. Batch 6 (`BATCH-TOPOGEN-06`) — Procedural Chain Persistence, Camera Bookmarks, Playback & Stage Documentation, and 3-Case Test Corpus *(IN PROGRESS)*
+
+- **Batch ID**: `BATCH-TOPOGEN-06`
+- **Date Opened**: `2026-11-26`
+- **Status**: **`IN PROGRESS`**
+- **Target Execution Mode**: **Mode B** (`node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mode --B` $\rightarrow$ deterministic core/verifier/guard/MCP/CLI suites + live Lab E2E replay $\rightarrow$ `seal --mode B --reseal` $\rightarrow$ `mode --A` $\rightarrow$ `seal --mode A --verify`).
+- **Scope Overview**: Introduces lightweight, deterministic procedural chain recording and replay (`topogen-procedural-chain/v1`), repo-confined asset staging and capture endpoints in `serve_lab.mjs`, a 7-preset + custom Camera Bookmarks system (`Ortho` & `Perspective`), interactive step-by-step playback with automated PNG + manifest stage documentation, and a 3-case reproducible test corpus (`corpus/*.chain.json`).
+
+---
+
+### 6.1 Item 1: Procedural Chain Schema (`topogen-procedural-chain/v1`), Asset Staging & Local Repo Endpoints (`FR-B06-01`)
+- **Priority**: **`P0` (Core Persistence & Reproducibility)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/core/procedural_chain.mjs` *(new)*, `TOPOGEN_FDM_Foundry/serve_lab.mjs`, `TOPOGEN_FDM_Foundry/assets/inputs/batwing.obj` *(staged input asset)*
+- **Required Scope**:
+  1. **Pure-JS Schema & Utilities (`core/procedural_chain.mjs`)**: Zero DOM, zero Three.js, zero Node built-ins, zero `verifier/` imports (strict air-gap). Defines `CHAIN_SCHEMA_VERSION = 'topogen-procedural-chain/v1'`, `SUPPORTED_STEP_OPS` (`17` ops covering tiles, grid, WFC, PQ solidifier/subdivision/optimization/swap, FDM, Elastica, FEA, and camera bookmarks), `DEFAULT_CAMERA_BOOKMARKS` (`7` built-in views), `normalizeRepoRelativePath`, `createProceduralChain`, `appendChainStep`, `registerChainAsset`, `validateProceduralChain`, `serializeProceduralChain`, and `parseProceduralChain`.
+  2. **Repo-Confined Local Lab API (`serve_lab.mjs`)**: Preserve static serving with `Cache-Control: no-store, must-revalidate` on `.html`/`.js`/`.mjs`/`.css` and add strictly `REPO_ROOT`-confined endpoints (blocking `..` traversal, symlink escape, and `.git`):
+     - `POST /api/assets/stage` $\rightarrow$ writes sanitized asset into `TOPOGEN_FDM_Foundry/assets/inputs/<safeName>`, returns `{ ok, fileName, repoRelativePath, bytes, sha256Short, ext }`.
+     - `GET /api/repo-file?path=<repoRelativePath>` $\rightarrow$ serves a confined repo file for deterministic replay.
+     - `GET /api/chains` $\rightarrow$ lists `*.chain.json` metadata across `TOPOGEN_FDM_Foundry/corpus/` and `TOPOGEN_FDM_Foundry/chains/`.
+     - `POST /api/chains/save` $\rightarrow$ validates and writes `<safeName>.chain.json` into `chains/` (or `corpus/` when `target === 'corpus'`).
+     - `POST /api/captures/save` $\rightarrow$ writes stage PNG + optional manifest JSON into `TOPOGEN_FDM_Foundry/corpus/captures/<chainId>/<stageFile>.png`.
+  3. **Canonical Staged Asset**: Commit `TOPOGEN_FDM_Foundry/assets/inputs/batwing.obj` so custom-mesh chains replay deterministically on any workstation.
+
+### 6.2 Item 2: Camera Bookmarks & Ortho/Perspective Viewport Presets (`FR-B06-02`)
+- **Priority**: **`P0` (Viewport Ergonomics & Deterministic Documentation Framing)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/ui/display/{viewport_scene.js, display_hud.js}`, `TOPOGEN_FDM_Foundry/ui/styles/workbench.css`
+- **Required Scope**:
+  1. Ship the `7` built-in camera bookmarks from `DEFAULT_CAMERA_BOOKMARKS` (`Ortho Top`, `Ortho Front`, `Ortho Right`, `Ortho Iso`, `Persp ISO`, `Persp Front-Left`, `Persp Low Hero`) with clean Orthographic $\leftrightarrow$ Perspective projection switching and scene-fit framing.
+  2. Allow users to capture custom camera bookmarks (position, target, up, projection, fov/zoom), rename/delete custom bookmarks, apply any bookmark smoothly, and serialize/restore bookmarks inside `.chain.json` files.
+
+### 6.3 Item 3: Procedural Chain Recorder, Step-by-Step Playback & Automated Stage Documentation (`FR-B06-03`)
+- **Priority**: **`P0` (Interactive Replay & Visual Documentation)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/ui/playback/*` *(new)*, `TOPOGEN_FDM_Foundry/ui/app_main.js`, `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html`, `TOPOGEN_FDM_Foundry/ui/styles/workbench.css`
+- **Required Scope**:
+  1. **Live Action Recording**: Record user/bridge Workbench actions into the active `topogen-procedural-chain/v1` chain, automatically staging imported `.obj`/`.3dm`/`.json` assets via `POST /api/assets/stage` and recording `repoRelativePath` references.
+  2. **Deterministic Playback Controls**: Provide Load / Save (`.chain.json` via `/api/chains` & `/api/chains/save`), Step Forward / Back, Play / Pause, Jump-to-Step, and Reset controls that execute each recorded op cleanly against the live Workbench state.
+  3. **Automated Stage Documentation Capture**: Support per-step `bookmarkId` + `capture` flags that apply the step's camera bookmark, render a crisp frame, and persist stage PNGs + a `manifest.json` summary via `POST /api/captures/save`.
+
+### 6.4 Item 4: 3-Case Reproducible Test Corpus & End-to-End Verification (`FR-B06-04`)
+- **Priority**: **`P0` (Regression Corpus & Visual Verification)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/corpus/*.chain.json` *(3 canonical chains)*, `TOPOGEN_FDM_Foundry/corpus/captures/*`, `TOPOGEN_FDM_Foundry/core/test_core.mjs`
+- **Required Scope**:
+  1. Author and validate `3` canonical `.chain.json` test cases covering: (a) preset WFC $\rightarrow$ FDM $\rightarrow$ PQ $\rightarrow$ FEA baseline, (b) custom staged `batwing.obj` mesh tile $\rightarrow$ WFC $\rightarrow$ PQ subdivision/optimization, and (c) Elastica rod tracing + multi-bookmark stage documentation capture.
+  2. Verify schema validation, round-trip serialization, `serve_lab.mjs` endpoint security (traversal / `.git` blocking), and full 3-case replay + capture generation.
+
+---
+
+### 6.5 Summary Table of Batch 6 (`BATCH-TOPOGEN-06`) Items
+
+| Step / ID | Category | Subsystem / Target Files | Summary of Revision / Feature / Fix | Verification Gate | Status |
+| :--- | :---: | :--- | :--- | :--- | :---: |
+| **`Step 1`**<br>`FR-B06-01` | **Chain Schema & Local Repo API** | `TOPOGEN_FDM_Foundry/core/procedural_chain.mjs`, `TOPOGEN_FDM_Foundry/serve_lab.mjs`, `TOPOGEN_FDM_Foundry/assets/inputs/batwing.obj` | **`topogen-procedural-chain/v1` Pure-JS Schema + Confined Lab Endpoints**: Pure-JS chain create/append/asset/validate/serialize/parse module, `7` default bookmarks, `17` step ops, `no-store` static headers, and `REPO_ROOT`-confined `/api/{assets/stage,repo-file,chains,chains/save,captures/save}` routes. | `node --check`, pure-JS round-trip & traversal-block tests, `0` `verifier/` cross-imports. | **`IN PROGRESS`** |
+| **`Step 2`**<br>`FR-B06-02` | **Camera Bookmarks** | `TOPOGEN_FDM_Foundry/ui/display/{viewport_scene.js, display_hud.js}`, `ui/styles/workbench.css` | **7 Built-in Ortho/Persp Presets + Custom Bookmarks**: Seamless Ortho $\leftrightarrow$ Persp switching, capture/apply/delete custom bookmarks, and `.chain.json` persistence. | Live viewport preset switching + custom bookmark round-trip in `.chain.json`. | **`IN PROGRESS`** |
+| **`Step 3`**<br>`FR-B06-03` | **Playback & Stage Docs** | `TOPOGEN_FDM_Foundry/ui/playback/*`, `ui/app_main.js`, `index_TOPOGEN_PQM_ELASTICA_FDM.html` | **Procedural Chain Recorder, Step Playback & Capture Pipeline**: Record Workbench ops with automatic asset staging, step/play/pause replay, and automated bookmark-framed PNG + `manifest.json` stage documentation. | End-to-end record $\rightarrow$ save $\rightarrow$ reload $\rightarrow$ replay $\rightarrow$ capture verification. | **`IN PROGRESS`** |
+| **`Step 4`**<br>`FR-B06-04` | **3-Case Test Corpus** | `TOPOGEN_FDM_Foundry/corpus/*.chain.json`, `TOPOGEN_FDM_Foundry/corpus/captures/*`, `core/test_core.mjs` | **3 Reproducible Corpus Chains & Automated Verification**: 3 canonical chains (preset WFC/FDM/PQ/FEA, `batwing.obj` custom mesh, Elastica + multi-view captures) validated and replayed with stage PNGs + manifests. | All 3 corpus chains validate, replay cleanly, and emit stage captures + manifests; all Foundry suites PASS. | **`IN PROGRESS`** |

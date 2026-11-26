@@ -20,6 +20,7 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { appState, actions, PALETTE, $ } from '../state/workbench_state.js';
+import { getBookmarkById } from './camera_bookmarks.js';
 
 export const viewport = {
     container: null,
@@ -27,6 +28,11 @@ export const viewport = {
     octx: null,
     scene: null,
     camera: null,
+    perspCamera: null,
+    orthoCamera: null,
+    projectionMode: 'perspective',
+    orthoSize: 6,
+    activeBookmarkId: null,
     renderer: null,
     controls: null,
     tControls: null,
@@ -54,7 +60,11 @@ export const viewport = {
     cvGroup: null,
     fatMaterials: [],
     requestRender: null,
-    setBusy: null
+    setBusy: null,
+    setProjectionMode: null,
+    getCameraBookmarkState: null,
+    applyCameraBookmark: null,
+    captureHighResPNG: null
 };
 
 export const sharedMaterials = {};
@@ -248,15 +258,620 @@ export function clearGroup(group) {
 
 const smooth = x => x * x * (3 - 2 * x);
 
+function round5(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n * 1e5) / 1e5 : 0;
+}
+
+function updateOrthoFrustum(orthoCam, aspect, orthoSize) {
+    if (!orthoCam) return;
+    const a = Math.max(0.05, Number(aspect) || 1);
+    const halfH = Math.max(0.05, (Number(orthoSize) || 6) * 0.5);
+    orthoCam.left = -halfH * a;
+    orthoCam.right = halfH * a;
+    orthoCam.top = halfH;
+    orthoCam.bottom = -halfH;
+    orthoCam.updateProjectionMatrix();
+}
+
+export function setProjectionMode(mode, { preserveFraming = true } = {}) {
+    const nextMode = String(mode || 'perspective').toLowerCase().startsWith('ortho')
+        ? 'orthographic'
+        : 'perspective';
+    if (!viewport.perspCamera || !viewport.orthoCamera) {
+        viewport.projectionMode = nextMode;
+        return nextMode;
+    }
+
+    const prevMode = viewport.projectionMode;
+    const prevCam = viewport.camera || viewport.perspCamera;
+    const nextCam = nextMode === 'orthographic' ? viewport.orthoCamera : viewport.perspCamera;
+    const sz = cssSize();
+    const aspect = Math.max(0.05, sz.w / Math.max(1, sz.h));
+    const target = viewport.controls ? viewport.controls.target.clone() : new THREE.Vector3();
+
+    if (prevMode !== nextMode && preserveFraming && prevCam) {
+        const offset = prevCam.position.clone().sub(target);
+        const dist = Math.max(offset.length(), 0.05);
+        const dir = offset.lengthSq() > 1e-10 ? offset.clone().normalize() : new THREE.Vector3(0.68, 0.52, 0.78).normalize();
+
+        nextCam.up.copy(prevCam.up);
+        if (nextMode === 'orthographic') {
+            const fovRad = THREE.MathUtils.degToRad(viewport.perspCamera.fov || 45);
+            const visH = (2 * dist * Math.tan(fovRad * 0.5)) / Math.max(0.05, viewport.perspCamera.zoom || 1);
+            viewport.orthoSize = Math.max(0.1, visH);
+            nextCam.zoom = 1;
+            nextCam.position.copy(prevCam.position);
+            nextCam.near = -Math.max(1000, dist * 20);
+            nextCam.far = Math.max(10000, dist * 100);
+            updateOrthoFrustum(nextCam, aspect, viewport.orthoSize);
+        } else {
+            const visH = Math.max(0.1, (viewport.orthoSize || 6) / Math.max(0.05, viewport.orthoCamera.zoom || 1));
+            const fovRad = THREE.MathUtils.degToRad(viewport.perspCamera.fov || 45);
+            const nextDist = Math.max(0.1, visH / (2 * Math.tan(fovRad * 0.5)));
+            nextCam.zoom = 1;
+            nextCam.position.copy(target).addScaledVector(dir, nextDist);
+            nextCam.aspect = aspect;
+            nextCam.near = Math.max(nextDist / 2000, 0.001);
+            nextCam.far = Math.max(10000, nextDist * 100);
+            nextCam.updateProjectionMatrix();
+        }
+    } else if (nextMode === 'orthographic') {
+        updateOrthoFrustum(nextCam, aspect, viewport.orthoSize);
+    } else {
+        nextCam.aspect = aspect;
+        nextCam.updateProjectionMatrix();
+    }
+
+    viewport.projectionMode = nextMode;
+    viewport.camera = nextCam;
+    if (viewport.controls) {
+        viewport.controls.object = nextCam;
+        viewport.controls.update();
+    }
+    if (viewport.tControls) {
+        viewport.tControls.camera = nextCam;
+    }
+    if (actions.syncCameraBookmarkUI) actions.syncCameraBookmarkUI();
+    requestRender(15);
+    return nextMode;
+}
+
+export function getCameraBookmarkState() {
+    const cam = viewport.camera || viewport.perspCamera;
+    const tgt = viewport.controls ? viewport.controls.target : new THREE.Vector3();
+    if (!cam) {
+        return {
+            projection: viewport.projectionMode || 'perspective',
+            position: [6.8, 5.2, 7.8],
+            target: [0, 1.5, 0],
+            up: [0, 1, 0],
+            fov: 45,
+            zoom: 1,
+            orthoSize: viewport.orthoSize || 6
+        };
+    }
+    const state = {
+        projection: viewport.projectionMode === 'orthographic' ? 'orthographic' : 'perspective',
+        position: [round5(cam.position.x), round5(cam.position.y), round5(cam.position.z)],
+        target: [round5(tgt.x), round5(tgt.y), round5(tgt.z)],
+        up: [round5(cam.up.x), round5(cam.up.y), round5(cam.up.z)],
+        zoom: round5(cam.zoom || 1)
+    };
+    if (state.projection === 'orthographic') {
+        state.orthoSize = round5(viewport.orthoSize || 6);
+    } else {
+        state.fov = round5(viewport.perspCamera ? viewport.perspCamera.fov : 45);
+    }
+    return state;
+}
+
+export function applyCameraBookmark(bookmark, opts = {}) {
+    const bm = typeof bookmark === 'string' ? getBookmarkById(bookmark) : bookmark;
+    if (!bm || typeof bm !== 'object') return null;
+
+    const animate = Boolean(opts.animate);
+    const fitBounds = opts.fitBounds !== undefined
+        ? Boolean(opts.fitBounds)
+        : (bm.fitToScene !== undefined ? Boolean(bm.fitToScene) : Boolean(bm.builtin));
+    const proj = String(bm.projection || 'perspective').toLowerCase().startsWith('ortho')
+        ? 'orthographic'
+        : 'perspective';
+
+    appState.camTween = null;
+    setProjectionMode(proj, { preserveFraming: false });
+
+    const cam = viewport.camera;
+    if (!cam) return null;
+
+    const sz = cssSize();
+    const aspect = Math.max(0.05, sz.w / Math.max(1, sz.h));
+    const bmPos = Array.isArray(bm.position) && bm.position.length >= 3
+        ? new THREE.Vector3(Number(bm.position[0]) || 0, Number(bm.position[1]) || 0, Number(bm.position[2]) || 0)
+        : new THREE.Vector3(6.8, 5.2, 7.8);
+    const bmTgt = Array.isArray(bm.target) && bm.target.length >= 3
+        ? new THREE.Vector3(Number(bm.target[0]) || 0, Number(bm.target[1]) || 0, Number(bm.target[2]) || 0)
+        : new THREE.Vector3(0, 1.5, 0);
+    const bmUp = Array.isArray(bm.up) && bm.up.length >= 3
+        ? new THREE.Vector3(Number(bm.up[0]) || 0, Number(bm.up[1]) || 1, Number(bm.up[2]) || 0)
+        : new THREE.Vector3(0, 1, 0);
+    if (bmUp.lengthSq() < 1e-8) bmUp.set(0, 1, 0);
+    bmUp.normalize();
+
+    let toPos = bmPos.clone();
+    let toTg = bmTgt.clone();
+    let toFov = Math.max(10, Math.min(120, Number(bm.fov) || 45));
+    let toZoom = Math.max(0.05, Math.min(50, Number(bm.zoom) || 1));
+    let toOrthoSize = Math.max(0.1, Number(bm.orthoSize) || 6);
+
+    if (fitBounds) {
+        if (appState.modelBox.isEmpty()) recomputeModelBox({ skipBBox: true });
+        const boxWorld = modelBoxToWorld(appState.modelBox);
+        if (boxWorld && !boxWorld.isEmpty()) {
+            const center = boxWorld.getCenter(new THREE.Vector3());
+            const size = boxWorld.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z, 1.15);
+            const rawDir = bmPos.clone().sub(bmTgt);
+            const dir = rawDir.lengthSq() > 1e-10 ? rawDir.normalize() : new THREE.Vector3(0.68, 0.52, 0.78).normalize();
+            toTg.copy(center);
+            if (proj === 'orthographic') {
+                toOrthoSize = Math.max(0.5, maxDim * 1.48);
+                const dist = Math.max(maxDim * 3.0, 12);
+                toPos.copy(center).addScaledVector(dir, dist);
+            } else {
+                const fovRad = THREE.MathUtils.degToRad(toFov);
+                const dist = Math.abs(maxDim / 2 / Math.tan(fovRad / 2)) * 1.48;
+                toPos.copy(center).addScaledVector(dir, dist);
+            }
+        }
+    }
+
+    cam.up.copy(bmUp);
+    viewport.activeBookmarkId = bm.id || null;
+
+    if (animate && viewport.controls) {
+        appState.camTween = {
+            t: 0,
+            dur: 0.32,
+            fromPos: cam.position.clone(),
+            toPos,
+            fromTg: viewport.controls.target.clone(),
+            toTg,
+            fromZoom: cam.zoom || 1,
+            toZoom,
+            fromFov: proj === 'perspective' ? (cam.fov || 45) : null,
+            toFov: proj === 'perspective' ? toFov : null,
+            fromOrthoSize: proj === 'orthographic' ? (viewport.orthoSize || 6) : null,
+            toOrthoSize: proj === 'orthographic' ? toOrthoSize : null
+        };
+        if (actions.syncCameraBookmarkUI) actions.syncCameraBookmarkUI();
+        requestRender(25);
+        return getCameraBookmarkState();
+    }
+
+    cam.position.copy(toPos);
+    cam.zoom = toZoom;
+    if (proj === 'orthographic') {
+        const dist = Math.max(toPos.distanceTo(toTg), 1);
+        viewport.orthoSize = toOrthoSize;
+        cam.near = -Math.max(1000, dist * 20);
+        cam.far = Math.max(10000, dist * 100);
+        updateOrthoFrustum(cam, aspect, viewport.orthoSize);
+    } else {
+        const dist = Math.max(toPos.distanceTo(toTg), 0.1);
+        cam.fov = toFov;
+        cam.aspect = aspect;
+        cam.near = Math.max(dist / 2000, 0.001);
+        cam.far = Math.max(10000, dist * 100);
+        cam.updateProjectionMatrix();
+    }
+    if (viewport.controls) {
+        viewport.controls.target.copy(toTg);
+        viewport.controls.update();
+    } else {
+        cam.lookAt(toTg);
+    }
+    if (viewport.renderer && viewport.scene) {
+        renderFrame();
+    }
+    if (actions.syncCameraBookmarkUI) actions.syncCameraBookmarkUI();
+    requestRender(15);
+    return getCameraBookmarkState();
+}
+
+function drawRoundedRectPath(ctx, x, y, w, h, r) {
+    const rad = Math.max(0, Math.min(r, Math.min(w, h) * 0.5));
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(x, y, w, h, rad);
+        return;
+    }
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    ctx.lineTo(x + rad, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+    ctx.lineTo(x, y + rad);
+    ctx.quadraticCurveTo(x, y, x + rad, y);
+    ctx.closePath();
+}
+
+function truncateText(ctx, text, maxWidth) {
+    const raw = String(text ?? '');
+    if (ctx.measureText(raw).width <= maxWidth) return raw;
+    let out = raw;
+    while (out.length > 1 && ctx.measureText(`${out}…`).width > maxWidth) {
+        out = out.slice(0, -1);
+    }
+    return `${out}…`;
+}
+
+export function drawStageUIOverlay(ctx, width, height, uiOverlay, fallbackMeta = {}) {
+    if (!ctx || !uiOverlay || typeof uiOverlay !== 'object') return;
+    const s = Math.max(0.65, Math.min(2.0, width / 1920));
+    const margin = Math.round(28 * s);
+    const cardW = Math.round(Math.min(410 * s, width * 0.34));
+    const padX = Math.round(16 * s);
+    const radius = Math.round(10 * s);
+
+    const tabTitle = String(uiOverlay.tabTitle || 'WORKBENCH').trim();
+    const stageCount = Math.max(0, Number(uiOverlay.stageCount) || 0);
+    const stageIdx = Number.isFinite(Number(uiOverlay.stageIndex)) ? Number(uiOverlay.stageIndex) : -1;
+    const stageCounter = stageCount > 0 && stageIdx >= 0
+        ? `STAGE ${stageIdx + 1}/${stageCount}`
+        : (stageIdx >= 0 ? `STAGE ${stageIdx + 1}` : 'STAGE');
+    const stageLabel = String(uiOverlay.stageLabel || uiOverlay.op || 'Procedural Stage').trim();
+    const opTag = uiOverlay.op ? String(uiOverlay.op).trim() : '';
+
+    const rawParams = Array.isArray(uiOverlay.params) ? uiOverlay.params.slice(0, 14) : [];
+    const rawMetrics = Array.isArray(uiOverlay.metrics)
+        ? uiOverlay.metrics.map(m => String(m || '').trim()).filter(Boolean).slice(0, 8)
+        : [];
+
+    const headerH = Math.round(40 * s);
+    const titleH = Math.round(38 * s);
+    const rowH = Math.round(25 * s);
+    const paramsPadY = rawParams.length > 0 ? Math.round(10 * s) : 0;
+    const paramsBlockH = rawParams.length > 0 ? (paramsPadY * 2 + rawParams.length * rowH) : 0;
+
+    // Pre-layout metric chips so we know exact footer height
+    const chipFont = `600 ${Math.round(11 * s)}px Consolas, ui-monospace, monospace`;
+    ctx.font = chipFont;
+    const chipH = Math.round(22 * s);
+    const chipGap = Math.round(6 * s);
+    const chipPadX = Math.round(8 * s);
+    const chipMaxRowW = cardW - padX * 2;
+    const metricRows = [];
+    if (rawMetrics.length > 0) {
+        let curRow = [];
+        let curW = 0;
+        for (const text of rawMetrics) {
+            const w = Math.min(chipMaxRowW, Math.ceil(ctx.measureText(text).width) + chipPadX * 2);
+            if (curRow.length > 0 && curW + chipGap + w > chipMaxRowW) {
+                metricRows.push(curRow);
+                curRow = [{ text, w }];
+                curW = w;
+            } else {
+                curRow.push({ text, w });
+                curW += (curRow.length > 1 ? chipGap : 0) + w;
+            }
+        }
+        if (curRow.length > 0) metricRows.push(curRow);
+    }
+    const metricsBlockH = metricRows.length > 0
+        ? Math.round(12 * s) * 2 + metricRows.length * chipH + (metricRows.length - 1) * chipGap
+        : 0;
+
+    const cardH = Math.min(height - margin * 2 - Math.round(48 * s), headerH + titleH + paramsBlockH + metricsBlockH);
+    const cardX = margin;
+    const cardY = margin;
+
+    ctx.save();
+
+    // 1. Studio-Light floating card shell + subtle shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.14)';
+    ctx.shadowBlur = Math.round(24 * s);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = Math.round(8 * s);
+    drawRoundedRectPath(ctx, cardX, cardY, cardW, cardH, radius);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+    ctx.fill();
+    ctx.restore();
+
+    drawRoundedRectPath(ctx, cardX, cardY, cardW, cardH, radius);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = Math.max(1, Math.round(1.25 * s));
+    ctx.stroke();
+
+    // Clip inner contents cleanly to rounded card
+    ctx.save();
+    drawRoundedRectPath(ctx, cardX, cardY, cardW, cardH, radius);
+    ctx.clip();
+
+    // 2. Card header band (#f1f5f9)
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(cardX, cardY, cardW, headerH);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = Math.max(1, Math.round(1 * s));
+    ctx.beginPath();
+    ctx.moveTo(cardX, cardY + headerH);
+    ctx.lineTo(cardX + cardW, cardY + headerH);
+    ctx.stroke();
+
+    // Tab title pill (left)
+    const pillFont = `700 ${Math.round(11 * s)}px system-ui, -apple-system, sans-serif`;
+    ctx.font = pillFont;
+    const tabPillTxt = tabTitle.toUpperCase();
+    const tabPillW = Math.min(cardW * 0.56, Math.ceil(ctx.measureText(tabPillTxt).width) + Math.round(16 * s));
+    const pillH = Math.round(22 * s);
+    const pillY = cardY + Math.round((headerH - pillH) * 0.5);
+    drawRoundedRectPath(ctx, cardX + padX, pillY, tabPillW, pillH, Math.round(5 * s));
+    ctx.fillStyle = '#eff6ff';
+    ctx.fill();
+    ctx.strokeStyle = '#93c5fd';
+    ctx.lineWidth = Math.max(1, Math.round(1 * s));
+    ctx.stroke();
+    ctx.fillStyle = '#1d4ed8';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillText(truncateText(ctx, tabPillTxt, tabPillW - Math.round(12 * s)), cardX + padX + Math.round(8 * s), pillY + pillH * 0.5 + 0.5);
+
+    // Stage counter pill (right)
+    ctx.font = `700 ${Math.round(10.5 * s)}px Consolas, ui-monospace, monospace`;
+    const cntW = Math.ceil(ctx.measureText(stageCounter).width) + Math.round(14 * s);
+    const cntX = cardX + cardW - padX - cntW;
+    drawRoundedRectPath(ctx, cntX, pillY, cntW, pillH, Math.round(5 * s));
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fill();
+    ctx.fillStyle = '#334155';
+    ctx.textAlign = 'center';
+    ctx.fillText(stageCounter, cntX + cntW * 0.5, pillY + pillH * 0.5 + 0.5);
+
+    // 3. Stage label + op tag row
+    let cursorY = cardY + headerH;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const opMaxW = opTag ? Math.round(120 * s) : 0;
+    ctx.font = `700 ${Math.round(13.5 * s)}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = '#0f172a';
+    const labelMaxW = cardW - padX * 2 - (opTag ? opMaxW + Math.round(8 * s) : 0);
+    ctx.fillText(truncateText(ctx, stageLabel, labelMaxW), cardX + padX, cursorY + titleH * 0.5);
+
+    if (opTag) {
+        ctx.font = `600 ${Math.round(10.5 * s)}px Consolas, ui-monospace, monospace`;
+        ctx.fillStyle = '#64748b';
+        ctx.textAlign = 'right';
+        ctx.fillText(truncateText(ctx, opTag, opMaxW), cardX + cardW - padX, cursorY + titleH * 0.5);
+    }
+    cursorY += titleH;
+
+    // 4. Key/value parameter rows
+    if (rawParams.length > 0) {
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = Math.max(1, Math.round(1 * s));
+        ctx.beginPath();
+        ctx.moveTo(cardX + padX, cursorY);
+        ctx.lineTo(cardX + cardW - padX, cursorY);
+        ctx.stroke();
+
+        cursorY += paramsPadY;
+        for (let i = 0; i < rawParams.length; i++) {
+            const p = rawParams[i] || {};
+            const rowMidY = cursorY + rowH * 0.5;
+            if (i % 2 === 1) {
+                ctx.fillStyle = 'rgba(241, 245, 249, 0.72)';
+                ctx.fillRect(cardX + Math.round(8 * s), cursorY, cardW - Math.round(16 * s), rowH);
+            }
+            ctx.font = `600 ${Math.round(11.5 * s)}px system-ui, -apple-system, sans-serif`;
+            ctx.fillStyle = '#475569';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(truncateText(ctx, p.label ?? '', cardW * 0.52), cardX + padX, rowMidY);
+
+            const isBool = typeof p.value === 'boolean' || p.kind === 'bool';
+            if (isBool) {
+                const on = Boolean(p.value) && String(p.value).toLowerCase() !== 'false' && String(p.value).toLowerCase() !== 'off';
+                const badgeTxt = on ? 'ON' : 'OFF';
+                const bW = Math.round(36 * s);
+                const bH = Math.round(18 * s);
+                const bX = cardX + cardW - padX - bW;
+                const bY = rowMidY - bH * 0.5;
+                drawRoundedRectPath(ctx, bX, bY, bW, bH, Math.round(4 * s));
+                ctx.fillStyle = on ? '#ecfdf5' : '#f1f5f9';
+                ctx.fill();
+                ctx.strokeStyle = on ? '#6ee7b7' : '#cbd5e1';
+                ctx.lineWidth = Math.max(1, Math.round(1 * s));
+                ctx.stroke();
+                ctx.font = `700 ${Math.round(10 * s)}px Consolas, ui-monospace, monospace`;
+                ctx.fillStyle = on ? '#047857' : '#64748b';
+                ctx.textAlign = 'center';
+                ctx.fillText(badgeTxt, bX + bW * 0.5, rowMidY + 0.5);
+            } else {
+                ctx.font = `600 ${Math.round(11.5 * s)}px Consolas, ui-monospace, monospace`;
+                ctx.fillStyle = p.kind === 'accent' ? '#1d4ed8' : '#0f172a';
+                ctx.textAlign = 'right';
+                ctx.fillText(truncateText(ctx, p.value ?? '—', cardW * 0.44), cardX + cardW - padX, rowMidY);
+            }
+            cursorY += rowH;
+        }
+        cursorY += paramsPadY;
+    }
+
+    // 5. Bottom telemetry metric chips
+    if (metricRows.length > 0) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(cardX, cursorY, cardW, cardY + cardH - cursorY);
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = Math.max(1, Math.round(1 * s));
+        ctx.beginPath();
+        ctx.moveTo(cardX, cursorY);
+        ctx.lineTo(cardX + cardW, cursorY);
+        ctx.stroke();
+
+        ctx.font = chipFont;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        let my = cursorY + Math.round(12 * s);
+        for (const row of metricRows) {
+            let mx = cardX + padX;
+            for (const chip of row) {
+                drawRoundedRectPath(ctx, mx, my, chip.w, chipH, Math.round(5 * s));
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = Math.max(1, Math.round(1 * s));
+                ctx.stroke();
+                ctx.fillStyle = '#1e293b';
+                ctx.fillText(truncateText(ctx, chip.text, chip.w - Math.round(8 * s)), mx + chip.w * 0.5, my + chipH * 0.5 + 0.5);
+                mx += chip.w + chipGap;
+            }
+            my += chipH + chipGap;
+        }
+    }
+
+    ctx.restore(); // end card clip
+
+    // 6. Subtle bottom-left projection / camera view pill
+    const projRaw = uiOverlay.projection || fallbackMeta.projection || viewport.projectionMode || 'perspective';
+    const isOrtho = String(projRaw).toLowerCase().startsWith('ortho');
+    const projBadge = isOrtho ? 'ORTHO' : 'PERSP';
+    const camName = String(uiOverlay.cameraName || fallbackMeta.cameraName || '').trim();
+    const viewTag = camName ? `${projBadge} · ${camName}` : projBadge;
+
+    ctx.font = `700 ${Math.round(11 * s)}px Consolas, ui-monospace, monospace`;
+    const tagPadX = Math.round(12 * s);
+    const tagH = Math.round(26 * s);
+    const tagW = Math.ceil(ctx.measureText(viewTag).width) + tagPadX * 2;
+    const tagX = margin;
+    const tagY = height - margin - tagH;
+
+    drawRoundedRectPath(ctx, tagX, tagY, tagW, tagH, Math.round(6 * s));
+    ctx.fillStyle = 'rgba(248, 250, 252, 0.92)';
+    ctx.fill();
+    ctx.strokeStyle = isOrtho ? '#6ee7b7' : '#93c5fd';
+    ctx.lineWidth = Math.max(1, Math.round(1.25 * s));
+    ctx.stroke();
+    ctx.fillStyle = isOrtho ? '#047857' : '#1d4ed8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(viewTag, tagX + tagW * 0.5, tagY + tagH * 0.5 + 0.5);
+
+    ctx.restore();
+}
+
+export function captureHighResPNG({ width = 1920, height = 1080, bookmark = null, background = null, uiOverlay = null } = {}) {
+    if (!viewport.renderer || !viewport.scene || !viewport.camera) {
+        throw new Error('Viewport renderer is not initialized');
+    }
+
+    const capW = Math.max(64, Math.min(4096, Math.round(Number(width) || 1920)));
+    const capH = Math.max(64, Math.min(4096, Math.round(Number(height) || 1080)));
+    const capAspect = capW / capH;
+
+    const savedCamState = getCameraBookmarkState();
+    const savedBookmarkId = viewport.activeBookmarkId;
+    const savedPixelRatio = viewport.renderer.getPixelRatio();
+    const savedSize = viewport.renderer.getSize(new THREE.Vector2());
+    const savedBg = viewport.scene.background;
+    const savedFatRes = viewport.fatMaterials.map(m => (m && m.resolution ? m.resolution.clone() : null));
+
+    try {
+        let resolvedBookmark = null;
+        if (bookmark) {
+            resolvedBookmark = typeof bookmark === 'string' ? getBookmarkById(bookmark) : bookmark;
+            applyCameraBookmark(resolvedBookmark || bookmark, { animate: false });
+        }
+        if (background !== null && background !== undefined) {
+            viewport.scene.background = background instanceof THREE.Color ? background : new THREE.Color(background);
+        }
+
+        // Resize backing buffer only (updateStyle=false) so live CSS layout never flickers
+        viewport.renderer.setPixelRatio(1);
+        viewport.renderer.setSize(capW, capH, false);
+
+        const activeCam = viewport.camera;
+        if (activeCam.isOrthographicCamera) {
+            updateOrthoFrustum(activeCam, capAspect, viewport.orthoSize);
+        } else {
+            activeCam.aspect = capAspect;
+            activeCam.updateProjectionMatrix();
+        }
+        viewport.fatMaterials.forEach(m => {
+            if (m && m.resolution) m.resolution.set(capW, capH);
+        });
+
+        viewport.renderer.render(viewport.scene, activeCam);
+
+        if (uiOverlay && typeof uiOverlay === 'object' && typeof document !== 'undefined') {
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = capW;
+            offCanvas.height = capH;
+            const ctx = offCanvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(viewport.renderer.domElement, 0, 0, capW, capH);
+                const activeBm = resolvedBookmark || (viewport.activeBookmarkId ? getBookmarkById(viewport.activeBookmarkId) : null);
+                drawStageUIOverlay(ctx, capW, capH, uiOverlay, {
+                    projection: viewport.projectionMode,
+                    cameraName: activeBm ? activeBm.name : ''
+                });
+                return offCanvas.toDataURL('image/png');
+            }
+        }
+        return viewport.renderer.domElement.toDataURL('image/png');
+    } finally {
+        viewport.scene.background = savedBg;
+        viewport.renderer.setPixelRatio(savedPixelRatio);
+        viewport.renderer.setSize(savedSize.x, savedSize.y, false);
+        viewport.fatMaterials.forEach((m, idx) => {
+            if (m && m.resolution && savedFatRes[idx]) {
+                m.resolution.copy(savedFatRes[idx]);
+            }
+        });
+
+        if (bookmark) {
+            applyCameraBookmark(savedCamState, { animate: false, fitBounds: false });
+            viewport.activeBookmarkId = savedBookmarkId;
+        } else {
+            const liveAspect = Math.max(0.05, savedSize.x / Math.max(1, savedSize.y));
+            if (viewport.perspCamera) {
+                viewport.perspCamera.aspect = liveAspect;
+                viewport.perspCamera.updateProjectionMatrix();
+            }
+            if (viewport.orthoCamera) {
+                updateOrthoFrustum(viewport.orthoCamera, liveAspect, viewport.orthoSize);
+            }
+        }
+        viewport.renderer.render(viewport.scene, viewport.camera);
+        if (actions.syncCameraBookmarkUI) actions.syncCameraBookmarkUI();
+        requestRender(5);
+    }
+}
+
 export function frameBoxParams(boxWorld) {
     const center = boxWorld.getCenter(new THREE.Vector3());
     const size = boxWorld.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 1.15);
-    const fov = viewport.camera.fov * (Math.PI / 180);
+    const fovDeg = viewport.perspCamera ? viewport.perspCamera.fov : 45;
+    const fov = fovDeg * (Math.PI / 180);
     const dist = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 1.48;
-    viewport.camera.near = Math.max(dist / 2000, 0.001);
-    viewport.camera.far = Math.max(10000, dist * 100);
-    viewport.camera.updateProjectionMatrix();
+    const sz = cssSize();
+    const aspect = Math.max(0.05, sz.w / Math.max(1, sz.h));
+
+    if (viewport.perspCamera) {
+        viewport.perspCamera.near = Math.max(dist / 2000, 0.001);
+        viewport.perspCamera.far = Math.max(10000, dist * 100);
+        viewport.perspCamera.updateProjectionMatrix();
+    }
+    if (viewport.orthoCamera) {
+        viewport.orthoSize = Math.max(0.5, maxDim * 1.48);
+        viewport.orthoCamera.zoom = 1;
+        viewport.orthoCamera.near = -Math.max(1000, dist * 20);
+        viewport.orthoCamera.far = Math.max(10000, dist * 100);
+        updateOrthoFrustum(viewport.orthoCamera, aspect, viewport.orthoSize);
+    }
     return { center, dist, maxDim };
 }
 
@@ -951,6 +1566,19 @@ export function updateCamTween(dt) {
     const s = smooth(Math.min(1, camTween.t / camTween.dur));
     viewport.camera.position.lerpVectors(camTween.fromPos, camTween.toPos, s);
     viewport.controls.target.lerpVectors(camTween.fromTg, camTween.toTg, s);
+    if (camTween.fromZoom !== undefined && camTween.toZoom !== undefined) {
+        viewport.camera.zoom = camTween.fromZoom + (camTween.toZoom - camTween.fromZoom) * s;
+    }
+    if (viewport.camera.isPerspectiveCamera && camTween.fromFov !== null && camTween.toFov !== null && camTween.toFov !== undefined) {
+        viewport.camera.fov = camTween.fromFov + (camTween.toFov - camTween.fromFov) * s;
+        viewport.camera.updateProjectionMatrix();
+    } else if (viewport.camera.isOrthographicCamera && camTween.fromOrthoSize !== null && camTween.toOrthoSize !== null && camTween.toOrthoSize !== undefined) {
+        const sz = cssSize();
+        viewport.orthoSize = camTween.fromOrthoSize + (camTween.toOrthoSize - camTween.fromOrthoSize) * s;
+        updateOrthoFrustum(viewport.camera, sz.w / Math.max(1, sz.h), viewport.orthoSize);
+    } else if (camTween.fromZoom !== undefined && camTween.toZoom !== undefined) {
+        viewport.camera.updateProjectionMatrix();
+    }
     if (camTween.t >= camTween.dur) appState.camTween = null;
 }
 
@@ -963,8 +1591,16 @@ export function initViewportScene() {
     viewport.scene.background = new THREE.Color(0xffffff);
 
     const { w, h } = cssSize();
-    viewport.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
-    viewport.camera.position.set(18, 16, 18);
+    const aspect = Math.max(0.05, w / Math.max(1, h));
+    viewport.perspCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 10000);
+    viewport.perspCamera.position.set(18, 16, 18);
+
+    const halfH = (viewport.orthoSize || 6) * 0.5;
+    viewport.orthoCamera = new THREE.OrthographicCamera(-halfH * aspect, halfH * aspect, halfH, -halfH, -1000, 10000);
+    viewport.orthoCamera.position.set(18, 16, 18);
+
+    viewport.projectionMode = 'perspective';
+    viewport.camera = viewport.perspCamera;
 
     viewport.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     viewport.renderer.setSize(w, h);
@@ -1177,8 +1813,14 @@ export function initViewportScene() {
 
     window.addEventListener('resize', () => {
         const sz = cssSize();
-        viewport.camera.aspect = sz.w / sz.h;
-        viewport.camera.updateProjectionMatrix();
+        const aspect = Math.max(0.05, sz.w / Math.max(1, sz.h));
+        if (viewport.perspCamera) {
+            viewport.perspCamera.aspect = aspect;
+            viewport.perspCamera.updateProjectionMatrix();
+        }
+        if (viewport.orthoCamera) {
+            updateOrthoFrustum(viewport.orthoCamera, aspect, viewport.orthoSize);
+        }
         viewport.renderer.setSize(sz.w, sz.h);
         sizeOverlay();
         viewport.fatMaterials.forEach(m => { if (m && m.resolution) m.resolution.set(sz.w, sz.h); });
@@ -1200,6 +1842,10 @@ export function initViewportScene() {
 
     viewport.requestRender = requestRender;
     viewport.setBusy = setBusy;
+    viewport.setProjectionMode = setProjectionMode;
+    viewport.getCameraBookmarkState = getCameraBookmarkState;
+    viewport.applyCameraBookmark = applyCameraBookmark;
+    viewport.captureHighResPNG = captureHighResPNG;
     return viewport;
 }
 
