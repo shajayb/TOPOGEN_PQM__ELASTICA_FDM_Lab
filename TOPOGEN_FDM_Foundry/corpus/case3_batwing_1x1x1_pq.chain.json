@@ -1,0 +1,194 @@
+{
+  "schema": "topogen-procedural-chain/v1",
+  "id": "case3_batwing_1x1x1_pq",
+  "name": "Case 3 — Batwing Custom Tile 1x1x1 + PQ Solidify",
+  "createdAt": "2026-11-26T12:00:00.000Z",
+  "updatedAt": "2026-11-26T12:00:00.000Z",
+  "notes": "Reproduces Corpus Image 3: imports TOPOGEN_FDM_Foundry/assets/inputs/batwing.obj (customOnly=true), 1x1x1 voxel grid, WFC collapse, PQ solidify (outerR=0.073, innerR=0, sides=8, subdivL=1, bisector=true, miterClamp=false, planarize=true, caps=true).",
+  "assets": [
+    {
+      "id": "batwing",
+      "originalName": "batwing.obj",
+      "repoRelativePath": "TOPOGEN_FDM_Foundry/assets/inputs/batwing.obj",
+      "sha256Short": "7afc2091597d",
+      "bytes": 5922,
+      "ext": ".obj"
+    }
+  ],
+  "bookmarks": [
+    {
+      "id": "ortho-top",
+      "name": "Ortho Top",
+      "projection": "orthographic",
+      "fov": 45,
+      "orthoSize": 8,
+      "position": [0, 10, 0.01],
+      "target": [0, 0, 0],
+      "up": [0, 0, -1],
+      "zoom": 1,
+      "spherical": { "azimuthDeg": 0, "elevationDeg": 89.5, "distanceScale": 1.35 },
+      "fitToScene": true,
+      "builtin": true
+    },
+    {
+      "id": "ortho-front",
+      "name": "Ortho Front",
+      "projection": "orthographic",
+      "fov": 45,
+      "orthoSize": 8,
+      "position": [0, 0, 10],
+      "target": [0, 0, 0],
+      "up": [0, 1, 0],
+      "zoom": 1,
+      "spherical": { "azimuthDeg": 0, "elevationDeg": 0, "distanceScale": 1.35 },
+      "fitToScene": true,
+      "builtin": true
+    },
+    {
+      "id": "ortho-right",
+      "name": "Ortho Right",
+      "projection": "orthographic",
+      "fov": 45,
+      "orthoSize": 8,
+      "position": [10, 0, 0],
+      "target": [0, 0, 0],
+      "up": [0, 1, 0],
+      "zoom": 1,
+      "spherical": { "azimuthDeg": 90, "elevationDeg": 0, "distanceScale": 1.35 },
+      "fitToScene": true,
+      "builtin": true
+    },
+    {
+      "id": "ortho-iso",
+      "name": "Ortho Iso",
+      "projection": "orthographic",
+      "fov": 45,
+      "orthoSize": 8,
+      "position": [10, 10, 10],
+      "target": [0, 0, 0],
+      "up": [0, 1, 0],
+      "zoom": 1,
+      "spherical": { "azimuthDeg": 45, "elevationDeg": 35.264, "distanceScale": 1.4 },
+      "fitToScene": true,
+      "builtin": true
+    },
+    {
+      "id": "persp-iso",
+      "name": "Persp ISO",
+      "projection": "perspective",
+      "fov": 45,
+      "position": [10, 8.2, 10],
+      "target": [0, 0, 0],
+      "up": [0, 1, 0],
+      "zoom": 1,
+      "spherical": { "azimuthDeg": 45, "elevationDeg": 30, "distanceScale": 1.45 },
+      "fitToScene": true,
+      "builtin": true
+    },
+    {
+      "id": "persp-front-left",
+      "name": "Persp Front-Left",
+      "projection": "perspective",
+      "fov": 45,
+      "position": [-7.5, 5.2, 10.7],
+      "target": [0, 0, 0],
+      "up": [0, 1, 0],
+      "zoom": 1,
+      "spherical": { "azimuthDeg": -35, "elevationDeg": 22, "distanceScale": 1.45 },
+      "fitToScene": true,
+      "builtin": true
+    },
+    {
+      "id": "persp-low",
+      "name": "Persp Low Hero",
+      "projection": "perspective",
+      "fov": 42,
+      "position": [6.5, 2.2, 10.4],
+      "target": [0, 0.3, 0],
+      "up": [0, 1, 0],
+      "zoom": 1,
+      "spherical": { "azimuthDeg": 32, "elevationDeg": 10, "distanceScale": 1.25 },
+      "fitToScene": true,
+      "builtin": true
+    }
+  ],
+  "steps": [
+    {
+      "index": 0,
+      "id": "step-01-tile_import",
+      "op": "tile_import",
+      "label": "Import Batwing OBJ Tile (Custom Only)",
+      "params": {
+        "assetId": "batwing",
+        "repoRelativePath": "TOPOGEN_FDM_Foundry/assets/inputs/batwing.obj",
+        "target": "tile",
+        "customOnly": true,
+        "fitToVoxel": true,
+        "subDiv": 0
+      },
+      "bookmarkId": "persp-iso",
+      "capture": true
+    },
+    {
+      "index": 1,
+      "id": "step-02-grid_config",
+      "op": "grid_config",
+      "label": "Configure 1x1x1 Voxel Grid",
+      "params": {
+        "nx": 1,
+        "ny": 1,
+        "nz": 1,
+        "voxelSize": 1.0
+      },
+      "bookmarkId": "persp-iso"
+    },
+    {
+      "index": 2,
+      "id": "step-03-wfc_collapse",
+      "op": "wfc_collapse",
+      "label": "Collapse 1x1x1 WFC Topology",
+      "params": {
+        "seed": 42,
+        "mode": "wfc"
+      },
+      "bookmarkId": "persp-iso",
+      "capture": true
+    },
+    {
+      "index": 3,
+      "id": "step-04-pq_config",
+      "op": "pq_config",
+      "label": "Configure PQ Solidifier (Miter Clamp OFF)",
+      "params": {
+        "outerR": 0.073,
+        "innerR": 0,
+        "sides": 8,
+        "subdivL": 1,
+        "bisector": true,
+        "miterClamp": false,
+        "planarize": true,
+        "caps": true
+      }
+    },
+    {
+      "index": 4,
+      "id": "step-05-pq_solidify",
+      "op": "pq_solidify",
+      "label": "Solidify Batwing PQ Tubular Mesh",
+      "params": {},
+      "bookmarkId": "persp-iso",
+      "capture": true
+    },
+    {
+      "index": 5,
+      "id": "step-06-camera_bookmark",
+      "op": "camera_bookmark",
+      "label": "Document Ortho Iso View",
+      "params": {
+        "bookmarkId": "ortho-iso"
+      },
+      "bookmarkId": "ortho-iso",
+      "capture": true
+    }
+  ]
+}

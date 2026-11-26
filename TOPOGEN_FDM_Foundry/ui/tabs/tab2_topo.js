@@ -346,6 +346,15 @@ export function setGridResolution(nx, ny = nx, nz = nx, opts = {}) {
     setup({ collapseAll: opts.collapseAll !== false, seedTile: opts.seedTile });
     draw();
     if (opts.zoom !== false) zoomToBox(modelBoxToWorld(appState.modelBox));
+    if (actions.recordChainStep) {
+        actions.recordChainStep('grid_config', {
+            x: appState.GRID_X,
+            y: appState.GRID_Y,
+            z: appState.GRID_Z,
+            voxelSize: appState.VOXEL_SIZE,
+            algorithm: appState.currentAlgorithm
+        }, { label: `Grid ${appState.GRID_X}×${appState.GRID_Y}×${appState.GRID_Z}` });
+    }
 }
 
 const inGridBounds = (x, y, z) => x >= 0 && x < appState.GRID_X && y >= 0 && y < appState.GRID_Y && z >= 0 && z < appState.GRID_Z;
@@ -1486,6 +1495,12 @@ export function initTab2Topo() {
             collapseFullGridImmediate();
             draw();
             zoomToBox(modelBoxToWorld(appState.modelBox));
+            if (actions.recordChainStep) {
+                actions.recordChainStep('wfc_collapse', {
+                    algorithm: appState.currentAlgorithm,
+                    grid: [appState.GRID_X, appState.GRID_Y, appState.GRID_Z]
+                }, { label: `Collapse ${appState.currentAlgorithm.toUpperCase()} (${appState.GRID_X}×${appState.GRID_Y}×${appState.GRID_Z})` });
+            }
         });
     }
 

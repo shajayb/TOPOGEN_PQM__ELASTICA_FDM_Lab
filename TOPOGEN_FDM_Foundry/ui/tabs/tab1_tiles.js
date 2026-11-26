@@ -408,6 +408,14 @@ export function renderTileCatalogUI() {
             TILES[id].enabled = !TILES[id].enabled;
             if (!TILES.some(t => t.enabled)) TILES[id].enabled = true;
             appState.inspectedTileId = id;
+            if (actions.recordChainStep) {
+                actions.recordChainStep('tile_toggle', {
+                    tileId: id,
+                    tileKey: TILES[id].key,
+                    tileName: TILES[id].name,
+                    enabled: TILES[id].enabled
+                }, { label: `${TILES[id].enabled ? 'Enable' : 'Disable'} ${TILES[id].name}` });
+            }
             if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
             if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate(TILES[id].enabled && id !== CORE.TILE_NULL ? id : null);
             renderTileCatalogUI();
@@ -420,12 +428,21 @@ export function renderTileCatalogUI() {
     containerEl.querySelectorAll('.tile-toggle-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const id = parseInt(btn.dataset.tileId, 10);
+            const prevEnabled = TILES[id].enabled;
             appState.inspectedTileId = id;
             if (e.shiftKey) {
                 TILES[id].enabled = !TILES[id].enabled;
                 if (!TILES.some(t => t.enabled)) TILES[id].enabled = true;
             } else if (id !== CORE.TILE_NULL && !TILES[id].enabled) {
                 TILES[id].enabled = true;
+            }
+            if (TILES[id].enabled !== prevEnabled && actions.recordChainStep) {
+                actions.recordChainStep('tile_toggle', {
+                    tileId: id,
+                    tileKey: TILES[id].key,
+                    tileName: TILES[id].name,
+                    enabled: TILES[id].enabled
+                }, { label: `${TILES[id].enabled ? 'Enable' : 'Disable'} ${TILES[id].name}` });
             }
             if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
             if (actions.clearUserImportedMeshes) actions.clearUserImportedMeshes();
@@ -1133,6 +1150,12 @@ export function initTab1Tiles() {
     actions.renderTileCatalogUI = renderTileCatalogUI;
     actions.setTileViewMode = setTileViewMode;
     actions.parseOBJMeshes = parseOBJMeshes;
+    actions.parse3dmMeshes = parse3dmMeshes;
+    actions.parse3dmCurvesAsGraph = parse3dmCurvesAsGraph;
+    actions.importMeshModuleFromData = importMeshModuleFromData;
+    actions.importCurveModuleFromData = importCurveModuleFromData;
+    actions.clearCustomGraphTiles = clearCustomGraphTiles;
+    actions.clearMeshOnlyTiles = clearMeshOnlyTiles;
     actions.catmullClarkSubdivide = catmullClarkSubdivide;
 
     const btnInsp = $('btn-tile-view-inspector');
@@ -1144,6 +1167,12 @@ export function initTab1Tiles() {
     if (btnAllOn) {
         btnAllOn.addEventListener('click', () => {
             appState.TILES.forEach((t, idx) => { t.enabled = idx > 0; });
+            if (actions.recordChainStep) {
+                actions.recordChainStep('tile_preset', {
+                    preset: 'all_on',
+                    enabledTiles: appState.TILES.filter(t => t.enabled).map(t => t.key)
+                }, { label: 'Enable All Tiles' });
+            }
             if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
             if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate(appState.inspectedTileId > 0 ? appState.inspectedTileId : CORE.TILE_CROSS);
             renderTileCatalogUI();
@@ -1157,6 +1186,12 @@ export function initTab1Tiles() {
         btnOrtho.addEventListener('click', () => {
             appState.TILES.forEach((t, idx) => { t.enabled = (idx >= 1 && idx <= 3); });
             appState.inspectedTileId = CORE.TILE_CROSS;
+            if (actions.recordChainStep) {
+                actions.recordChainStep('tile_preset', {
+                    preset: 'default_ortho',
+                    enabledTiles: appState.TILES.filter(t => t.enabled).map(t => t.key)
+                }, { label: 'Tile Preset: Ortho Set' });
+            }
             if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
             if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate(CORE.TILE_CROSS);
             renderTileCatalogUI();
@@ -1231,6 +1266,7 @@ export function initTab1Tiles() {
                 for (const file of files) {
                     const ext = file.name.toLowerCase().split('.').pop();
                     let parsedModules = [];
+                    let fileImported = false;
                     if (ext === 'obj') parsedModules = parseOBJMeshes(await file.text(), file.name);
                     else if (ext === '3dm') {
                         const buf = await file.arrayBuffer();
@@ -1241,7 +1277,7 @@ export function initTab1Tiles() {
                                 const tile = importCurveModuleFromData(crvMod.name, crvMod.verts, crvMod.edges, {
                                     normalize: chkNormVoxel ? chkNormVoxel.checked : true
                                 });
-                                if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; }
+                                if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; fileImported = true; }
                             }
                         }
                     }
@@ -1251,7 +1287,19 @@ export function initTab1Tiles() {
                             normalize: chkNormVoxel ? chkNormVoxel.checked : true,
                             skeletonize: appState.skeletonizeMeshTile
                         });
-                        if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; }
+                        if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; fileImported = true; }
+                    }
+                    if (fileImported && actions.recordChainStep) {
+                        const staged = actions.stageChainAsset ? await actions.stageChainAsset(file) : null;
+                        actions.recordChainStep('tile_import', {
+                            repoRelativePath: staged?.repoRelativePath || `TOPOGEN_FDM_Foundry/assets/inputs/${file.name}`,
+                            originalName: file.name,
+                            ccLevel: appState.ccSubdivLevel,
+                            normalize: chkNormVoxel ? chkNormVoxel.checked : true,
+                            skeletonize: Boolean(appState.skeletonizeMeshTile),
+                            meshOnly: false,
+                            customOnly: disableBuiltins
+                        }, { label: `Import Tile: ${file.name}` });
                     }
                 }
                 if (importedCount > 0 && lastImportedTile) {
@@ -1340,6 +1388,7 @@ export function initTab1Tiles() {
                 for (const file of files) {
                     const ext = file.name.toLowerCase().split('.').pop();
                     let parsedModules = [];
+                    let fileImported = false;
                     if (ext === 'obj') parsedModules = parseOBJMeshes(await file.text(), file.name);
                     else if (ext === '3dm') parsedModules = parse3dmMeshes(await file.arrayBuffer(), file.name);
                     for (const mod of parsedModules) {
@@ -1348,7 +1397,19 @@ export function initTab1Tiles() {
                             normalize: chkNorm ? chkNorm.checked : true,
                             meshOnly: true
                         });
-                        if (tile) { importedCount++; totalQuads += tile.quads.length; lastImportedTile = tile; }
+                        if (tile) { importedCount++; totalQuads += tile.quads.length; lastImportedTile = tile; fileImported = true; }
+                    }
+                    if (fileImported && actions.recordChainStep) {
+                        const staged = actions.stageChainAsset ? await actions.stageChainAsset(file) : null;
+                        actions.recordChainStep('tile_import', {
+                            repoRelativePath: staged?.repoRelativePath || `TOPOGEN_FDM_Foundry/assets/inputs/${file.name}`,
+                            originalName: file.name,
+                            ccLevel,
+                            normalize: chkNorm ? chkNorm.checked : true,
+                            skeletonize: false,
+                            meshOnly: true,
+                            customOnly: disableBuiltins
+                        }, { label: `Import Mesh Tile: ${file.name}` });
                     }
                 }
                 if (importedCount > 0 && lastImportedTile) {

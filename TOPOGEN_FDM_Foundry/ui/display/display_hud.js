@@ -24,6 +24,14 @@ import {
     requestRender,
     setBusy
 } from './viewport_scene.js';
+import {
+    getDefaultBookmarks,
+    getCustomBookmarks,
+    getBookmarkById,
+    saveCustomBookmark,
+    deleteCustomBookmark,
+    onBookmarksChange
+} from './camera_bookmarks.js';
 
 const TAB_SHORTCUT_ORDER = [
     'tab-tiles',
@@ -748,6 +756,9 @@ export function initDisplayHud() {
     // Compact Studio-Light `?` Keyboard Shortcuts button + popover in Viewport Display HUD (FR-B05-02)
     initKeyboardShortcutsHud();
 
+    // Compact Studio-Light Camera Bookmarks strip & Ortho/Persp toggle in Viewport Display HUD (FR-B06-02)
+    initCameraBookmarksHud();
+
     setGoldilocksMode('H1');
     setSidebarCompactMode(false);
 }
@@ -883,4 +894,224 @@ function initKeyboardShortcutsHud() {
             requestRender(15);
         }
     });
+}
+
+function escapeHtml(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+const DEFAULT_SHORT_LABELS = Object.freeze({
+    'persp-iso': 'ISO',
+    'persp-front-left': 'Front-L',
+    'persp-low': 'Low Hero',
+    'ortho-top': 'Top',
+    'ortho-front': 'Front',
+    'ortho-right': 'Right',
+    'ortho-iso': 'Iso'
+});
+
+function initCameraBookmarksHud() {
+    if (typeof document === 'undefined') return;
+
+    // 1. Compact projection badge in Display HUD header (visible even when minimized)
+    const displayHeader = $('display-hud-drag-header');
+    const actionsRow = displayHeader ? displayHeader.querySelector('.panel-actions') : null;
+    let headerProjBtn = $('btn-hud-proj-badge');
+    if (actionsRow && !headerProjBtn) {
+        headerProjBtn = document.createElement('button');
+        headerProjBtn.type = 'button';
+        headerProjBtn.id = 'btn-hud-proj-badge';
+        headerProjBtn.className = 'panel-btn cam-proj-badge';
+        headerProjBtn.textContent = 'PERSP';
+        headerProjBtn.title = 'Toggle Perspective / Orthographic Camera';
+        const anchorBtn = $('btn-shortcuts-help') || $('btn-display-hud-minimize');
+        if (anchorBtn && anchorBtn.parentNode === actionsRow) {
+            actionsRow.insertBefore(headerProjBtn, anchorBtn);
+        } else {
+            actionsRow.appendChild(headerProjBtn);
+        }
+    }
+
+    // 2. Camera Bookmarks strip inside #display-hud-collapsible
+    const hudBody = $('display-hud-collapsible');
+    let section = $('camera-bookmarks-section');
+    if (hudBody && !section) {
+        section = document.createElement('div');
+        section.id = 'camera-bookmarks-section';
+        section.className = 'cam-bm-section';
+        section.innerHTML = `
+            <div class="cam-bm-header">
+                <span class="cam-bm-title">Camera Views</span>
+                <div class="cam-bm-header-actions">
+                    <button type="button" id="btn-cam-proj-toggle" class="cam-bm-proj-btn" title="Switch Perspective / Orthographic projection">Persp</button>
+                    <button type="button" id="btn-cam-save-toggle" class="cad-btn cam-bm-save-btn" title="Save current camera view as a bookmark">+ Save View</button>
+                </div>
+            </div>
+            <div id="cam-save-row" class="cam-bm-save-row hidden">
+                <input id="inp-cam-bookmark-name" type="text" class="cam-bm-input" placeholder="View name…" maxlength="48" autocomplete="off">
+                <button type="button" id="btn-cam-save-confirm" class="cad-btn primary cam-bm-mini-btn">Save</button>
+                <button type="button" id="btn-cam-save-cancel" class="cad-btn cam-bm-mini-btn" title="Cancel">×</button>
+            </div>
+            <div class="cam-bm-group">
+                <span class="cam-bm-group-tag">Persp</span>
+                <div id="cam-persp-list" class="cam-bm-grid cam-bm-grid-3"></div>
+            </div>
+            <div class="cam-bm-group">
+                <span class="cam-bm-group-tag">Ortho</span>
+                <div id="cam-ortho-list" class="cam-bm-grid cam-bm-grid-4"></div>
+            </div>
+            <div id="cam-custom-wrap" class="cam-bm-custom-wrap hidden">
+                <span class="cam-bm-group-tag">Saved</span>
+                <div id="cam-custom-list" class="cam-bm-custom-list"></div>
+            </div>
+        `;
+        hudBody.appendChild(section);
+    }
+
+    const syncCameraBookmarkUI = () => {
+        const isOrtho = viewport.projectionMode === 'orthographic';
+        if (headerProjBtn) {
+            headerProjBtn.textContent = isOrtho ? 'ORTHO' : 'PERSP';
+            headerProjBtn.classList.toggle('is-ortho', isOrtho);
+        }
+        const projBtn = $('btn-cam-proj-toggle');
+        if (projBtn) {
+            projBtn.textContent = isOrtho ? 'Ortho' : 'Persp';
+            projBtn.classList.toggle('is-ortho', isOrtho);
+        }
+
+        const defaults = getDefaultBookmarks();
+        const perspList = $('cam-persp-list');
+        const orthoList = $('cam-ortho-list');
+        const activeId = viewport.activeBookmarkId;
+
+        if (perspList) {
+            perspList.innerHTML = defaults
+                .filter(b => b.projection === 'perspective')
+                .map(b => {
+                    const lbl = DEFAULT_SHORT_LABELS[b.id] || b.name;
+                    const activeCls = b.id === activeId ? ' is-active' : '';
+                    return `<button type="button" class="cad-btn cam-bm-btn${activeCls}" data-bookmark-id="${escapeHtml(b.id)}" title="${escapeHtml(b.name)}">${escapeHtml(lbl)}</button>`;
+                })
+                .join('');
+        }
+        if (orthoList) {
+            orthoList.innerHTML = defaults
+                .filter(b => b.projection === 'orthographic')
+                .map(b => {
+                    const lbl = DEFAULT_SHORT_LABELS[b.id] || b.name;
+                    const activeCls = b.id === activeId ? ' is-active' : '';
+                    return `<button type="button" class="cad-btn cam-bm-btn${activeCls}" data-bookmark-id="${escapeHtml(b.id)}" title="${escapeHtml(b.name)}">${escapeHtml(lbl)}</button>`;
+                })
+                .join('');
+        }
+
+        const customs = getCustomBookmarks();
+        const customWrap = $('cam-custom-wrap');
+        const customList = $('cam-custom-list');
+        if (customWrap && customList) {
+            customWrap.classList.toggle('hidden', customs.length === 0);
+            customList.innerHTML = customs.map(b => {
+                const activeCls = b.id === activeId ? ' is-active' : '';
+                const projTag = b.projection === 'orthographic' ? 'O' : 'P';
+                return `<span class="cam-bm-pill${activeCls}" data-bookmark-id="${escapeHtml(b.id)}" title="${escapeHtml(b.name)} (${b.projection})">` +
+                    `<button type="button" class="cam-bm-pill-apply" data-bookmark-id="${escapeHtml(b.id)}">` +
+                    `<span class="cam-bm-pill-proj">${projTag}</span>` +
+                    `<span class="cam-bm-pill-name">${escapeHtml(b.name)}</span>` +
+                    `</button>` +
+                    `<button type="button" class="cam-bm-pill-del" data-delete-bookmark-id="${escapeHtml(b.id)}" title="Delete bookmark">×</button>` +
+                    `</span>`;
+            }).join('');
+        }
+    };
+
+    const toggleProjection = (e) => {
+        if (e) e.stopPropagation();
+        const next = viewport.projectionMode === 'orthographic' ? 'perspective' : 'orthographic';
+        if (viewport.setProjectionMode) viewport.setProjectionMode(next);
+        syncCameraBookmarkUI();
+    };
+
+    if (headerProjBtn) headerProjBtn.addEventListener('click', toggleProjection);
+    const projToggleBtn = $('btn-cam-proj-toggle');
+    if (projToggleBtn) projToggleBtn.addEventListener('click', toggleProjection);
+
+    const saveRow = $('cam-save-row');
+    const nameInput = $('inp-cam-bookmark-name');
+    const openSaveRow = (open) => {
+        if (!saveRow) return;
+        saveRow.classList.toggle('hidden', !open);
+        if (open && nameInput) {
+            nameInput.value = '';
+            setTimeout(() => nameInput.focus(), 10);
+        }
+    };
+
+    const commitSaveBookmark = () => {
+        if (!viewport.getCameraBookmarkState) return;
+        const label = nameInput ? nameInput.value.trim() : '';
+        const state = viewport.getCameraBookmarkState();
+        const saved = saveCustomBookmark(label || undefined, state);
+        viewport.activeBookmarkId = saved.id;
+        openSaveRow(false);
+        syncCameraBookmarkUI();
+        showToast(`Saved view: ${saved.name}`, { tone: 'success' });
+    };
+
+    const btnSaveToggle = $('btn-cam-save-toggle');
+    if (btnSaveToggle) {
+        btnSaveToggle.addEventListener('click', () => {
+            const isHidden = saveRow ? saveRow.classList.contains('hidden') : true;
+            openSaveRow(isHidden);
+        });
+    }
+    const btnSaveConfirm = $('btn-cam-save-confirm');
+    if (btnSaveConfirm) btnSaveConfirm.addEventListener('click', commitSaveBookmark);
+    const btnSaveCancel = $('btn-cam-save-cancel');
+    if (btnSaveCancel) btnSaveCancel.addEventListener('click', () => openSaveRow(false));
+    if (nameInput) {
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                commitSaveBookmark();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                openSaveRow(false);
+            }
+        });
+    }
+
+    if (section) {
+        section.addEventListener('click', (e) => {
+            const delBtn = e.target.closest('[data-delete-bookmark-id]');
+            if (delBtn) {
+                e.stopPropagation();
+                const id = delBtn.dataset.deleteBookmarkId;
+                if (deleteCustomBookmark(id)) {
+                    if (viewport.activeBookmarkId === id) viewport.activeBookmarkId = null;
+                    syncCameraBookmarkUI();
+                    showToast('Deleted camera bookmark', { tone: 'info' });
+                }
+                return;
+            }
+            const applyEl = e.target.closest('[data-bookmark-id]');
+            if (applyEl && !e.target.closest('[data-delete-bookmark-id]')) {
+                const id = applyEl.dataset.bookmarkId;
+                const bm = getBookmarkById(id);
+                if (bm && viewport.applyCameraBookmark) {
+                    viewport.applyCameraBookmark(bm, { animate: true });
+                    if (actions.onCameraBookmarkSelected) actions.onCameraBookmarkSelected(bm);
+                    syncCameraBookmarkUI();
+                }
+            }
+        });
+    }
+
+    actions.syncCameraBookmarkUI = syncCameraBookmarkUI;
+    onBookmarksChange(() => syncCameraBookmarkUI());
+    syncCameraBookmarkUI();
 }

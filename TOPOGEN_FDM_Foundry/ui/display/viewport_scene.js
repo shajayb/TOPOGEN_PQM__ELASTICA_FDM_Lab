@@ -20,6 +20,7 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { appState, actions, PALETTE, $ } from '../state/workbench_state.js';
+import { getBookmarkById } from './camera_bookmarks.js';
 
 export const viewport = {
     container: null,
@@ -27,6 +28,11 @@ export const viewport = {
     octx: null,
     scene: null,
     camera: null,
+    perspCamera: null,
+    orthoCamera: null,
+    projectionMode: 'perspective',
+    orthoSize: 6,
+    activeBookmarkId: null,
     renderer: null,
     controls: null,
     tControls: null,
@@ -54,7 +60,11 @@ export const viewport = {
     cvGroup: null,
     fatMaterials: [],
     requestRender: null,
-    setBusy: null
+    setBusy: null,
+    setProjectionMode: null,
+    getCameraBookmarkState: null,
+    applyCameraBookmark: null,
+    captureHighResPNG: null
 };
 
 export const sharedMaterials = {};
@@ -248,15 +258,319 @@ export function clearGroup(group) {
 
 const smooth = x => x * x * (3 - 2 * x);
 
+function round5(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n * 1e5) / 1e5 : 0;
+}
+
+function updateOrthoFrustum(orthoCam, aspect, orthoSize) {
+    if (!orthoCam) return;
+    const a = Math.max(0.05, Number(aspect) || 1);
+    const halfH = Math.max(0.05, (Number(orthoSize) || 6) * 0.5);
+    orthoCam.left = -halfH * a;
+    orthoCam.right = halfH * a;
+    orthoCam.top = halfH;
+    orthoCam.bottom = -halfH;
+    orthoCam.updateProjectionMatrix();
+}
+
+export function setProjectionMode(mode, { preserveFraming = true } = {}) {
+    const nextMode = String(mode || 'perspective').toLowerCase().startsWith('ortho')
+        ? 'orthographic'
+        : 'perspective';
+    if (!viewport.perspCamera || !viewport.orthoCamera) {
+        viewport.projectionMode = nextMode;
+        return nextMode;
+    }
+
+    const prevMode = viewport.projectionMode;
+    const prevCam = viewport.camera || viewport.perspCamera;
+    const nextCam = nextMode === 'orthographic' ? viewport.orthoCamera : viewport.perspCamera;
+    const sz = cssSize();
+    const aspect = Math.max(0.05, sz.w / Math.max(1, sz.h));
+    const target = viewport.controls ? viewport.controls.target.clone() : new THREE.Vector3();
+
+    if (prevMode !== nextMode && preserveFraming && prevCam) {
+        const offset = prevCam.position.clone().sub(target);
+        const dist = Math.max(offset.length(), 0.05);
+        const dir = offset.lengthSq() > 1e-10 ? offset.clone().normalize() : new THREE.Vector3(0.68, 0.52, 0.78).normalize();
+
+        nextCam.up.copy(prevCam.up);
+        if (nextMode === 'orthographic') {
+            const fovRad = THREE.MathUtils.degToRad(viewport.perspCamera.fov || 45);
+            const visH = (2 * dist * Math.tan(fovRad * 0.5)) / Math.max(0.05, viewport.perspCamera.zoom || 1);
+            viewport.orthoSize = Math.max(0.1, visH);
+            nextCam.zoom = 1;
+            nextCam.position.copy(prevCam.position);
+            nextCam.near = -Math.max(1000, dist * 20);
+            nextCam.far = Math.max(10000, dist * 100);
+            updateOrthoFrustum(nextCam, aspect, viewport.orthoSize);
+        } else {
+            const visH = Math.max(0.1, (viewport.orthoSize || 6) / Math.max(0.05, viewport.orthoCamera.zoom || 1));
+            const fovRad = THREE.MathUtils.degToRad(viewport.perspCamera.fov || 45);
+            const nextDist = Math.max(0.1, visH / (2 * Math.tan(fovRad * 0.5)));
+            nextCam.zoom = 1;
+            nextCam.position.copy(target).addScaledVector(dir, nextDist);
+            nextCam.aspect = aspect;
+            nextCam.near = Math.max(nextDist / 2000, 0.001);
+            nextCam.far = Math.max(10000, nextDist * 100);
+            nextCam.updateProjectionMatrix();
+        }
+    } else if (nextMode === 'orthographic') {
+        updateOrthoFrustum(nextCam, aspect, viewport.orthoSize);
+    } else {
+        nextCam.aspect = aspect;
+        nextCam.updateProjectionMatrix();
+    }
+
+    viewport.projectionMode = nextMode;
+    viewport.camera = nextCam;
+    if (viewport.controls) {
+        viewport.controls.object = nextCam;
+        viewport.controls.update();
+    }
+    if (viewport.tControls) {
+        viewport.tControls.camera = nextCam;
+    }
+    if (actions.syncCameraBookmarkUI) actions.syncCameraBookmarkUI();
+    requestRender(15);
+    return nextMode;
+}
+
+export function getCameraBookmarkState() {
+    const cam = viewport.camera || viewport.perspCamera;
+    const tgt = viewport.controls ? viewport.controls.target : new THREE.Vector3();
+    if (!cam) {
+        return {
+            projection: viewport.projectionMode || 'perspective',
+            position: [6.8, 5.2, 7.8],
+            target: [0, 1.5, 0],
+            up: [0, 1, 0],
+            fov: 45,
+            zoom: 1,
+            orthoSize: viewport.orthoSize || 6
+        };
+    }
+    const state = {
+        projection: viewport.projectionMode === 'orthographic' ? 'orthographic' : 'perspective',
+        position: [round5(cam.position.x), round5(cam.position.y), round5(cam.position.z)],
+        target: [round5(tgt.x), round5(tgt.y), round5(tgt.z)],
+        up: [round5(cam.up.x), round5(cam.up.y), round5(cam.up.z)],
+        zoom: round5(cam.zoom || 1)
+    };
+    if (state.projection === 'orthographic') {
+        state.orthoSize = round5(viewport.orthoSize || 6);
+    } else {
+        state.fov = round5(viewport.perspCamera ? viewport.perspCamera.fov : 45);
+    }
+    return state;
+}
+
+export function applyCameraBookmark(bookmark, opts = {}) {
+    const bm = typeof bookmark === 'string' ? getBookmarkById(bookmark) : bookmark;
+    if (!bm || typeof bm !== 'object') return null;
+
+    const animate = Boolean(opts.animate);
+    const fitBounds = opts.fitBounds !== undefined
+        ? Boolean(opts.fitBounds)
+        : (bm.fitToScene !== undefined ? Boolean(bm.fitToScene) : Boolean(bm.builtin));
+    const proj = String(bm.projection || 'perspective').toLowerCase().startsWith('ortho')
+        ? 'orthographic'
+        : 'perspective';
+
+    appState.camTween = null;
+    setProjectionMode(proj, { preserveFraming: false });
+
+    const cam = viewport.camera;
+    if (!cam) return null;
+
+    const sz = cssSize();
+    const aspect = Math.max(0.05, sz.w / Math.max(1, sz.h));
+    const bmPos = Array.isArray(bm.position) && bm.position.length >= 3
+        ? new THREE.Vector3(Number(bm.position[0]) || 0, Number(bm.position[1]) || 0, Number(bm.position[2]) || 0)
+        : new THREE.Vector3(6.8, 5.2, 7.8);
+    const bmTgt = Array.isArray(bm.target) && bm.target.length >= 3
+        ? new THREE.Vector3(Number(bm.target[0]) || 0, Number(bm.target[1]) || 0, Number(bm.target[2]) || 0)
+        : new THREE.Vector3(0, 1.5, 0);
+    const bmUp = Array.isArray(bm.up) && bm.up.length >= 3
+        ? new THREE.Vector3(Number(bm.up[0]) || 0, Number(bm.up[1]) || 1, Number(bm.up[2]) || 0)
+        : new THREE.Vector3(0, 1, 0);
+    if (bmUp.lengthSq() < 1e-8) bmUp.set(0, 1, 0);
+    bmUp.normalize();
+
+    let toPos = bmPos.clone();
+    let toTg = bmTgt.clone();
+    let toFov = Math.max(10, Math.min(120, Number(bm.fov) || 45));
+    let toZoom = Math.max(0.05, Math.min(50, Number(bm.zoom) || 1));
+    let toOrthoSize = Math.max(0.1, Number(bm.orthoSize) || 6);
+
+    if (fitBounds) {
+        if (appState.modelBox.isEmpty()) recomputeModelBox({ skipBBox: true });
+        const boxWorld = modelBoxToWorld(appState.modelBox);
+        if (boxWorld && !boxWorld.isEmpty()) {
+            const center = boxWorld.getCenter(new THREE.Vector3());
+            const size = boxWorld.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z, 1.15);
+            const rawDir = bmPos.clone().sub(bmTgt);
+            const dir = rawDir.lengthSq() > 1e-10 ? rawDir.normalize() : new THREE.Vector3(0.68, 0.52, 0.78).normalize();
+            toTg.copy(center);
+            if (proj === 'orthographic') {
+                toOrthoSize = Math.max(0.5, maxDim * 1.48);
+                const dist = Math.max(maxDim * 3.0, 12);
+                toPos.copy(center).addScaledVector(dir, dist);
+            } else {
+                const fovRad = THREE.MathUtils.degToRad(toFov);
+                const dist = Math.abs(maxDim / 2 / Math.tan(fovRad / 2)) * 1.48;
+                toPos.copy(center).addScaledVector(dir, dist);
+            }
+        }
+    }
+
+    cam.up.copy(bmUp);
+    viewport.activeBookmarkId = bm.id || null;
+
+    if (animate && viewport.controls) {
+        appState.camTween = {
+            t: 0,
+            dur: 0.32,
+            fromPos: cam.position.clone(),
+            toPos,
+            fromTg: viewport.controls.target.clone(),
+            toTg,
+            fromZoom: cam.zoom || 1,
+            toZoom,
+            fromFov: proj === 'perspective' ? (cam.fov || 45) : null,
+            toFov: proj === 'perspective' ? toFov : null,
+            fromOrthoSize: proj === 'orthographic' ? (viewport.orthoSize || 6) : null,
+            toOrthoSize: proj === 'orthographic' ? toOrthoSize : null
+        };
+        if (actions.syncCameraBookmarkUI) actions.syncCameraBookmarkUI();
+        requestRender(25);
+        return getCameraBookmarkState();
+    }
+
+    cam.position.copy(toPos);
+    cam.zoom = toZoom;
+    if (proj === 'orthographic') {
+        const dist = Math.max(toPos.distanceTo(toTg), 1);
+        viewport.orthoSize = toOrthoSize;
+        cam.near = -Math.max(1000, dist * 20);
+        cam.far = Math.max(10000, dist * 100);
+        updateOrthoFrustum(cam, aspect, viewport.orthoSize);
+    } else {
+        const dist = Math.max(toPos.distanceTo(toTg), 0.1);
+        cam.fov = toFov;
+        cam.aspect = aspect;
+        cam.near = Math.max(dist / 2000, 0.001);
+        cam.far = Math.max(10000, dist * 100);
+        cam.updateProjectionMatrix();
+    }
+    if (viewport.controls) {
+        viewport.controls.target.copy(toTg);
+        viewport.controls.update();
+    } else {
+        cam.lookAt(toTg);
+    }
+    if (viewport.renderer && viewport.scene) {
+        renderFrame();
+    }
+    if (actions.syncCameraBookmarkUI) actions.syncCameraBookmarkUI();
+    requestRender(15);
+    return getCameraBookmarkState();
+}
+
+export function captureHighResPNG({ width = 1920, height = 1080, bookmark = null, background = null } = {}) {
+    if (!viewport.renderer || !viewport.scene || !viewport.camera) {
+        throw new Error('Viewport renderer is not initialized');
+    }
+
+    const capW = Math.max(64, Math.min(4096, Math.round(Number(width) || 1920)));
+    const capH = Math.max(64, Math.min(4096, Math.round(Number(height) || 1080)));
+    const capAspect = capW / capH;
+
+    const savedCamState = getCameraBookmarkState();
+    const savedBookmarkId = viewport.activeBookmarkId;
+    const savedPixelRatio = viewport.renderer.getPixelRatio();
+    const savedSize = viewport.renderer.getSize(new THREE.Vector2());
+    const savedBg = viewport.scene.background;
+    const savedFatRes = viewport.fatMaterials.map(m => (m && m.resolution ? m.resolution.clone() : null));
+
+    try {
+        if (bookmark) {
+            applyCameraBookmark(bookmark, { animate: false });
+        }
+        if (background !== null && background !== undefined) {
+            viewport.scene.background = background instanceof THREE.Color ? background : new THREE.Color(background);
+        }
+
+        // Resize backing buffer only (updateStyle=false) so live CSS layout never flickers
+        viewport.renderer.setPixelRatio(1);
+        viewport.renderer.setSize(capW, capH, false);
+
+        const activeCam = viewport.camera;
+        if (activeCam.isOrthographicCamera) {
+            updateOrthoFrustum(activeCam, capAspect, viewport.orthoSize);
+        } else {
+            activeCam.aspect = capAspect;
+            activeCam.updateProjectionMatrix();
+        }
+        viewport.fatMaterials.forEach(m => {
+            if (m && m.resolution) m.resolution.set(capW, capH);
+        });
+
+        viewport.renderer.render(viewport.scene, activeCam);
+        return viewport.renderer.domElement.toDataURL('image/png');
+    } finally {
+        viewport.scene.background = savedBg;
+        viewport.renderer.setPixelRatio(savedPixelRatio);
+        viewport.renderer.setSize(savedSize.x, savedSize.y, false);
+        viewport.fatMaterials.forEach((m, idx) => {
+            if (m && m.resolution && savedFatRes[idx]) {
+                m.resolution.copy(savedFatRes[idx]);
+            }
+        });
+
+        if (bookmark) {
+            applyCameraBookmark(savedCamState, { animate: false, fitBounds: false });
+            viewport.activeBookmarkId = savedBookmarkId;
+        } else {
+            const liveAspect = Math.max(0.05, savedSize.x / Math.max(1, savedSize.y));
+            if (viewport.perspCamera) {
+                viewport.perspCamera.aspect = liveAspect;
+                viewport.perspCamera.updateProjectionMatrix();
+            }
+            if (viewport.orthoCamera) {
+                updateOrthoFrustum(viewport.orthoCamera, liveAspect, viewport.orthoSize);
+            }
+        }
+        viewport.renderer.render(viewport.scene, viewport.camera);
+        if (actions.syncCameraBookmarkUI) actions.syncCameraBookmarkUI();
+        requestRender(5);
+    }
+}
+
 export function frameBoxParams(boxWorld) {
     const center = boxWorld.getCenter(new THREE.Vector3());
     const size = boxWorld.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 1.15);
-    const fov = viewport.camera.fov * (Math.PI / 180);
+    const fovDeg = viewport.perspCamera ? viewport.perspCamera.fov : 45;
+    const fov = fovDeg * (Math.PI / 180);
     const dist = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 1.48;
-    viewport.camera.near = Math.max(dist / 2000, 0.001);
-    viewport.camera.far = Math.max(10000, dist * 100);
-    viewport.camera.updateProjectionMatrix();
+    const sz = cssSize();
+    const aspect = Math.max(0.05, sz.w / Math.max(1, sz.h));
+
+    if (viewport.perspCamera) {
+        viewport.perspCamera.near = Math.max(dist / 2000, 0.001);
+        viewport.perspCamera.far = Math.max(10000, dist * 100);
+        viewport.perspCamera.updateProjectionMatrix();
+    }
+    if (viewport.orthoCamera) {
+        viewport.orthoSize = Math.max(0.5, maxDim * 1.48);
+        viewport.orthoCamera.zoom = 1;
+        viewport.orthoCamera.near = -Math.max(1000, dist * 20);
+        viewport.orthoCamera.far = Math.max(10000, dist * 100);
+        updateOrthoFrustum(viewport.orthoCamera, aspect, viewport.orthoSize);
+    }
     return { center, dist, maxDim };
 }
 
@@ -951,6 +1265,19 @@ export function updateCamTween(dt) {
     const s = smooth(Math.min(1, camTween.t / camTween.dur));
     viewport.camera.position.lerpVectors(camTween.fromPos, camTween.toPos, s);
     viewport.controls.target.lerpVectors(camTween.fromTg, camTween.toTg, s);
+    if (camTween.fromZoom !== undefined && camTween.toZoom !== undefined) {
+        viewport.camera.zoom = camTween.fromZoom + (camTween.toZoom - camTween.fromZoom) * s;
+    }
+    if (viewport.camera.isPerspectiveCamera && camTween.fromFov !== null && camTween.toFov !== null && camTween.toFov !== undefined) {
+        viewport.camera.fov = camTween.fromFov + (camTween.toFov - camTween.fromFov) * s;
+        viewport.camera.updateProjectionMatrix();
+    } else if (viewport.camera.isOrthographicCamera && camTween.fromOrthoSize !== null && camTween.toOrthoSize !== null && camTween.toOrthoSize !== undefined) {
+        const sz = cssSize();
+        viewport.orthoSize = camTween.fromOrthoSize + (camTween.toOrthoSize - camTween.fromOrthoSize) * s;
+        updateOrthoFrustum(viewport.camera, sz.w / Math.max(1, sz.h), viewport.orthoSize);
+    } else if (camTween.fromZoom !== undefined && camTween.toZoom !== undefined) {
+        viewport.camera.updateProjectionMatrix();
+    }
     if (camTween.t >= camTween.dur) appState.camTween = null;
 }
 
@@ -963,8 +1290,16 @@ export function initViewportScene() {
     viewport.scene.background = new THREE.Color(0xffffff);
 
     const { w, h } = cssSize();
-    viewport.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
-    viewport.camera.position.set(18, 16, 18);
+    const aspect = Math.max(0.05, w / Math.max(1, h));
+    viewport.perspCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 10000);
+    viewport.perspCamera.position.set(18, 16, 18);
+
+    const halfH = (viewport.orthoSize || 6) * 0.5;
+    viewport.orthoCamera = new THREE.OrthographicCamera(-halfH * aspect, halfH * aspect, halfH, -halfH, -1000, 10000);
+    viewport.orthoCamera.position.set(18, 16, 18);
+
+    viewport.projectionMode = 'perspective';
+    viewport.camera = viewport.perspCamera;
 
     viewport.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     viewport.renderer.setSize(w, h);
@@ -1177,8 +1512,14 @@ export function initViewportScene() {
 
     window.addEventListener('resize', () => {
         const sz = cssSize();
-        viewport.camera.aspect = sz.w / sz.h;
-        viewport.camera.updateProjectionMatrix();
+        const aspect = Math.max(0.05, sz.w / Math.max(1, sz.h));
+        if (viewport.perspCamera) {
+            viewport.perspCamera.aspect = aspect;
+            viewport.perspCamera.updateProjectionMatrix();
+        }
+        if (viewport.orthoCamera) {
+            updateOrthoFrustum(viewport.orthoCamera, aspect, viewport.orthoSize);
+        }
         viewport.renderer.setSize(sz.w, sz.h);
         sizeOverlay();
         viewport.fatMaterials.forEach(m => { if (m && m.resolution) m.resolution.set(sz.w, sz.h); });
@@ -1200,6 +1541,10 @@ export function initViewportScene() {
 
     viewport.requestRender = requestRender;
     viewport.setBusy = setBusy;
+    viewport.setProjectionMode = setProjectionMode;
+    viewport.getCameraBookmarkState = getCameraBookmarkState;
+    viewport.applyCameraBookmark = applyCameraBookmark;
+    viewport.captureHighResPNG = captureHighResPNG;
     return viewport;
 }
 
