@@ -1266,7 +1266,7 @@ export function initTab1Tiles() {
                 for (const file of files) {
                     const ext = file.name.toLowerCase().split('.').pop();
                     let parsedModules = [];
-                    let fileImported = false;
+                    const fileTiles = [];
                     if (ext === 'obj') parsedModules = parseOBJMeshes(await file.text(), file.name);
                     else if (ext === '3dm') {
                         const buf = await file.arrayBuffer();
@@ -1277,7 +1277,7 @@ export function initTab1Tiles() {
                                 const tile = importCurveModuleFromData(crvMod.name, crvMod.verts, crvMod.edges, {
                                     normalize: chkNormVoxel ? chkNormVoxel.checked : true
                                 });
-                                if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; fileImported = true; }
+                                if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; fileTiles.push(tile); }
                             }
                         }
                     }
@@ -1287,19 +1287,37 @@ export function initTab1Tiles() {
                             normalize: chkNormVoxel ? chkNormVoxel.checked : true,
                             skeletonize: appState.skeletonizeMeshTile
                         });
-                        if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; fileImported = true; }
+                        if (tile) { importedCount++; totalEdges += tile.graph.edges.length; lastImportedTile = tile; fileTiles.push(tile); }
                     }
-                    if (fileImported && actions.recordChainStep) {
+                    if (fileTiles.length > 0) {
                         const staged = actions.stageChainAsset ? await actions.stageChainAsset(file) : null;
-                        actions.recordChainStep('tile_import', {
+                        const sourceAsset = {
                             repoRelativePath: staged?.repoRelativePath || `TOPOGEN_FDM_Foundry/assets/inputs/${file.name}`,
+                            fileName: file.name,
                             originalName: file.name,
-                            ccLevel: appState.ccSubdivLevel,
-                            normalize: chkNormVoxel ? chkNormVoxel.checked : true,
+                            customOnly: disableBuiltins,
+                            fitToVoxel: chkNormVoxel ? chkNormVoxel.checked : true,
+                            subDiv: appState.ccSubdivLevel,
                             skeletonize: Boolean(appState.skeletonizeMeshTile),
                             meshOnly: false,
-                            customOnly: disableBuiltins
-                        }, { label: `Import Tile: ${file.name}` });
+                            sha256Short: staged?.sha256Short || '',
+                            bytes: staged?.bytes || 0,
+                            ext: staged?.ext || `.${ext}`
+                        };
+                        for (const t of fileTiles) t._sourceAsset = { ...sourceAsset };
+                        if (actions.recordChainStep) {
+                            actions.recordChainStep('tile_import', {
+                                repoRelativePath: sourceAsset.repoRelativePath,
+                                originalName: file.name,
+                                ccLevel: appState.ccSubdivLevel,
+                                subDiv: appState.ccSubdivLevel,
+                                normalize: sourceAsset.fitToVoxel,
+                                fitToVoxel: sourceAsset.fitToVoxel,
+                                skeletonize: sourceAsset.skeletonize,
+                                meshOnly: false,
+                                customOnly: disableBuiltins
+                            }, { label: `Import Tile: ${file.name}` });
+                        }
                     }
                 }
                 if (importedCount > 0 && lastImportedTile) {
@@ -1388,7 +1406,7 @@ export function initTab1Tiles() {
                 for (const file of files) {
                     const ext = file.name.toLowerCase().split('.').pop();
                     let parsedModules = [];
-                    let fileImported = false;
+                    const fileTiles = [];
                     if (ext === 'obj') parsedModules = parseOBJMeshes(await file.text(), file.name);
                     else if (ext === '3dm') parsedModules = parse3dmMeshes(await file.arrayBuffer(), file.name);
                     for (const mod of parsedModules) {
@@ -1397,19 +1415,38 @@ export function initTab1Tiles() {
                             normalize: chkNorm ? chkNorm.checked : true,
                             meshOnly: true
                         });
-                        if (tile) { importedCount++; totalQuads += tile.quads.length; lastImportedTile = tile; fileImported = true; }
+                        if (tile) { importedCount++; totalQuads += tile.quads.length; lastImportedTile = tile; fileTiles.push(tile); }
                     }
-                    if (fileImported && actions.recordChainStep) {
+                    if (fileTiles.length > 0) {
                         const staged = actions.stageChainAsset ? await actions.stageChainAsset(file) : null;
-                        actions.recordChainStep('tile_import', {
+                        const sourceAsset = {
                             repoRelativePath: staged?.repoRelativePath || `TOPOGEN_FDM_Foundry/assets/inputs/${file.name}`,
+                            fileName: file.name,
                             originalName: file.name,
-                            ccLevel,
-                            normalize: chkNorm ? chkNorm.checked : true,
+                            customOnly: disableBuiltins,
+                            fitToVoxel: chkNorm ? chkNorm.checked : true,
+                            subDiv: ccLevel,
                             skeletonize: false,
                             meshOnly: true,
-                            customOnly: disableBuiltins
-                        }, { label: `Import Mesh Tile: ${file.name}` });
+                            sha256Short: staged?.sha256Short || '',
+                            bytes: staged?.bytes || 0,
+                            ext: staged?.ext || `.${ext}`
+                        };
+                        for (const t of fileTiles) t._sourceAsset = { ...sourceAsset };
+                        if (actions.recordChainStep) {
+                            actions.recordChainStep('tile_import', {
+                                repoRelativePath: sourceAsset.repoRelativePath,
+                                originalName: file.name,
+                                target: 'mesh_tile',
+                                ccLevel,
+                                subDiv: ccLevel,
+                                normalize: sourceAsset.fitToVoxel,
+                                fitToVoxel: sourceAsset.fitToVoxel,
+                                skeletonize: false,
+                                meshOnly: true,
+                                customOnly: disableBuiltins
+                            }, { label: `Import Mesh Tile: ${file.name}` });
+                        }
                     }
                 }
                 if (importedCount > 0 && lastImportedTile) {

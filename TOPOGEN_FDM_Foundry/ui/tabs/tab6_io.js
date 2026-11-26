@@ -866,8 +866,8 @@ export function initTab6Io() {
     });
 
     bind('btn-chain-save-repo', async () => {
-        const chain = getChain();
-        if (!chain.steps.length) {
+        const chain = getLoadedChain();
+        if (!chain || !chain.steps || !chain.steps.length) {
             setChainStatus('Nothing to save — perform actions or load a chain first.');
             return;
         }

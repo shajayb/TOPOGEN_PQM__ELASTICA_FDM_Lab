@@ -102,12 +102,50 @@ export function isReplaying() {
 }
 
 export function getChain() {
+    if (_loadedChain && _chain.steps.length === 0) {
+        return _loadedChain;
+    }
     _chain.bookmarks = exportBookmarks();
     return _chain;
 }
 
 export function getLoadedChain() {
     return _loadedChain || getChain();
+}
+
+function inheritLoadedChainIntoLive() {
+    if (!_loadedChain) return false;
+    const src = _loadedChain;
+    const srcSteps = Array.isArray(src.steps) ? src.steps : [];
+    const cutCount = (_currentStageIndex >= 0 && _currentStageIndex < srcSteps.length)
+        ? (_currentStageIndex + 1)
+        : srcSteps.length;
+    const inheritedSteps = JSON.parse(JSON.stringify(srcSteps.slice(0, cutCount)));
+
+    const nextChain = createProceduralChain({
+        id: `${src.id || 'session'}-edited`,
+        name: src.name ? `${src.name} (Edited)` : 'Edited Procedural Chain',
+        notes: src.notes || '',
+        bookmarks: Array.isArray(src.bookmarks) && src.bookmarks.length > 0
+            ? JSON.parse(JSON.stringify(src.bookmarks))
+            : exportBookmarks()
+    });
+
+    if (Array.isArray(src.assets)) {
+        for (const a of src.assets) {
+            if (a && a.repoRelativePath) {
+                registerChainAsset(nextChain, a);
+            }
+        }
+    }
+    nextChain.steps = inheritedSteps;
+    reindexChainSteps(nextChain);
+    nextChain.updatedAt = new Date().toISOString();
+
+    _chain = nextChain;
+    _loadedChain = null;
+    _loadedSourceLabel = nextChain.name;
+    return true;
 }
 
 export function getStepCount() {
@@ -183,28 +221,82 @@ export function ensureBaselineSteps(chain = _chain) {
     const hasGridStep = chain.steps.some((s) => s && BASELINE_GRID_OPS.has(s.op));
     if (hasTileStep || hasGridStep) return false;
 
-    const enabledIds = captureEnabledTileIds();
-    const enabledKeys = (appState.TILES || []).filter((t) => t && t.enabled).map((t) => t.key).filter(Boolean);
+    const enabledTiles = (appState.TILES || []).filter((t) => t && t.enabled);
+    const enabledBuiltins = enabledTiles.filter((t) => !t.isCustomGraph);
+    const enabledCustomWithAsset = enabledTiles.filter((t) => t.isCustomGraph && t._sourceAsset && t._sourceAsset.repoRelativePath);
+
     const gx = appState.GRID_X || 3;
     const gy = appState.GRID_Y || 3;
     const gz = appState.GRID_Z || 4;
     const algo = appState.currentAlgorithm || 'wfc';
     const voxelGrid = captureCompactVoxelGrid();
 
-    const baselineSteps = [
-        {
+    const baselineSteps = [];
+    const seenAssetPaths = new Set();
+
+    if (enabledCustomWithAsset.length > 0) {
+        for (const ct of enabledCustomWithAsset) {
+            const src = ct._sourceAsset;
+            const normPath = normalizeRepoRelativePath(src.repoRelativePath);
+            if (seenAssetPaths.has(normPath)) continue;
+            seenAssetPaths.add(normPath);
+            const assetRec = registerChainAsset(chain, {
+                repoRelativePath: normPath,
+                originalName: src.originalName || src.fileName || normPath.split('/').pop(),
+                sha256Short: src.sha256Short || '',
+                bytes: src.bytes || 0,
+                ext: src.ext || ''
+            });
+            baselineSteps.push({
+                index: baselineSteps.length,
+                id: `step-${String(baselineSteps.length + 1).padStart(2, '0')}-tile_import`,
+                op: 'tile_import',
+                label: `Import Tile: ${assetRec.originalName}`,
+                params: {
+                    assetId: assetRec.id,
+                    repoRelativePath: assetRec.repoRelativePath,
+                    originalName: assetRec.originalName,
+                    target: src.meshOnly ? 'mesh_tile' : 'tile',
+                    customOnly: enabledBuiltins.length === 0 ? true : Boolean(src.customOnly),
+                    fitToVoxel: src.fitToVoxel !== false,
+                    subDiv: Number(src.subDiv ?? 0),
+                    skeletonize: Boolean(src.skeletonize),
+                    meshOnly: Boolean(src.meshOnly)
+                }
+            });
+        }
+        if (enabledBuiltins.length > 0) {
+            baselineSteps.push({
+                index: baselineSteps.length,
+                id: `step-${String(baselineSteps.length + 1).padStart(2, '0')}-tile_preset`,
+                op: 'tile_preset',
+                label: 'Baseline Built-In Tiles',
+                params: {
+                    enabledTileIds: enabledBuiltins.map((t) => t.id),
+                    enabledTiles: enabledBuiltins.map((t) => t.key).filter(Boolean)
+                }
+            });
+        }
+    } else {
+        const safeBuiltins = enabledBuiltins.length > 0
+            ? enabledBuiltins
+            : (appState.TILES || []).filter((t, idx) => t && !t.isCustomGraph && idx >= 0 && idx <= 3);
+        baselineSteps.push({
             index: 0,
             id: 'step-01-tile_preset',
             op: 'tile_preset',
             label: 'Baseline Tiles',
             params: {
-                enabledTileIds: enabledIds,
-                enabledTiles: enabledKeys
+                enabledTileIds: safeBuiltins.map((t) => t.id),
+                enabledTiles: safeBuiltins.map((t) => t.key).filter(Boolean)
             }
-        },
+        });
+    }
+
+    baselineSteps.push(
         {
-            index: 1,
-            id: 'step-02-grid_config',
+            index: baselineSteps.length,
+            id: `step-${String(baselineSteps.length + 1).padStart(2, '0')}-grid_config`,
             op: 'grid_config',
             label: `Grid ${gx}×${gy}×${gz}`,
             params: {
@@ -216,8 +308,8 @@ export function ensureBaselineSteps(chain = _chain) {
             }
         },
         {
-            index: 2,
-            id: 'step-03-wfc_collapse',
+            index: baselineSteps.length + 1,
+            id: `step-${String(baselineSteps.length + 2).padStart(2, '0')}-wfc_collapse`,
             op: 'wfc_collapse',
             label: `WFC Topology (${gx}×${gy}×${gz})`,
             params: {
@@ -226,7 +318,7 @@ export function ensureBaselineSteps(chain = _chain) {
                 voxelGrid
             }
         }
-    ];
+    );
 
     chain.steps = [...baselineSteps, ...chain.steps];
     reindexChainSteps(chain);
@@ -237,6 +329,10 @@ export function ensureBaselineSteps(chain = _chain) {
 export function recordStep(op, params = {}, opts = {}) {
     if (_isReplaying) return null;
     if (!SUPPORTED_STEP_OPS.includes(op)) return null;
+
+    if (_loadedChain) {
+        inheritLoadedChainIntoLive();
+    }
 
     if (DOWNSTREAM_OPS.has(op)) {
         ensureBaselineSteps(_chain);
@@ -795,14 +891,19 @@ async function executeStep(step, chain, savedTabId = appState.activeTabId, camer
         case 'tile_preset': {
             if (Array.isArray(p.enabledTileIds) && p.enabledTileIds.length > 0) {
                 const idSet = new Set(p.enabledTileIds.map((v) => Number(v)));
-                for (const t of appState.TILES) {
-                    t.enabled = idSet.has(t.id);
+                const matchedCount = appState.TILES.filter((t) => idSet.has(t.id)).length;
+                if (matchedCount === 0) {
+                    console.warn('[procedural_recorder] tile_preset enabledTileIds matched no loaded tiles; preserving existing tile selection:', p.enabledTileIds);
+                } else {
+                    for (const t of appState.TILES) {
+                        t.enabled = idSet.has(t.id);
+                    }
+                    if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
+                    if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
+                    if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate();
+                    if (actions.renderTileCatalogUI) actions.renderTileCatalogUI();
+                    if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
                 }
-                if (actions.clearActiveAnalysisOverlaysForTopo) actions.clearActiveAnalysisOverlaysForTopo();
-                if (actions.resetSocketAdjacencyRules) actions.resetSocketAdjacencyRules();
-                if (actions.collapseFullGridImmediate) actions.collapseFullGridImmediate();
-                if (actions.renderTileCatalogUI) actions.renderTileCatalogUI();
-                if (actions.renderAdjacencyMatrixUI) actions.renderAdjacencyMatrixUI();
             } else if (Array.isArray(p.enabledTiles) || Array.isArray(p.enabledKeys)) {
                 const list = (p.enabledTiles || p.enabledKeys).map((v) => String(v).toLowerCase());
                 const set = new Set(list);
@@ -910,6 +1011,23 @@ async function executeStep(step, chain, savedTabId = appState.activeTabId, camer
             const meshOnly = Boolean(p.meshOnly || p.target === 'mesh_tile');
             const customOnly = p.customOnly !== undefined ? Boolean(p.customOnly) : (p.disableBuiltins !== false);
 
+            const assetMeta = Array.isArray(chain?.assets)
+                ? chain.assets.find((a) => a && (a.id === p.assetId || a.repoRelativePath === normPath))
+                : null;
+            const sourceAssetInfo = {
+                repoRelativePath: normPath,
+                fileName,
+                originalName: assetMeta?.originalName || fileName,
+                customOnly,
+                fitToVoxel: normalize,
+                subDiv: ccLevel,
+                skeletonize,
+                meshOnly,
+                sha256Short: assetMeta?.sha256Short || '',
+                bytes: assetMeta?.bytes || 0,
+                ext: assetMeta?.ext || `.${ext}`
+            };
+
             let parsedModules = [];
             let lastImportedTile = null;
             if (ext === 'obj' && cached.text && actions.parseOBJMeshes) {
@@ -920,6 +1038,7 @@ async function executeStep(step, chain, savedTabId = appState.activeTabId, camer
                     const crvMod = actions.parse3dmCurvesAsGraph(cached.arrayBuffer, fileName);
                     if (crvMod) {
                         lastImportedTile = actions.importCurveModuleFromData(crvMod.name, crvMod.verts, crvMod.edges, { normalize });
+                        if (lastImportedTile) lastImportedTile._sourceAsset = { ...sourceAssetInfo };
                     }
                 }
             }
@@ -932,7 +1051,10 @@ async function executeStep(step, chain, savedTabId = appState.activeTabId, camer
                         skeletonize,
                         meshOnly
                     });
-                    if (tile) lastImportedTile = tile;
+                    if (tile) {
+                        tile._sourceAsset = { ...sourceAssetInfo };
+                        lastImportedTile = tile;
+                    }
                 }
             }
 

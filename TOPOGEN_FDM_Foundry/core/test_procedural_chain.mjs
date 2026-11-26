@@ -706,5 +706,65 @@ await runTest('Round 4 invariants: ensureBaselineSteps, voxelGrid restore, non-c
     assert.match(mainSrc, /elasticaUnroll3DGroup/, 'main.js must preserve viewport.elasticaUnroll3DGroup visibility on Tab 7 I/O');
 });
 
+// 13. Round 5 regression test: Loaded Corpus 3 (batwing) + live user edits + _sourceAsset provenance invariants
+await runTest('Round 5: Loaded Corpus 3 + appended edits preserves batwing.obj asset (zero ephemeral custom_mesh_* IDs) and contract checks pass', () => {
+    const corpus3Raw = fs.readFileSync(path.join(CORPUS_DIR, 'case3_batwing_1x1x1_pq.chain.json'), 'utf8');
+    const corpus3 = parseProceduralChain(corpus3Raw);
+
+    // Simulate inheriting loaded Corpus 3 chain (assets + bookmarks + played steps) then appending user edits
+    const forked = createProceduralChain({
+        id: 'batwing-forked-elastica-2x1x2',
+        name: 'Corpus 3 Batwing + User Elastica & 2x1x2 Edits',
+        notes: 'Regression test for loaded-chain inheritance into liveChain',
+        assets: corpus3.assets,
+        bookmarks: corpus3.bookmarks,
+        steps: corpus3.steps.slice(0, 5) // tile_import .. pq_solidify
+    });
+    appendChainStep(forked, {
+        op: 'elastica_trace',
+        label: 'Elastica Rods (1x1x1)',
+        params: { stageKind: 'trace', rodR: 0.015, rodSides: 8, showUnrolled3D: false }
+    });
+    appendChainStep(forked, {
+        op: 'grid_config',
+        label: 'Resize Grid to 2x1x2',
+        params: { x: 2, y: 1, z: 2, voxelSize: 1.0, algorithm: 'wfc' }
+    });
+    appendChainStep(forked, {
+        op: 'elastica_trace',
+        label: 'Elastica Rods (2x1x2)',
+        params: { stageKind: 'trace', rodR: 0.015, rodSides: 8, showUnrolled3D: true }
+    });
+
+    const check = validateProceduralChain(forked);
+    assert.equal(check.ok, true, `Forked Corpus 3 chain failed validation: ${check.errors.join('; ')}`);
+    assert.equal(check.errors.length, 0);
+    assert.equal(check.warnings.length, 0);
+    assert.equal(forked.assets.length, 1);
+    assert.equal(forked.assets[0].repoRelativePath, 'TOPOGEN_FDM_Foundry/assets/inputs/batwing.obj');
+
+    const batwingAbs = path.join(REPO_ROOT, ...forked.assets[0].repoRelativePath.split('/'));
+    assert.ok(fs.existsSync(batwingAbs), 'Inherited batwing.obj asset must exist on disk');
+
+    // Ensure no dead ephemeral custom_mesh_<timestamp> tile_preset step leaked
+    const serialized = serializeProceduralChain(forked, { pretty: false });
+    assert.equal(/custom_mesh_\d+/.test(serialized), false, 'Forked chain must not contain ephemeral custom_mesh_* IDs');
+
+    const reparsed = parseProceduralChain(serialized);
+    assert.equal(reparsed.steps.length, 8);
+    assert.equal(reparsed.steps[0].op, 'tile_import');
+    assert.equal(reparsed.steps[6].op, 'grid_config');
+    assert.equal(reparsed.steps[7].op, 'elastica_trace');
+
+    // Contract checks in procedural_recorder.js & tab1_tiles.js
+    const recorderSrc = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'state', 'procedural_recorder.js'), 'utf8');
+    const tab1Src = fs.readFileSync(path.join(FOUNDRY_DIR, 'ui', 'tabs', 'tab1_tiles.js'), 'utf8');
+
+    assert.match(recorderSrc, /inheritLoadedChainIntoLive/, 'procedural_recorder.js must inherit loaded chain into liveChain on user edit');
+    assert.match(recorderSrc, /_sourceAsset/, 'procedural_recorder.js must track/use _sourceAsset provenance');
+    assert.match(recorderSrc, /registerChainAsset/, 'procedural_recorder.js must call registerChainAsset when emitting baseline tile_import');
+    assert.match(tab1Src, /_sourceAsset/, 'tab1_tiles.js must attach _sourceAsset provenance on imported custom tiles');
+});
+
 console.log(`\nSummary: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);
