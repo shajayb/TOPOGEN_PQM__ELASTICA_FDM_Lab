@@ -5,26 +5,38 @@ Every algorithm and UI panel is organized into small, zero-build-step JavaScript
 
 ---
 
-## 1. Launching TOPOGEN & Connecting to Browser Tabs (Chrome + Conversation Affinity)
+## 1. Desktop MCP Setup, Launching TOPOGEN & Connecting to Chrome Tabs
 
-Launch TOPOGEN directly in **Google Chrome** bound to your active chat/conversation (auto-starts or reuses the `:8787` daemon and keeps Desktop MCP bound):
+### First-Time Desktop MCP Binding (Full Foundry Repo `origin`)
+Register `topogen_fdm_foundry` once in `~/.gemini/config/mcp_config.json` (Antigravity) or `~/.codex/config.toml` (Codex) — sessionless, discovering the active `:8787` daemon automatically via `%LOCALAPPDATA%\Topogen\Foundry\<ecosystem>\latest-session.json`:
 
 ```bash
-# Recommended one-command launch (opens 3D Workbench in Chrome & pairs tab):
+# 1. Bind Desktop MCP once per machine (then refresh topogen_fdm_foundry in Antigravity MCP settings):
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mcp --bind --ecosystem antigravity
+
+# 2. Launch 3D Workbench in Google Chrome & pair to your active conversation (auto-starts :8787):
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>
 
-# Or via Desktop MCP tool (unsandboxed):
-# topogen_ui_launch({ conversationId: "<Conversation ID>" })
+# Or via Desktop MCP tools (preferred, unsandboxed):
+#   topogen_inspect({})                                                 -> verify daemon & surfaceDrift: null
+#   topogen_ui_launch({ conversationId: "<Conversation ID>" })          -> open & pair Chrome Workbench
+#   topogen_ui_tabs({ conversationId: "<Conversation ID>" })            -> list open Chrome tabs
+#   topogen_ui_connect({ conversationId: "<Conversation ID>", clientId }) -> bind an already-open Chrome tab
 
-# Inspect connected Chrome tabs & control the paired Workbench tab from CLI:
+# 3. Inspect connected Chrome tabs & control the paired Workbench tab from CLI:
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs tabs
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui inspect --conv <Conversation ID>
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui configure --conv <Conversation ID> --preset pilot_champion --grid 2x2x3
 node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui step --conv <Conversation ID> --step all
 ```
 
-- **Interactive 7-Tab 3D Workbench**: `http://127.0.0.1:8787/index_TOPOGEN_PQM_ELASTICA_FDM.html` *(click the top-right **Chrome · Paired** pill to inspect or claim a tab for your conversation)*
-- **Campaign Launcher & Live Tuner**: `http://127.0.0.1:8787/foundry_launcher.html` *(or `topogen launch --launcher`)*
+- **Standalone Lab-Only Server (`lab` repo / no Foundry Launcher)**: If you cloned the app-only `TOPOGEN_PQM__ELASTICA_FDM_Lab` repo (which excludes `foundry_server.mjs`, `foundry_launcher.html`, `foundry_runner.mjs`, `launcher_ui/`, and `workers/`), serve the 3D Workbench directly via:
+  ```bash
+  node TOPOGEN_FDM_Foundry/serve_lab.mjs 8000
+  # -> http://127.0.0.1:8000/index_TOPOGEN_PQM_ELASTICA_FDM.html
+  ```
+- **Interactive 7-Tab 3D Workbench**: `http://127.0.0.1:8787/index_TOPOGEN_PQM_ELASTICA_FDM.html` *(click the top-right **Chrome · Paired** pill to inspect, pair, unpair, or copy Tab ID)*
+- **Campaign Launcher & Live Tuner** *(full Foundry `origin` only)*: `http://127.0.0.1:8787/foundry_launcher.html` *(or `topogen launch --launcher`)*
 - **Important Agent Rules** *(full playbook in [`../AGENTS.md`](../AGENTS.md) & [`../WISE_AI_ASSISTANT_MCP.md`](../WISE_AI_ASSISTANT_MCP.md))*:
   - **ALWAYS** launch TOPOGEN in Google Chrome bound to `<Conversation ID>` (`topogen_ui_launch` or `topogen.mjs launch --conv <id>`) and wait for `ok: true` + `clientId` before claiming success.
   - **NEVER** use Antigravity's built-in `browser` webview subagent to launch TOPOGEN for the user unless explicitly requested, and **NEVER** write ad-hoc `node -e "brokerCall(...)"` scripts — use `topogen_ui_*` MCP tools or `topogen.mjs ui <subcommand>`.

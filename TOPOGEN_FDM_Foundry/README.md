@@ -115,15 +115,23 @@ node TOPOGEN_FDM_Foundry/verifier/verify.mjs \
 Exit codes: `0` = PASS, `2` = FAIL, `1` = runtime/CLI error. Reports `centerlineMassKg` & `meshMassKg`, `funicularEfficiency`, `compressionDominance`, `loadToMassRatio`, `minIncidentAngleDeg`, and the `LC_lateral_5pct` notional lateral stability advisory.
 
 ### 4. Interactive Browser Apps, Desktop MCP & Long-Horizon Campaign Launcher
-- **Cold-Start & Desktop MCP Playbook**: See [`../AGENTS.md`](../AGENTS.md) and [`../WISE_AI_ASSISTANT_MCP.md`](../WISE_AI_ASSISTANT_MCP.md) for Chrome-first launch rules, conversation-to-tab affinity, Mode A/B cryptographic seal workflows, and known bridge boundaries.
-- **One-Command Chrome Launch & Live Desktop MCP** (`index_TOPOGEN_PQM_ELASTICA_FDM.html` + `foundry_server.mjs` + `agent/mcp.mjs`):
+- **Cold-Start & Desktop MCP Playbook**: See [`../AGENTS.md`](../AGENTS.md) and [`../WISE_AI_ASSISTANT_MCP.md`](../WISE_AI_ASSISTANT_MCP.md) for one-time Desktop MCP binding, Chrome-first launch/reconnect flows, conversation-to-tab affinity, Mode A/B cryptographic seal workflows, and troubleshooting.
+- **Desktop MCP Setup & Chrome Launch (Full Foundry Repo `origin`)**:
   ```bash
-  # Launch 3D Workbench in Google Chrome paired to your conversation (auto-starts :8787 & keeps MCP bound):
+  # 1. One-time sessionless Desktop MCP binding (then refresh topogen_fdm_foundry in Antigravity MCP settings):
+  node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mcp --bind --ecosystem antigravity
+  # 2. Launch 3D Workbench in Google Chrome paired to your conversation (auto-starts :8787 & latest-session.json):
   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>
-  # Or launch the Campaign Launcher instead:
+  # 3. Or launch the Campaign Launcher / inspect open tabs / verify Mode A seal:
   node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --launcher --conv <Conversation ID>
-  # Verify Mode A cryptographic seal & air-gap:
+  node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs tabs
   npm run seal:verify
+  ```
+  *(Inside an AI chat with `topogen_fdm_foundry` enabled, call `topogen_inspect({})` → `topogen_ui_launch({ conversationId })`, or `topogen_ui_tabs` + `topogen_ui_connect` to attach to an already-open Chrome tab.)*
+- **Standalone Lab Workbench (`lab` Repo — No Foundry Launcher/Server/Workers)**:
+  ```bash
+  node TOPOGEN_FDM_Foundry/serve_lab.mjs 8000
+  # Open http://127.0.0.1:8000/index_TOPOGEN_PQM_ELASTICA_FDM.html
   ```
 - **Foundry Launcher & Live Swarm Monitor** (`foundry_launcher.html` + `foundry_server.mjs`):
   ```bash

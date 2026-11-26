@@ -10,25 +10,54 @@ Welcome to **`TOPOGEN_PQM_ELASTICA_FDM_FEA_FOUNDRY`** — an air-gapped **Wave F
 
 ---
 
-## 1. Non-Negotiable Rules (Read Before Calling Any Tool)
+## 1. Cold-Start Desktop MCP Setup & Connection
 
-### A. Launching & Driving TOPOGEN in Google Chrome (Desktop MCP)
-1. **ALWAYS launch TOPOGEN in Google Chrome bound to the current conversation**:
-   - **Preferred (Desktop MCP, unsandboxed)**:
-     ```json
-     topogen_ui_launch({ "conversationId": "<Conversation ID>", "surface": "workbench" })
-     ```
-   - **CLI equivalent**:
-     ```bash
-     node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>
-     ```
-   - **Never** claim Chrome opened until the response returns `ok: true` with a non-empty `clientId` and `browserKind: "chrome"`.
+### A. One-Time Registration (`topogen_fdm_foundry`)
+TOPOGEN exposes `27` tools over stdio via `TOPOGEN_FDM_Foundry/agent/mcp.mjs`, bound **sessionlessly** so daemon restarts never break MCP:
+```bash
+# Bind Desktop MCP in ~/.gemini/config/mcp_config.json (Antigravity) or ~/.codex/config.toml (Codex):
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mcp --bind --ecosystem antigravity
+# Inspect the active MCP entry without modifying it:
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mcp --print-config --ecosystem antigravity
+```
+- `mcp.mjs --ecosystem antigravity` resolves the live `:8787` daemon atomically via `%LOCALAPPDATA%\Topogen\Foundry\antigravity\latest-session.json` (Windows) or `~/.local/share/Topogen/Foundry/antigravity/latest-session.json` (macOS/Linux), and **auto-launches** `foundry_server.mjs --no-browser --mcp-auto` if the daemon is not yet running.
+- After **first-time binding** or any Mode B edit to `agent/tools.mjs` / `agent/mcp.mjs`, **refresh `topogen_fdm_foundry` in Antigravity's MCP settings** (or open a new chat) so `tools/list` reloads.
+
+### B. Connecting at the Start of Every Session
+1. **Health & Drift Check**: Call `topogen_inspect({})` (or `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs inspect`). Confirm `ok: true` and `surfaceDrift: null` (if `surfaceDrift` is non-null, follow its remediation message before calling new tools).
+2. **Launch a Paired Chrome Workbench Tab** *(preferred, unsandboxed via Desktop MCP)*:
+   ```json
+   topogen_ui_launch({ "conversationId": "<Conversation ID>", "surface": "workbench" })
+   ```
+   *(CLI equivalent: `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>`)*
+   - **Never** claim Chrome opened until the response returns `ok: true`, a non-empty `clientId`, and `browserKind: "chrome"`.
+3. **Connect to an Already-Open Chrome Tab** *(e.g. after manual `F5` or when the user says "connect to TOPOGEN in Chrome")*:
+   - Call `topogen_ui_tabs({ "conversationId": "<Conversation ID>" })` to list connected tabs (`clientId`, `browserKind`, `surface`, `visible`, `focused`, `conversationId`).
+   - Bind explicitly with `topogen_ui_connect({ "conversationId": "<Conversation ID>", "clientId": "<target>" })` (or `{ "conversationId": "<Conversation ID>", "claimFocusedChrome": true }` when a single Chrome tab is focused).
+   - Users can also click the top-right **Chrome · Paired** pill (`#mcp-bridge-hud`) in the Workbench UI to Pair, Unpair, or Copy Tab ID.
+4. **Full Foundry (`origin`) vs. Lab-Only (`lab`) Repos**:
+   - `origin` (`TOPOGEN_PQM_ELASTICA_FDM_FEA_FOUNDRY.git`, `master`) includes `foundry_server.mjs` (`:8787`), `foundry_launcher.html`, `foundry_runner.mjs`, `launcher_ui/**`, and `workers/**` — required for full live Desktop MCP & campaign orchestration.
+   - `lab` (`TOPOGEN_PQM__ELASTICA_FDM_Lab.git`, `main` / `lab-elastica`) is the app-only Lab Workbench snapshot (no Foundry launcher/server/workers); run standalone via `node TOPOGEN_FDM_Foundry/serve_lab.mjs 8000` (`http://127.0.0.1:8000/index_TOPOGEN_PQM_ELASTICA_FDM.html`).
+
+### C. Connection Troubleshooting Quick Matrix
+| Symptom | Cause | Fix |
+| :--- | :--- | :--- |
+| `NO_HANDSHAKE` / Chrome did not open | Sandboxed shell cannot pass Windows Chrome singleton IPC (`Trap T2`) | Use unsandboxed Desktop MCP `topogen_ui_launch` (has `mcp.mjs` L6 fallback) or run `topogen launch --conv <id>` from an unsandboxed desktop PowerShell |
+| `AMBIGUOUS_CHROME_TABS` | `>= 2` unpaired Chrome tabs are open (`Trap T3`) | Call `topogen_ui_tabs` then `topogen_ui_connect({ conversationId, clientId })` |
+| `Unexpected tool argument` / `surfaceDrift` | Running stdio `mcp.mjs` cached older `tools/list` (`Trap T11`) | Refresh `topogen_fdm_foundry` in Antigravity MCP settings (or start a new chat) |
+| Daemon unreachable / stale session | `:8787` stopped or started with `--no-bind-mcp` (`Trap T5`) | Run `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs serve --port 8787` (refreshes `latest-session.json`) |
+| Export payload missing / truncated | Export exceeded `150 KB` broker limit (`Trap T7`) | Read the `stagedPath` file returned by `topogen_ui_export` |
+
+---
+
+## 2. Non-Negotiable Rules (Read Before Calling Any Tool)
+
+### A. Driving TOPOGEN in Google Chrome (Desktop MCP)
+1. **ALWAYS launch & drive TOPOGEN in Google Chrome bound to `<Conversation ID>`** using `topogen_ui_*` MCP tools (passing `conversationId` on every call) or `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui <tabs|connect|inspect|load-file|configure|step|reload|export>`.
 2. **NEVER use Antigravity's built-in `browser` webview subagent** to open TOPOGEN for the user unless the user explicitly asks for the internal webview pane. Hidden webviews stay alive, hijack polls, and stall on file uploads.
-3. **NEVER write ad-hoc `node -e "brokerCall(...)"` scripts.** Always use `topogen_ui_*` MCP tools (passing `conversationId`) or `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs ui <tabs|connect|inspect|load-file|configure|step|reload|export>`.
-4. **Multi-Tab Safety**: If `AMBIGUOUS_CHROME_TABS` is returned (`>=2` unpaired Chrome tabs), call `topogen_ui_tabs` and `topogen_ui_connect({ conversationId, clientId })` rather than guessing or spraying tabs.
-5. **Large Exports (`> 150 KB`)**: `topogen_ui_export` stages large artifacts (e.g., 256-rod Elastica SVGs) to disk and returns `stagedPath` to stay under the 256 KB named-pipe broker frame. Always check `stagedPath`.
-6. **Honest Mode A Reporting**: Per-voxel `NULL`/tile pinning (`voxelPins`), `fea_animate` deflection playback, and state-preserving remote `topogen_ui_reload` are certified and wired in Mode A (`BATCH-TOPOGEN-04`), governed by the single-source `agent/ui-action-contract.mjs` (`BATCH-TOPOGEN-05`). If the user asks for any future UI control not yet wired into `mcp_ui_bridge.js`, do **not** fake it or bypass Mode A — give the 1-click Chrome UI instruction (note: `topogen_ui_reload` and `F5` both preserve tab pairing) and offer to enter Mode B to generalize and reseal.
-7. **MCP Subprocess Reload Rule**: Restarting `foundry_server.mjs` does **NOT** reload Antigravity's running `agent/mcp.mjs` child process. After Mode B changes to `agent/tools.mjs` or `agent/mcp.mjs`, **refresh `topogen_fdm_foundry` in Antigravity's MCP settings** (or start a new chat) so `tools/list` updates.
+3. **NEVER write ad-hoc `node -e "brokerCall(...)"` scripts.**
+4. **Honest Mode A Reporting**: Per-voxel `NULL`/tile pinning (`voxelPins`), `fea_animate` deflection playback, and state-preserving remote `topogen_ui_reload` are certified and wired in Mode A (`BATCH-TOPOGEN-04`), governed by the single-source `agent/ui-action-contract.mjs` (`BATCH-TOPOGEN-05`, including `swap_long_ring`, `select_pq_loop`, and `mesh_tile` / `--skeletonize`). If the user asks for any future UI control not yet wired into `mcp_ui_bridge.js`, do **not** fake it or bypass Mode A — give the 1-click Chrome UI instruction (note: `topogen_ui_reload` and `F5` both preserve tab pairing) and offer to enter Mode B to generalize and reseal.
+5. **MCP Subprocess Reload Rule**: Restarting `foundry_server.mjs` does **NOT** reload Antigravity's running `agent/mcp.mjs` child process. After Mode B changes to `agent/tools.mjs` or `agent/mcp.mjs`, **refresh `topogen_fdm_foundry` in Antigravity's MCP settings** (or start a new chat) so `tools/list` updates.
 
 ### B. Mode A vs Mode B Cryptographic Governance
 - **Mode A (Default — Sealed)**: `foundry_manifest.json` cryptographically seals the generator/runtime code surface (`core/**`, `ui/**`, `launcher_ui/**`, `agent/**`, `cli/**`, `foundry_server.mjs`, `foundry_runner.mjs`, `run_generator.mjs`, `build_report.mjs`, `index_TOPOGEN_PQM_ELASTICA_FDM.html`, `foundry_launcher.html`, `scripts/foundry_mode_guard.*`) and `8` verifier/schema files (`verifier/**`, `workers/verifier_worker.mjs`, `schemas/**`).
@@ -53,7 +82,7 @@ Welcome to **`TOPOGEN_PQM_ELASTICA_FDM_FEA_FOUNDRY`** — an air-gapped **Wave F
 
 ---
 
-## 2. Quick Command Reference
+## 3. Quick Command Reference
 
 | Goal | Desktop MCP Tool | CLI Equivalent |
 | :--- | :--- | :--- |
@@ -70,7 +99,7 @@ Welcome to **`TOPOGEN_PQM_ELASTICA_FDM_FEA_FOUNDRY`** — an air-gapped **Wave F
 
 ---
 
-## 3. Workspace Agent Skills (`.agents/skills/`)
+## 4. Workspace Agent Skills (`.agents/skills/`)
 
 - [`.agents/skills/wfc-fdm-foundry/SKILL.md`](./.agents/skills/wfc-fdm-foundry/SKILL.md) — End-to-end 7-phase air-gapped Foundry campaign orchestration (brief → benchmarks → swarm → Pareto → 3D HTML report → 60s video).
 - [`.agents/skills/wfc-fdm-generator/SKILL.md`](./.agents/skills/wfc-fdm-generator/SKILL.md) — Generator pipeline (WFC → FDM → PQ tubular solidifier → Elastica → unrolling) & Chrome UI operation.

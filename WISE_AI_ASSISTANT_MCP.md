@@ -107,15 +107,39 @@ Every trap below was actually hit during live TOPOGEN sessions and caused wasted
 
 ## 4. Best-Practice Operating Playbooks
 
-### Playbook A — Cold-Start Launch & Pairing (Default)
-1. Call **`topogen_ui_launch`** via Desktop MCP (preferred, unsandboxed):
+### Playbook A — Cold-Start Desktop MCP Setup, Launch & Reconnection (Default)
+
+#### A1. One-Time MCP Registration (Sessionless Binding)
+Register `topogen_fdm_foundry` once per machine so Antigravity or Codex launches `agent/mcp.mjs` sessionlessly and discovers the active `:8787` daemon via `%LOCALAPPDATA%\Topogen\Foundry\<ecosystem>\latest-session.json` (`~/.local/share/Topogen/Foundry/<ecosystem>/latest-session.json` on macOS/Linux):
+```bash
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mcp --bind --ecosystem antigravity
+# Verify the written entry:
+node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mcp --print-config --ecosystem antigravity
+```
+Resulting `~/.gemini/config/mcp_config.json` entry (no hardcoded ephemeral `--session` path):
+```json
+"topogen_fdm_foundry": {
+  "command": "node",
+  "args": ["<repo>/TOPOGEN_FDM_Foundry/agent/mcp.mjs", "--ecosystem", "antigravity"],
+  "env": { "TOPOGEN_ECOSYSTEM": "antigravity" }
+}
+```
+> **First-Time & Post-Mode-B Refresh (Trap T11)**: After running `mcp --bind` or editing `agent/tools.mjs` / `agent/mcp.mjs`, **refresh `topogen_fdm_foundry` in Antigravity's MCP settings** (or start a new chat) so Antigravity reloads the live `27`-tool `tools/list`.
+
+#### A2. Session Cold-Start: Health Check → Launch or Reconnect
+1. **Check Daemon & Drift**: Call `topogen_inspect({})`. If `:8787` is down, `mcp.mjs` auto-launches `foundry_server.mjs --no-browser --mcp-auto`. Verify `ok: true` and `surfaceDrift: null` (if non-null, follow its remediation string before running new tool args).
+2. **Launch Fresh or Reuse Paired Chrome Tab** *(preferred, unsandboxed via Desktop MCP)*:
    ```json
-   { "conversationId": "<Conversation ID>", "surface": "workbench" }
+   topogen_ui_launch({ "conversationId": "<Conversation ID>", "surface": "workbench" })
    ```
-   *(CLI fallback: `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>`)*
-2. Verify the response has `ok: true`, a non-empty `clientId`, and `browserKind: "chrome"`.
-3. If `AMBIGUOUS_CHROME_TABS` is returned, call `topogen_ui_tabs({ conversationId })`, ask/identify the target tab, and call `topogen_ui_connect({ conversationId, clientId })` (or `claimFocusedChrome: true`).
-4. Note the top-right **Chrome · Paired** pill in the Workbench UI — users can also click it to Pair, Unpair, or Copy Tab ID at any time.
+   *(CLI fallback from an unsandboxed desktop shell: `node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs launch --conv <Conversation ID>`)*
+   - Verify `ok: true`, a non-empty `clientId`, and `browserKind: "chrome"` before claiming Chrome opened.
+3. **Reconnect to an Already-Open Chrome Tab** *(e.g., after manual `F5`, server restart, or "connect to TOPOGEN in Chrome")*:
+   - Call `topogen_ui_tabs({ "conversationId": "<Conversation ID>" })` to inspect live tabs (`clientId`, `browserKind`, `surface`, `visible`, `focused`, `conversationId`).
+   - Bind explicitly via `topogen_ui_connect({ "conversationId": "<Conversation ID>", "clientId": "<target>" })` (or `{ "conversationId": "<Conversation ID>", "claimFocusedChrome": true }` if only one Chrome tab is focused).
+   - If `AMBIGUOUS_CHROME_TABS` is returned (`>=2` unpaired Chrome tabs), never guess — list with `topogen_ui_tabs` and bind the intended `clientId`.
+4. **In-Browser Pairing Pill**: The top-right **Chrome · Paired** pill (`#mcp-bridge-hud`) lets the user Pair, Unpair, or Copy Tab ID at any time. Both `F5` and `topogen_ui_reload({ preserveState: true })` preserve `tabId` and `?conv=<Conversation ID>`.
+5. **Repo Scope Note**: Live Desktop MCP (`foundry_server.mjs` `:8787`) runs from the full Foundry repo (`origin`, `master`). In the app-only `lab` repo (`TOPOGEN_PQM__ELASTICA_FDM_Lab.git`), serve the standalone Workbench via `node TOPOGEN_FDM_Foundry/serve_lab.mjs 8000`.
 
 ### Playbook B — Live Co-Pilot Design Loop (Mode A)
 - **Always pass `conversationId`** on `topogen_ui_inspect`, `topogen_ui_load_file`, `topogen_ui_configure`, `topogen_ui_run_step`, and `topogen_ui_export`.
