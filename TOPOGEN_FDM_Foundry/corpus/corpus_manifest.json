@@ -13,7 +13,7 @@
       "expectedCaptureCount": 4,
       "grid": [3, 3, 4],
       "assets": [],
-      "cameraBookmarks": ["persp-iso", "ortho-iso", "ortho-top", "ortho-front", "ortho-right", "persp-front-left", "persp-low"],
+      "cameraBookmarks": ["persp-iso", "persp-front-left", "persp-low"],
       "pqSummary": {
         "outerR": 0.073,
         "innerR": 0,
@@ -35,7 +35,7 @@
       "expectedCaptureCount": 4,
       "grid": [3, 3, 4],
       "assets": [],
-      "cameraBookmarks": ["persp-iso", "ortho-iso", "ortho-top", "ortho-front", "ortho-right", "persp-front-left", "persp-low"],
+      "cameraBookmarks": ["persp-iso", "persp-front-left", "persp-low"],
       "pqSummary": {
         "outerR": 0.073,
         "innerR": 0,
@@ -59,7 +59,7 @@
       "assets": [
         "TOPOGEN_FDM_Foundry/assets/inputs/batwing.obj"
       ],
-      "cameraBookmarks": ["persp-iso", "ortho-iso", "ortho-top", "ortho-front", "ortho-right", "persp-front-left", "persp-low"],
+      "cameraBookmarks": ["persp-iso", "persp-front-left", "persp-low"],
       "pqSummary": {
         "outerR": 0.073,
         "innerR": 0,

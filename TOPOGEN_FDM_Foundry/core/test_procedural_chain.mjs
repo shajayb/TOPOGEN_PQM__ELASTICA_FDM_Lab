@@ -265,6 +265,18 @@ await runTest('corpus_manifest.json and all 3 corpus .chain.json files pass sche
         const captureCount = chain.steps.filter((s) => Boolean(s.capture)).length;
         assert.equal(captureCount, c.expectedCaptureCount, `${rel} capture count mismatch`);
 
+        // Perspective-only camera policy for corpus chains (never toggle Ortho ON during corpus playback)
+        assert.ok(chain.bookmarks.length > 0, `${rel} must define perspective bookmarks`);
+        for (const bm of chain.bookmarks) {
+            assert.equal(bm.projection, 'perspective', `${rel} bookmark "${bm.id}" must be perspective (got "${bm.projection}")`);
+            assert.equal(/^ortho-/i.test(bm.id), false, `${rel} must not contain ortho bookmark "${bm.id}"`);
+        }
+        for (const step of chain.steps) {
+            assert.equal(/^ortho-/i.test(step.bookmarkId || ''), false, `${rel} step "${step.id}" must not reference ortho bookmark`);
+            assert.equal(/^ortho-/i.test(step.params?.bookmarkId || ''), false, `${rel} step "${step.id}" params must not reference ortho bookmark`);
+        }
+        assert.deepEqual(c.cameraBookmarks, ['persp-iso', 'persp-front-left', 'persp-low'], `${c.id} manifest cameraBookmarks must be perspective-only`);
+
         // Verify all referenced assets exist on disk with exact byte size & sha256Short
         for (const asset of chain.assets) {
             const assetRel = normalizeRepoRelativePath(asset.repoRelativePath);

@@ -17,62 +17,6 @@
   ],
   "bookmarks": [
     {
-      "id": "ortho-top",
-      "name": "Ortho Top",
-      "projection": "orthographic",
-      "fov": 45,
-      "orthoSize": 8,
-      "position": [0, 10, 0.01],
-      "target": [0, 0, 0],
-      "up": [0, 0, -1],
-      "zoom": 1,
-      "spherical": { "azimuthDeg": 0, "elevationDeg": 89.5, "distanceScale": 1.35 },
-      "fitToScene": true,
-      "builtin": true
-    },
-    {
-      "id": "ortho-front",
-      "name": "Ortho Front",
-      "projection": "orthographic",
-      "fov": 45,
-      "orthoSize": 8,
-      "position": [0, 0, 10],
-      "target": [0, 0, 0],
-      "up": [0, 1, 0],
-      "zoom": 1,
-      "spherical": { "azimuthDeg": 0, "elevationDeg": 0, "distanceScale": 1.35 },
-      "fitToScene": true,
-      "builtin": true
-    },
-    {
-      "id": "ortho-right",
-      "name": "Ortho Right",
-      "projection": "orthographic",
-      "fov": 45,
-      "orthoSize": 8,
-      "position": [10, 0, 0],
-      "target": [0, 0, 0],
-      "up": [0, 1, 0],
-      "zoom": 1,
-      "spherical": { "azimuthDeg": 90, "elevationDeg": 0, "distanceScale": 1.35 },
-      "fitToScene": true,
-      "builtin": true
-    },
-    {
-      "id": "ortho-iso",
-      "name": "Ortho Iso",
-      "projection": "orthographic",
-      "fov": 45,
-      "orthoSize": 8,
-      "position": [10, 10, 10],
-      "target": [0, 0, 0],
-      "up": [0, 1, 0],
-      "zoom": 1,
-      "spherical": { "azimuthDeg": 45, "elevationDeg": 35.264, "distanceScale": 1.4 },
-      "fitToScene": true,
-      "builtin": true
-    },
-    {
       "id": "persp-iso",
       "name": "Persp ISO",
       "projection": "perspective",
@@ -183,11 +127,11 @@
       "index": 5,
       "id": "step-06-camera_bookmark",
       "op": "camera_bookmark",
-      "label": "Document Ortho Iso View",
+      "label": "Document Persp ISO View",
       "params": {
-        "bookmarkId": "ortho-iso"
+        "bookmarkId": "persp-iso"
       },
-      "bookmarkId": "ortho-iso",
+      "bookmarkId": "persp-iso",
       "capture": true
     }
   ]
