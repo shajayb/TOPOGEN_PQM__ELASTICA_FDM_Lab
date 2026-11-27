@@ -323,6 +323,9 @@ export function switchTab(targetId) {
     if (prevTabId === 'tab-3dp' && targetId !== 'tab-3dp' && typeof actions.onLeave3dpTab === 'function') {
         actions.onLeave3dpTab();
     }
+    if (prevTabId === 'tab-fea' && targetId !== 'tab-fea' && appState.feaState?.pickMode && typeof actions.setFeaPickMode === 'function') {
+        actions.setFeaPickMode(false);
+    }
 
     if (targetId === 'tab-tiles' && actions.renderTileInspector3D) {
         actions.renderTileInspector3D();

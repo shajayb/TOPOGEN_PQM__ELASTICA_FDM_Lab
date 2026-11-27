@@ -1227,7 +1227,8 @@ export function draw(opts = {}) {
         cGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(customPreviewCol), 3));
         cGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(customPreviewIdx), 1));
         cGeo.computeVertexNormals();
-        const baseMat = sharedMaterials.customTilePreview || sharedMaterials.surface;
+        // Use opaque depth-writing surface material in 2. Topo so custom tiles depth-sort cleanly without hollow overlap
+        const baseMat = sharedMaterials.surface;
         const cMesh = new THREE.Mesh(cGeo, arcticOn ? sharedMaterials.arctic : baseMat);
         cMesh.userData.baseMaterial = baseMat;
         cMesh.userData.isTopoSurface = true;
@@ -1255,12 +1256,11 @@ export function draw(opts = {}) {
             gPos,
             makeFatMaterial(0xef4444, appState.edgeDisplayWidthPx || 1.5, {
                 disposeOnClear: true,
-                transparent: true,
-                opacity: 0.92,
-                depthTest: false
+                transparent: false,
+                depthTest: true,
+                depthWrite: true
             })
         );
-        gLines.renderOrder = 10;
         viewport.graphGroup.add(gLines);
 
         if (appState.lastWeldedGraph.vertices.length > 0 && appState.lastWeldedGraph.edges.length <= 600) {
@@ -1275,7 +1275,6 @@ export function draw(opts = {}) {
                 instNodes.setMatrixAt(i, dummy.matrix);
             }
             instNodes.instanceMatrix.needsUpdate = true;
-            instNodes.renderOrder = 11;
             viewport.graphGroup.add(instNodes);
         }
     }
@@ -1505,9 +1504,20 @@ export function initTab2Topo() {
     }
 
     const bindGrid = (id, evName, fn) => { const el = $(id); if (el) el.addEventListener(evName, fn); };
+    const onNumGridInput = (axis, raw) => {
+        const v = parseInt(raw, 10);
+        if (!Number.isInteger(v) || v < 1 || v > 20) return;
+        const nx = axis === 'x' ? v : appState.GRID_X;
+        const ny = axis === 'y' ? v : appState.GRID_Y;
+        const nz = axis === 'z' ? v : appState.GRID_Z;
+        scheduleGridResolution(nx, ny, nz);
+    };
     bindGrid('rng-grid-x', 'input', (e) => scheduleGridResolution(parseInt(e.target.value, 10), appState.GRID_Y, appState.GRID_Z));
     bindGrid('rng-grid-y', 'input', (e) => scheduleGridResolution(appState.GRID_X, parseInt(e.target.value, 10), appState.GRID_Z));
     bindGrid('rng-grid-z', 'input', (e) => scheduleGridResolution(appState.GRID_X, appState.GRID_Y, parseInt(e.target.value, 10)));
+    bindGrid('num-grid-x', 'input', (e) => onNumGridInput('x', e.target.value));
+    bindGrid('num-grid-y', 'input', (e) => onNumGridInput('y', e.target.value));
+    bindGrid('num-grid-z', 'input', (e) => onNumGridInput('z', e.target.value));
     bindGrid('num-grid-x', 'change', (e) => setGridResolution(parseInt(e.target.value, 10), appState.GRID_Y, appState.GRID_Z));
     bindGrid('num-grid-y', 'change', (e) => setGridResolution(appState.GRID_X, parseInt(e.target.value, 10), appState.GRID_Z));
     bindGrid('num-grid-z', 'change', (e) => setGridResolution(appState.GRID_X, appState.GRID_Y, parseInt(e.target.value, 10)));

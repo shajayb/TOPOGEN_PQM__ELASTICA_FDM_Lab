@@ -38,7 +38,7 @@
   },
   "seals": {
     "algorithm": "sha256-sorted-path-and-bytes-v1",
-    "codeSurfaceSha256": "f2b48bb966e0d35d42c545d252b068ab038b0a16758e392fc0c9fa8b0bc46cd4",
+    "codeSurfaceSha256": "32530c54df52027fb8664ee9171e716be70acde7fea30d8d36a6a441d18cb873",
     "codeFileCount": 67,
     "codeFiles": {
       "agent/bambu_cli.mjs": "2ab3457bed1b1887c5e4203f15a586703b324a3958b7ae7367be707983f0d180",
@@ -91,19 +91,19 @@
       "ui/bridge/mcp_ui_bridge.js": "d1cef1141e16c14d9d8931f565a3d841a5c2ad7a18896ac0c48ed139ef8738cb",
       "ui/display/camera_bookmarks.js": "209ce669d4c4d7386652116e02853eef1d5021bbb50ea7f5e068cc6a069e956d",
       "ui/display/chain_timeline.js": "9bdb60c7e87abf71891b0f22415f30660f5bc6522e58d1c350226384f61b1f0d",
-      "ui/display/display_hud.js": "1c564aab5bfba39f8c2ea51d83af140db98ced41c2d4720192a209032fcd3fa8",
+      "ui/display/display_hud.js": "182c61af3d96b720ede81c4fbb98e6002e90d8535af51f0a9b926bac51474be1",
       "ui/display/telemetry_hud.js": "a5fead08f8e5b503ea259c632e755179c901e587f83bb4c36b479cb6c84648e2",
-      "ui/display/viewport_scene.js": "e89acb5cb7c0bd1e8582a8ed3aea56f94b4a6b3956f017cbf56fde2c89599219",
-      "ui/main.js": "23e136bcbefc342499ff94d96b66cea9deca10d3c7455c72333b620a926d6267",
+      "ui/display/viewport_scene.js": "dd2c66c670ff71cf0f7f117a32dc9a9977b2fbf5750d6d018e364f712b17bbbc",
+      "ui/main.js": "c3156bc672d8b02858d01add19a77c328ded2abc78a60953f277e0d71103a1b0",
       "ui/state/procedural_recorder.js": "6fca3adefd2f0d81d59ec7468b3a8ec5eadc62a4a1c711af630faa6ea4e18ef1",
-      "ui/state/workbench_state.js": "c8cf8f17f126bf40216cb409ff11dde0307e60338ff835f8a1386e13ccd35cbc",
+      "ui/state/workbench_state.js": "cee47bdeecb0abae06b516c6e447f376768836c7d13ac5d58b4f2de2af09b876",
       "ui/styles/workbench.css": "0e6398ec9a8b7f2077268bdb5896210337d62f84bf120fedea42917b3e252681",
       "ui/tabs/tab1_tiles.js": "94830351caab8ccd1ee1c02070ae93144159e1f439e95218f8aa323b5f2dd70a",
       "ui/tabs/tab2_network_loader.js": "8bccc31c60088fbeddda3c7731f2f03d2d25bbbd9678388cd654b405dcc17f4d",
-      "ui/tabs/tab2_topo.js": "0ccdc16a99c0689fbe26ab4ea3c010eaf1c2ff7844815bcf589466bf0772668f",
+      "ui/tabs/tab2_topo.js": "9e151cc00830212ecd3ebf4de15faac93dc61d0af9e3996907c411194e08bf1e",
       "ui/tabs/tab3_fdm.js": "60a366630bb8a6f667f3084e16099c7b404a4844d26a0795a4a2e994c40fce8d",
       "ui/tabs/tab4_pq_mesh.js": "44639b471002013513e0adfe95fb8d2d668ec549c51b34bcce9f504050c54d2d",
-      "ui/tabs/tab5_fea.js": "818ec644d77370d3d9a39019f57237f202d4a78ab4e69e9fc4d91b40d28a8f5c",
+      "ui/tabs/tab5_fea.js": "648060d76b6524b30d31daef5b099d2abcd26e6ab641a980c6cede58adec7f17",
       "ui/tabs/tab6_io.js": "ab870f41ed4764e20851d0f321b3c5ece0762bc8f3d2cb2a97bd709abf8a6474",
       "ui/tabs/tab7_3dp.js": "cad5ae7fe34ad84ebe9c1e30bb4c12a06b18fca0d47f44478d7b77cca915bfa2",
       "ui/tabs/tab_elastica.js": "72b95072559f2968edb51c8ebc5e4076443a06046fa53397da1087a9f897c2e9",
@@ -122,6 +122,6 @@
       "workers/verifier_worker.mjs": "8d4b816e7efbac0eebad1c450aa3cc079242937f27232cca7467df3999275ab6"
     },
     "airGapPassed": true,
-    "sealedAtUtc": "2026-11-27T12:42:28Z"
+    "sealedAtUtc": "2026-11-27T15:13:37Z"
   }
 }

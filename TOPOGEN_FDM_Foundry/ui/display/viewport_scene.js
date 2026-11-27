@@ -1779,10 +1779,12 @@ export function initViewportScene() {
 
     sharedMaterials.surface = new THREE.MeshPhysicalMaterial({
         vertexColors: true, roughness: 0.72, metalness: 0.08, side: THREE.DoubleSide,
+        transparent: false, depthTest: true, depthWrite: true,
         polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
     });
     sharedMaterials.arctic = new THREE.MeshStandardMaterial({
         color: 0xffffff, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide,
+        transparent: false, depthTest: true, depthWrite: true,
         polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
     });
     sharedMaterials.userImportedMesh = new THREE.MeshPhysicalMaterial({
@@ -1791,14 +1793,15 @@ export function initViewportScene() {
     });
     sharedMaterials.tubeVertexColored = new THREE.MeshPhysicalMaterial({
         vertexColors: true, roughness: 0.42, metalness: 0.0, side: THREE.DoubleSide,
+        transparent: false, depthTest: true, depthWrite: true,
         polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
     });
     sharedMaterials.quadWire = new THREE.LineBasicMaterial({ color: 0x334155, transparent: true, opacity: 0.45 });
     sharedMaterials.tubeWire = new THREE.LineBasicMaterial({ color: 0x1e293b, transparent: true, opacity: 0.35 });
     sharedMaterials.innerBoreWire = new THREE.LineBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.78, depthTest: false });
     sharedMaterials.bedBorder = new THREE.LineBasicMaterial({ color: 0xec4899, transparent: true, opacity: 0.85 });
-    sharedMaterials.graphEdge = new THREE.LineBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.92, depthTest: false });
-    sharedMaterials.graphNode = new THREE.MeshBasicMaterial({ color: 0xdc2626, transparent: true, opacity: 0.92, depthTest: false });
+    sharedMaterials.graphEdge = new THREE.LineBasicMaterial({ color: 0xef4444, transparent: false, depthTest: true, depthWrite: true });
+    sharedMaterials.graphNode = new THREE.MeshBasicMaterial({ color: 0xdc2626, transparent: false, depthTest: true, depthWrite: true });
     sharedMaterials.anchorSphere = new THREE.MeshBasicMaterial({ color: 0x10b981 });
     sharedMaterials.anchorSphere.userData.shared = true;
     sharedMaterials.freeNodeSphere = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
@@ -1900,6 +1903,24 @@ export function initViewportScene() {
                         actions.toggleElasticaNodesByClick(hostIndices, isCtrl);
                         return;
                     }
+                }
+            }
+        }
+        if (
+            appState.activeTabId === 'tab-fea' &&
+            appState.feaState?.pickMode &&
+            viewport.feaGroup &&
+            viewport.feaGroup.visible &&
+            Array.isArray(appState.feaNodePickMeshes) &&
+            appState.feaNodePickMeshes.length > 0 &&
+            actions.toggleFeaFixedNodeByClick
+        ) {
+            const feaHits = pickRay.intersectObjects(appState.feaNodePickMeshes, false);
+            if (feaHits.length > 0) {
+                const nIdx = feaHits[0].object.userData?.feaNodeIndex;
+                if (nIdx !== undefined) {
+                    actions.toggleFeaFixedNodeByClick(nIdx, !!(e.ctrlKey || e.metaKey));
+                    return;
                 }
             }
         }

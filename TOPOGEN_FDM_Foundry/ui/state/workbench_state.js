@@ -232,10 +232,14 @@ export const appState = {
 
     // Tab 5: 3D Space-Frame FEA
     lastFEAResult: null,
+    feaFixedNodeSet: new Set(),
+    feaNodePickMeshes: [],
     feaState: {
         materialKey: 'plaster',
         topLoadKg: 25,
         restraintType: 'pinned',
+        supportRule: 'auto_ground', // 'auto_ground' | 'custom'
+        pickMode: false,
         excludeGraph: false,
         includeElastica: false,
         elasticaMaterialKey: 'gfrp_rod',

@@ -406,3 +406,94 @@ TOPOGEN already implements compact state-delta inspection (`verbose: true` opt-i
 | **`Step 2`**<br>`FR-B06-02` | **Camera Bookmarks** | `TOPOGEN_FDM_Foundry/ui/display/{viewport_scene.js, display_hud.js}`, `ui/styles/workbench.css` | **7 Built-in Ortho/Persp Presets + Custom Bookmarks**: Seamless Ortho $\leftrightarrow$ Persp switching, capture/apply/delete custom bookmarks, and `.chain.json` persistence. | Live viewport preset switching + custom bookmark round-trip in `.chain.json`. | **`IN PROGRESS`** |
 | **`Step 3`**<br>`FR-B06-03` | **Playback & Stage Docs** | `TOPOGEN_FDM_Foundry/ui/playback/*`, `ui/app_main.js`, `index_TOPOGEN_PQM_ELASTICA_FDM.html` | **Procedural Chain Recorder, Step Playback & Capture Pipeline**: Record Workbench ops with automatic asset staging, step/play/pause replay, and automated bookmark-framed PNG + `manifest.json` stage documentation. | End-to-end record $\rightarrow$ save $\rightarrow$ reload $\rightarrow$ replay $\rightarrow$ capture verification. | **`IN PROGRESS`** |
 | **`Step 4`**<br>`FR-B06-04` | **3-Case Test Corpus** | `TOPOGEN_FDM_Foundry/corpus/*.chain.json`, `TOPOGEN_FDM_Foundry/corpus/captures/*`, `core/test_core.mjs` | **3 Reproducible Corpus Chains & Automated Verification**: 3 canonical chains (preset WFC/FDM/PQ/FEA, `batwing.obj` custom mesh, Elastica + multi-view captures) validated and replayed with stage PNGs + manifests. | All 3 corpus chains validate, replay cleanly, and emit stage captures + manifests; all Foundry suites PASS. | **`IN PROGRESS`** |
+
+---
+
+## 7. Batch 7 (`BATCH-TOPOGEN-07`) — High-Performance WebGPU Rendering, WGSL Compute Kernels, SoA Buffer Pipeline & Multi-Threaded Solvers *(OPEN Blueprint — Option 3)*
+
+- **Batch ID**: `BATCH-TOPOGEN-07`
+- **Date Opened**: `2026-11-27`
+- **Status**: **`OPEN (Detailed Engineering Specification — Ready for Mode B Authorization)`**
+- **Target Execution Mode**: **Mode B** (`node ./TOPOGEN_FDM_Foundry/cli/topogen.mjs mode --B` $\rightarrow$ 4-Gate Zero-Fake-Green Verification: deterministic suites + WebGPU/WebGL2 fallback parity + live Chrome E2E + `seal --mode B --reseal` $\rightarrow$ `mode --A` $\rightarrow$ `seal --mode A --verify`).
+- **Architectural Rationale**: TOPOGEN currently runs on a zero-build-step `Three.js r160` WebGL2 renderer (`THREE.WebGLRenderer`) with Array-of-Objects (AoS) JS geometry interchange (`vertices: [[x,y,z], ...]`) and main-thread interactive solvers. While `core/**` is already cleanly decoupled from DOM/Three.js, scaling to `10³+` voxel lattices, `2M+` Bambu P1S G-code toolpath segments, continuous `(rotX, rotY)` 3DP orientation optimization, and real-time PQ/Elastica relaxation requires migrating to a **flat SoA typed-buffer architecture**, **`WebGPURenderer` + TSL/WGSL compute shaders** for FP32-parallel geometry/rendering workloads, and **Browser Web Workers + parallel Bambu CLI** for FP64-sensitive structural mechanics (`FEA`/`FDM`) and external slicing.
+- **Non-Negotiable Invariants**:
+  1. **Zero-Build-Step Preservation**: Continue using native browser ES modules + CDN importmap (zero mandatory Webpack/Vite step for students or local `serve_lab.mjs`).
+  2. **Strict Generator / Verifier Air-Gap**: `core/**`, `ui/**`, and any new `core/gpu/**` or `ui/workers/**` modules must have **`0`** imports from `verifier/**`.
+  3. **Graceful WebGL2 Fallback**: When `navigator.gpu` is unavailable (older GPUs, headless environments, or restricted sandboxes), `WebGPURenderer` must fall back transparently to its WebGL2 backend and CPU Web Worker kernels with identical outputs.
+  4. **FP64 / FP32 Precision Boundary**: Keep ill-conditioned 6-DOF space-frame FEA (`K·u = F`) and FDM linear solves in **FP64 (`Float64Array`)** on Web Workers (or optional FP64 WASM); target **WebGPU `f32` compute** exclusively at massively parallel geometry, slicing, overhang, relaxation, and instanced rendering workloads.
+
+---
+
+### 7.1 Item 1: `WebGPURenderer` Migration, WebGL2 Fallback & TSL Instanced Line/Mesh Pipeline (`REV-B07-01`)
+- **Priority / Sequence**: **`P0` (`Step 1` — Renderer Foundation)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/index_TOPOGEN_PQM_ELASTICA_FDM.html`, `TOPOGEN_FDM_Foundry/foundry_launcher.html`, `TOPOGEN_FDM_Foundry/ui/display/viewport_scene.js`, `TOPOGEN_FDM_Foundry/launcher_ui/viewport3d.js`, `TOPOGEN_FDM_Foundry/ui/tabs/{tab2_topo,tab4_pq_mesh,tab5_fea,tab7_3dp,tab_elastica}.js`
+- **Problem**: `three@0.160.0` (`THREE.WebGLRenderer`) cannot execute WGSL compute shaders or storage-buffer instancing, and WebGL-specific `Line2` / `LineMaterial` fat-line shaders do not compile under WebGPU.
+- **Required Scope**:
+  1. **Importmap Upgrade**: Upgrade Three.js importmap to `three@0.171+` exposing `three/webgpu` (`WebGPURenderer`) and `three/tsl` (Three Shading Language), initializing `await renderer.init()` with automatic fallback to WebGL2 (`renderer.backend.isWebGPUBackend` telemetry badge in Display HUD).
+  2. **TSL / Instanced Line Replacement**: Replace WebGL-only `Line2`/`LineSegments2` fat lines (centerline graph, Elastica rods, FEA members, 3DP toolpath segments) with a single reusable **GPU-instanced screen-space capsule/ribbon shader** (TSL `MeshBasicNodeMaterial` / `InstancedBufferGeometry`) supporting per-segment RGBA color, width, and crisp GPU depth culling (`depthTest: true, depthWrite: true`).
+  3. **Parity & On-Demand Loop**: Preserve on-demand rendering (`requestRender`), `document.hidden` pause, Studio-Light Arctic Clay lighting, Orthographic $\leftrightarrow$ Perspective camera bookmarks, and `clearGroup()` GPU buffer disposal with zero memory leaks.
+
+### 7.2 Item 2: Zero-Copy Structure-of-Arrays (SoA) Geometry & Toolpath Buffer Contract (`REV-B07-02`)
+- **Priority / Sequence**: **`P0` (`Step 2` — Data Layout & Zero-Copy Interchange)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/core/gpu_buffers.mjs` *(new)*, `TOPOGEN_FDM_Foundry/core/{pq_solidifier,print3dp,elastica_curves,wfc_graph}.mjs`, `TOPOGEN_FDM_Foundry/ui/tabs/{tab4_pq_mesh,tab7_3dp}.js`
+- **Problem**: `core/*.mjs` passes geometry and G-code toolpaths as nested JS arrays (`[[x,y,z], ...]`), causing GC pressure, slow `postMessage` serialization, and repeated float-unpacking loops on every viewport redraw or layer scrub.
+- **Required Scope**:
+  1. **Canonical SoA Mesh Struct (`SoAMeshBuffer`)**:
+     - `positions: Float32Array` (`3 * V`), `normals: Float32Array` (`3 * V`), `indices: Uint32Array` (`3 * T`), `faceLoopIds: Uint32Array` (`T`), `colors: Float32Array` (`3 * V`).
+     - Pure-JS packers/unpackers (`packSnapshotToSoA`, `unpackSoAToSnapshot`) preserving 100% backwards compatibility with existing `wfc-fdm-topology/v1` JSON and `.obj` interchange contracts.
+  2. **Canonical SoA Toolpath Struct (`SoAToolpathBuffer`)**:
+     - Single flat `segments: Float32Array` (`[x1, y1, z, x2, y2, z, ...]` — `6` floats/segment), `featureIds: Uint8Array` (`0..7`), `layerIds: Uint16Array`, and `layerOffsets: Uint32Array` (`L + 1` prefix sums).
+     - Enables **O(1) GPU draw-range scrubbing** (`geometry.setDrawRange(0, layerOffsets[activeLayer + 1])`) across `2M+` G-code segments with **zero geometry rebuilds** when dragging the `8. 3DP` layer slider or playing back layers at 60 FPS!
+  3. **Transferable Ownership**: All SoA backing `ArrayBuffer`s support zero-copy `postMessage(msg, [buf])` transfers between Browser Web Workers and the main thread.
+
+### 7.3 Item 3: WGSL Compute Kernels for `8. 3DP` Continuous Orientation Optimization & GPU Slicing (`FR-B07-01`)
+- **Priority / Sequence**: **`P0` (`Step 3` — WebGPU 3DP Compute Pipeline)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/core/gpu/print3dp_webgpu.mjs` *(new)*, `TOPOGEN_FDM_Foundry/core/print3dp.mjs`, `TOPOGEN_FDM_Foundry/ui/tabs/tab7_3dp.js`
+- **Problem**: `generateOptimizationCandidates()` currently evaluates only `6` discrete cardinal/flat-base orientations on the CPU, and `sliceMeshLocal()` slices on the main thread. Complex tubular lattices (e.g. Batwing `1×1×2`) often achieve minimal support volume at non-orthogonal tilt angles.
+- **Required Scope**:
+  1. **WGSL Parallel Orientation Sweep (`orient_eval.wgsl`)**:
+     - Upload `SoAMeshBuffer` (`positions`, `indices`) once to GPU storage buffers.
+     - Dispatch a `128`–`512` point **Fibonacci-sphere `(rotX, rotY)` grid** in a single WebGPU compute pass (`@workgroup_size(64)`): each invocation transforms triangle normals/centroids, computes exact bed-fit AABB, overhang area (`normal.z < -sin(θ)`), critical overhang area (`> 60°`), support-column projection height integral, and bed-contact footprint via atomic/workgroup reductions in **`< 15 ms`**.
+     - Follow with a **Nelder-Mead / coordinate-descent local refinement** around the top `3` basins (`±15°` down to `1°` precision) before handing the winning continuous orientations to Bambu Studio CLI for final G-code & `.3MF` certification.
+  2. **WGSL Parallel Planar Slicer (`slice_local.wgsl`)**:
+     - GPU triangle-plane Z-intersection pass writing directly into a `SoAToolpathBuffer` storage buffer bound straight to the `WebGPURenderer` instanced toolpath pass (zero CPU readback required for preview).
+  3. **CPU Parity Fallback**: Identical Fibonacci-sphere + local refinement API implemented in pure JS (`core/print3dp.mjs`) for WebGL2/Node headless environments.
+
+### 7.4 Item 4: WGSL Compute Relaxation for Large-Grid PQ Planarization, Elastica & `10³+` Instancing (`FR-B07-02`)
+- **Priority / Sequence**: **`P1` (`Step 4` — GPU Geometry Solvers)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/core/gpu/geometry_relax_webgpu.mjs` *(new)*, `TOPOGEN_FDM_Foundry/ui/tabs/{tab2_topo,tab4_pq_mesh,tab_elastica}.js`
+- **Problem**: On `5×5×5` to `10×10×10` grids, iterative quad planarization (`optimizeFaceLoopsToPQ`) and discrete elastic rod bending-energy minimization (`optimizeElasticaCurve`, $\min \sum \kappa^2 ds$) are CPU-bound.
+- **Required Scope**:
+  1. **PQ Face-Loop Planarization Kernel (`pq_planarize.wgsl`)**: Double-buffered Jacobi/Chebyshev projection projecting every quad's 4 vertices onto its best-fit plane in parallel (`50–200` iterations in `< 5 ms`), with optional readback to `SoAMeshBuffer` for `.obj`/`.3dm`/`.3mf` export.
+  2. **Elastica Bending Relaxation Kernel (`elastica_relax.wgsl`)**: Parallel discrete-curvature gradient descent across all traced rods simultaneously (enforcing clamped/pinned source/sink tangents and minimum bend radius $R_{\min}$).
+  3. **GPU Indirect / Storage-Buffer Voxel Instancing**: Drive `10³+` WFC tiles via a single GPU instance transform buffer updated directly on-device without rebuilding `THREE.Mesh` objects per step.
+
+### 7.5 Item 5: FP64 Web Worker Pool, Parallel Bambu CLI Pool & Content-Hashed Slice Cache (`REV-B07-03` / `FR-B07-03`)
+- **Priority / Sequence**: **`P0` (`Step 5` — Concurrency & Backend Throughput)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/ui/workers/solver_worker.mjs` *(new)*, `TOPOGEN_FDM_Foundry/agent/bambu_cli.mjs`, `TOPOGEN_FDM_Foundry/workers/gcode_parse_worker.mjs` *(new)*, `TOPOGEN_FDM_Foundry/foundry_server.mjs`
+- **Problem**: Interactive FEA/FDM/PQ/local-slice runs block the browser main thread, `optimizeWithBambuCLI()` runs `bambu-studio.exe` candidates sequentially (`~4×` single-slice wall-clock time), and identical slice requests re-run Bambu CLI from scratch.
+- **Required Scope**:
+  1. **Browser Web Worker (`ui/workers/solver_worker.mjs`)**: Offload `analyzeSpaceFrameFEA` (FP64 `Float64Array`), `solveFDM` (FP64), `solidifyGraph`, and CPU fallback `sliceMeshLocal` off the UI thread with structured `progress` messages feeding `#fea-proc-card`, `#dp3-proc-card`, and `#telemetry-hud-pill` at 60 FPS without frame drops.
+  2. **Parallel Bambu CLI Candidate Pool**: Upgrade `optimizeWithBambuCLI()` in `agent/bambu_cli.mjs` to a bounded worker pool (`concurrency = clamp(opts.concurrency ?? Math.min(3, os.cpus().length / 2), 1, 4)`) executing independent `bambu-studio.exe` jobs in parallel (cutting 4-candidate optimization wall-clock time by **~2.5×–3.5×**) while streaming live `completedCandidates` to `GET /api/3dp/progress?jobId=...`.
+  3. **SHA-256 Content-Hashed Slice Cache**: Key `TOPOGEN_FDM_Foundry/runs/_3dp_cache/cache/<sha256>/` by `sha256(STL bytes + canonical P1S profile overrides)`. Cache hits return validated metrics, `.3mf` download URL, and `SoAToolpathBuffer` in **`< 50 ms`** instead of re-invoking `bambu-studio.exe`.
+  4. **Off-Thread G-Code Parsing (`workers/gcode_parse_worker.mjs`)**: Parse multi-MB `plate_1.gcode` files in a Node `worker_thread` so `foundry_server.mjs` HTTP polling (`/api/3dp/progress`, `/api/ui-bridge/poll`) stays sub-millisecond under heavy load.
+
+### 7.6 Item 6: Deterministic GPU/CPU Parity Benchmarks & 4-Gate Mode B Certification (`REV-B07-04`)
+- **Priority / Sequence**: **`P0` (`Step 6` — Verification & Governance)**
+- **Affected Files**: `TOPOGEN_FDM_Foundry/core/test_gpu_buffers.mjs` *(new)*, `TOPOGEN_FDM_Foundry/core/test_print3dp.mjs`, `package.json`, `TOPOGEN_FDM_Foundry/scripts/verify_live_desktop_mcp.mjs`
+- **Required Scope**:
+  1. Add `npm run test:gpu-buffers` verifying lossless `SoAMeshBuffer` and `SoAToolpathBuffer` round-trips, O(1) `layerOffsets` invariants, Fibonacci-sphere orientation convergence vs brute-force reference (`<= 1e-4` area/angle tolerance), parallel Bambu CLI pool determinism, and SHA-256 slice cache hit/miss behavior.
+  2. Verify live in external Desktop Google Chrome (both WebGPU-enabled and `--disable-unsafe-webgpu` WebGL2 fallback) on `case3_batwing_1x1x1_pq.chain.json` (`1×1×2`), measuring frame time (`>= 55 FPS` during 1,240-layer scrub), orientation optimization speedup, and `0` air-gap / `0` Mode A seal regressions.
+
+---
+
+### 7.7 Summary Table of Batch 7 (`BATCH-TOPOGEN-07`) Items
+
+| Step / ID | Category | Subsystem / Target Files | Summary of Revision / Feature / Fix | Verification Gate | Status |
+| :--- | :---: | :--- | :--- | :--- | :---: |
+| **`Step 1`**<br>`REV-B07-01` | **WebGPU Renderer & TSL** | `index_TOPOGEN_PQM_ELASTICA_FDM.html`, `foundry_launcher.html`, `ui/display/viewport_scene.js`, `launcher_ui/viewport3d.js` | **`WebGPURenderer` (`three@0.171+`) + WebGL2 Fallback & TSL Instanced Lines**: Replace WebGL-only `Line2` with TSL instanced ribbons, preserve on-demand rendering, Studio-Light lighting, and GPU depth culling. | Live Chrome WebGPU + WebGL2 fallback parity check, `0` console/shader errors, `0` GPU leak on `clearGroup()`. | **`OPEN`** |
+| **`Step 2`**<br>`REV-B07-02` | **SoA Typed Buffers** | `core/gpu_buffers.mjs` *(new)*, `core/{pq_solidifier,print3dp,elastica_curves,wfc_graph}.mjs`, `ui/tabs/{tab4_pq_mesh,tab7_3dp}.js` | **Zero-Copy `SoAMeshBuffer` & `SoAToolpathBuffer` Layer**: Flat `Float32Array`/`Uint32Array` geometry and O(1) `setDrawRange` G-code layer scrubbing across `2M+` segments with zero AoS interchange regressions. | `test_gpu_buffers.mjs` round-trip & `layerOffsets` checks + `test:core` & `test_print3dp` PASS. | **`OPEN`** |
+| **`Step 3`**<br>`FR-B07-01` | **WGSL 3DP Compute** | `core/gpu/print3dp_webgpu.mjs` *(new)*, `core/print3dp.mjs`, `ui/tabs/tab7_3dp.js` | **WGSL Fibonacci-Sphere Continuous Orientation Optimizer + GPU Slicer**: `< 15 ms` GPU evaluation of `128–512` orientations + local refinement + GPU-parallel local slicing with CPU fallback parity. | GPU vs CPU orientation parity (`<= 1e-4`), batwing `1×1×2` continuous tilt beats cardinal baseline in Bambu CLI. | **`OPEN`** |
+| **`Step 4`**<br>`FR-B07-02` | **WGSL Geometry Solvers** | `core/gpu/geometry_relax_webgpu.mjs` *(new)*, `ui/tabs/{tab2_topo,tab4_pq_mesh,tab_elastica}.js` | **GPU PQ Planarization, Elastica Relaxation & `10³+` Voxel Instancing**: Parallel WGSL Jacobi/gradient kernels for quad planarization & rod curvature energy + storage-buffer tile instancing. | Planarity error & `Σκ² ds` convergence parity vs CPU `core/` solvers + `>= 55 FPS` on `10³` grid. | **`OPEN`** |
+| **`Step 5`**<br>`REV-B07-03`<br>`FR-B07-03` | **FP64 Workers & CLI Pool** | `ui/workers/solver_worker.mjs` *(new)*, `agent/bambu_cli.mjs`, `workers/gcode_parse_worker.mjs` *(new)*, `foundry_server.mjs` | **FP64 Browser Web Worker + `2–4×` Parallel Bambu CLI Pool + SHA-256 Cache**: Non-blocking FEA/FDM/PQ UI execution, concurrent `bambu-studio.exe` optimization, `< 50 ms` cache hits, off-thread G-code parse. | `test:mcp`, `test:cli`, `>= 2.5×` parallel optimize speedup, cache hit `< 50 ms`, live `/api/3dp/progress` streaming. | **`OPEN`** |
+| **`Step 6`**<br>`REV-B07-04` | **Parity Suite & Mode A Seal** | `core/test_gpu_buffers.mjs` *(new)*, `package.json`, `scripts/verify_live_desktop_mcp.mjs` | **Deterministic GPU/CPU Parity Suite & 4-Gate Mode B Certification**: Full suite regression (`verifier`, `guard`, `core`, `print3dp`, `procedural_chain`, `gpu-buffers`, `mcp`, `cli`), Mode B reseal, Mode A lock. | All deterministic suites PASS, `0` air-gap violations, `seal --mode A --verify` (`ok: true`, `offendingFiles: []`). | **`OPEN`** |

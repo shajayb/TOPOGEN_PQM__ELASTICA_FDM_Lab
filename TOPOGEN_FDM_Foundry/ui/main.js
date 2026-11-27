@@ -124,6 +124,9 @@ import {
     initTab5Fea,
     runSpaceFrameFEAFromUI,
     setFEAAnimation,
+    setFeaPickMode,
+    setFeaFixedNodes,
+    selectFeaFixedByValency,
     computeEffectiveExaggeration
 } from './tabs/tab5_fea.js';
 import {
@@ -304,6 +307,9 @@ const workbenchApi = {
     runFEA: runSpaceFrameFEAFromUI,
     get feaState() { return appState.feaState; },
     setFEAAnimation,
+    setFeaPickMode,
+    setFeaFixedNodes,
+    selectFeaFixedByValency,
     computeEffectiveExaggeration,
     exportQuadOBJ: exportQuadOBJFromUI,
     exportFoundryTopologyJSON: exportFoundryTopologyJSONFromUI,

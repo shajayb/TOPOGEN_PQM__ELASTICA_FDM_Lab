@@ -101,6 +101,37 @@ export function mountTab5Fea() {
                 </div>
             </div>
 
+            <!-- Isolated Fixed / Support Nodes Selection (mirrors 4. Elastica UX) -->
+            <div class="bg-gray-950/85 border border-gray-800 rounded p-1.5 space-y-1 font-sans">
+                <div class="flex items-center justify-between">
+                    <span class="text-[8.5px] uppercase tracking-wider text-emerald-400 font-semibold">Fixed / Support Nodes</span>
+                    <span id="fea-fixed-badge" class="text-[8.5px] font-mono text-gray-400">Auto Ground</span>
+                </div>
+                <div class="grid grid-cols-2 gap-1">
+                    <button type="button" id="btn-fea-pick-mode" class="cad-btn text-[8.5px] py-0.5" title="Toggle 3D viewport node picking (Click = fix, Ctrl+Click = deselect)">Click Pick (3D): OFF</button>
+                    <button type="button" id="btn-fea-auto-ground" class="cad-btn seg-on text-[8.5px] py-0.5" title="Use automatic lowest-Z ground supports">Auto Ground</button>
+                </div>
+                <div class="text-[8.5px] text-gray-400 leading-tight">
+                    Click 3D node = Fix · <span class="text-rose-300 font-mono">Ctrl+Click</span> = Deselect
+                </div>
+                <div class="flex items-center justify-between gap-1 pt-0.5">
+                    <span class="text-[8px] text-gray-400 flex-shrink-0">Valency:</span>
+                    <div class="grid grid-cols-5 gap-0.5 flex-1">
+                        <button type="button" data-fea-valency="1" class="fea-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Fix valency-1 nodes (Ctrl+Click to deselect)">v=1</button>
+                        <button type="button" data-fea-valency="2" class="fea-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Fix valency-2 nodes (Ctrl+Click to deselect)">v=2</button>
+                        <button type="button" data-fea-valency="3" class="fea-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Fix valency-3 nodes (Ctrl+Click to deselect)">v=3</button>
+                        <button type="button" data-fea-valency="4" class="fea-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Fix valency-4 nodes (Ctrl+Click to deselect)">v=4</button>
+                        <button type="button" data-fea-valency="5+" class="fea-valency-btn cad-btn text-[8.5px] py-0.5 px-1" title="Fix valency ≥ 5 nodes (Ctrl+Click to deselect)">v≥5</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-1 pt-0.5">
+                    <button type="button" id="btn-fea-sel-ground" class="cad-btn text-[8px] py-0.5" title="Fix lowest-Z ground nodes (Ctrl+Click to deselect)">⏚ Ground</button>
+                    <button type="button" id="btn-fea-sel-top" class="cad-btn text-[8px] py-0.5" title="Fix highest-Z top nodes (Ctrl+Click to deselect)">↑ Top</button>
+                    <button type="button" id="btn-fea-clear-fixed" class="cad-btn text-[8px] py-0.5" title="Clear custom fixed nodes and revert to Auto Ground">✕ Clear</button>
+                </div>
+                <div id="fea-fixed-list" class="text-[8px] font-mono text-gray-400 truncate">Fixed: Auto Ground</div>
+            </div>
+
             <!-- Coupled Elastica Rods: Bracing, Post-Tensioning & Active-Bending -->
             <div class="bg-gray-950/85 border border-gray-800 rounded p-1.5 space-y-1.5 font-sans">
                 <div class="flex items-center justify-between">
@@ -441,6 +472,9 @@ export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appS
     const nHostNodes = feaSrc.hostNodeCount !== undefined ? feaSrc.hostNodeCount : defVerts.length;
     const nodeMult = appState.nodeDisplayScale || 1.0;
     const jRad = rVis * 1.18 * nodeMult;
+    const pickModeOn = Boolean(feaState.pickMode);
+    appState.feaNodePickMeshes = [];
+
     const deg = isElasticaOnly ? new Int32Array(defVerts.length) : null;
     if (deg) {
         for (const [u, v] of edges) { deg[u]++; deg[v]++; }
@@ -451,17 +485,31 @@ export function renderFEAResults3D(exagScale = computeEffectiveExaggeration(appS
             const cone = new THREE.Mesh(assets.unitCone, sharedMaterials.anchorSphere);
             cone.scale.setScalar(rVis * nodeMult);
             cone.position.set(defVerts[i].x, defVerts[i].y, defVerts[i].z - rVis * nodeMult * 1.5);
+            cone.userData.feaNodeIndex = i;
             viewport.feaGroup.add(cone);
-        } else if (!deg || deg[i] !== 2) {
+
+            if (pickModeOn) {
+                const pickSph = new THREE.Mesh(assets.unitSphere, sharedMaterials.anchorSphere);
+                pickSph.scale.setScalar(jRad * 1.45);
+                pickSph.position.copy(defVerts[i]);
+                pickSph.userData.feaNodeIndex = i;
+                pickSph.userData.isFeaFixed = true;
+                viewport.feaGroup.add(pickSph);
+                appState.feaNodePickMeshes.push(pickSph);
+            }
+        } else if (pickModeOn || !deg || deg[i] !== 2) {
             const dMag = Math.hypot(disps[i][0], disps[i][1], disps[i][2]);
             sampleContourColor('deflection', dMag, 0, maxDispRef, _feaTmpColor);
             let jMat = feaJointMatPool[i];
             if (!jMat) { jMat = new THREE.MeshBasicMaterial({ color: _feaTmpColor.clone() }); feaJointMatPool[i] = jMat; }
             else jMat.color.copy(_feaTmpColor);
-            const jm = new THREE.Mesh(assets.unitSphere, jMat);
-            jm.scale.setScalar(jRad);
+            const jm = new THREE.Mesh(assets.unitSphere, pickModeOn ? sharedMaterials.freeNodeSphere : jMat);
+            jm.scale.setScalar(pickModeOn ? jRad * 1.35 : jRad);
             jm.position.copy(defVerts[i]);
+            jm.userData.feaNodeIndex = i;
+            jm.userData.isFeaFixed = false;
             viewport.feaGroup.add(jm);
+            if (pickModeOn) appState.feaNodePickMeshes.push(jm);
         }
     }
 
@@ -615,6 +663,203 @@ function updateFeaProgressUI({
     });
 }
 
+function computeVertexDegrees(src) {
+    const n = src && Array.isArray(src.vertices) ? src.vertices.length : 0;
+    const deg = new Int32Array(n);
+    if (!src || !Array.isArray(src.edges)) return deg;
+    for (const e of src.edges) {
+        if (!e || e.length < 2) continue;
+        if (e[0] >= 0 && e[0] < n) deg[e[0]]++;
+        if (e[1] >= 0 && e[1] < n) deg[e[1]]++;
+    }
+    return deg;
+}
+
+function getEffectiveFeaHostAnchors(feaSrc) {
+    if (!feaSrc || !Array.isArray(feaSrc.vertices)) return [];
+    const nVerts = feaSrc.vertices.length;
+    if (appState.feaState.supportRule === 'custom' && appState.feaFixedNodeSet && appState.feaFixedNodeSet.size > 0) {
+        const valid = Array.from(appState.feaFixedNodeSet)
+            .map(Number)
+            .filter(i => Number.isInteger(i) && i >= 0 && i < nVerts)
+            .sort((a, b) => a - b);
+        if (valid.length > 0) return valid;
+    }
+    return Array.isArray(feaSrc.anchors) ? feaSrc.anchors.slice() : [];
+}
+
+export function updateFeaFixedNodesUI() {
+    const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+    const nVerts = src && Array.isArray(src.vertices) ? src.vertices.length : 0;
+    const isCustom = appState.feaState.supportRule === 'custom' && appState.feaFixedNodeSet && appState.feaFixedNodeSet.size > 0;
+    const activeNodes = src ? getEffectiveFeaHostAnchors(src) : [];
+
+    const badge = $('fea-fixed-badge');
+    if (badge) {
+        if (!isCustom) {
+            badge.textContent = activeNodes.length > 0 ? `Auto Ground (${activeNodes.length})` : 'Auto Ground';
+            badge.className = 'text-[8.5px] font-mono text-gray-400';
+        } else {
+            badge.textContent = `Custom: ${activeNodes.length} nodes`;
+            badge.className = 'text-[8.5px] font-mono text-emerald-300 font-semibold';
+        }
+    }
+
+    const listEl = $('fea-fixed-list');
+    if (listEl) {
+        if (!src || activeNodes.length === 0) {
+            listEl.textContent = 'Fixed: Auto Ground';
+        } else {
+            const deg = computeVertexDegrees(src);
+            const valCounts = new Map();
+            let minZ = Infinity;
+            for (const v of src.vertices) {
+                const z = CORE.toV3(v).z;
+                if (z < minZ) minZ = z;
+            }
+            let groundCount = 0;
+            for (const idx of activeNodes) {
+                if (idx >= 0 && idx < nVerts) {
+                    const z = CORE.toV3(src.vertices[idx]).z;
+                    if (z <= minZ + 0.08) groundCount++;
+                    const kv = deg[idx] >= 5 ? 'V5+' : `V${deg[idx]}`;
+                    valCounts.set(kv, (valCounts.get(kv) || 0) + 1);
+                }
+            }
+            const parts = [];
+            if (groundCount > 0) parts.push(`${groundCount} Ground`);
+            for (const [k, cnt] of Array.from(valCounts.entries()).sort()) {
+                parts.push(`${cnt} ${k}`);
+            }
+            const prefix = isCustom ? `Fixed: ${activeNodes.length} nodes` : `Auto Ground (${activeNodes.length})`;
+            listEl.textContent = parts.length > 0 ? `${prefix} (${parts.slice(0, 3).join(' · ')})` : prefix;
+        }
+    }
+
+    const btnPick = $('btn-fea-pick-mode');
+    if (btnPick) {
+        const on = Boolean(appState.feaState.pickMode);
+        btnPick.textContent = on ? 'Click Pick (3D): ON' : 'Click Pick (3D): OFF';
+        btnPick.classList.toggle('seg-on', on);
+    }
+    const btnAuto = $('btn-fea-auto-ground');
+    if (btnAuto) {
+        btnAuto.classList.toggle('seg-on', !isCustom);
+    }
+}
+
+export function setFeaPickMode(on) {
+    const next = Boolean(on);
+    appState.feaState.pickMode = next;
+    updateFeaFixedNodesUI();
+    if (appState.lastFEAResult) {
+        renderFEAResults3D(computeEffectiveExaggeration(appState.feaState.exaggeration));
+    }
+    if (viewport.requestRender) viewport.requestRender(10);
+    return next;
+}
+
+export function setFeaFixedNodes(indices = null, opts = {}) {
+    if (!appState.feaFixedNodeSet) appState.feaFixedNodeSet = new Set();
+    appState.feaFixedNodeSet.clear();
+    if (Array.isArray(indices) && indices.length > 0) {
+        for (const raw of indices) {
+            const idx = Math.trunc(Number(raw));
+            if (Number.isInteger(idx) && idx >= 0) appState.feaFixedNodeSet.add(idx);
+        }
+        appState.feaState.supportRule = appState.feaFixedNodeSet.size > 0 ? 'custom' : 'auto_ground';
+    } else {
+        appState.feaState.supportRule = 'auto_ground';
+    }
+    updateFeaFixedNodesUI();
+    if (opts.recompute !== false) {
+        runSpaceFrameFEAFromUI({ expandHud: false });
+    }
+    return Array.from(appState.feaFixedNodeSet).sort((a, b) => a - b);
+}
+
+export function toggleFeaFixedNodeByClick(nodeIndex, isCtrlDeselect = false) {
+    const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+    if (!src || !Array.isArray(src.vertices)) return;
+    const idx = Math.trunc(Number(nodeIndex));
+    if (!Number.isInteger(idx) || idx < 0 || idx >= src.vertices.length) return;
+
+    if (!appState.feaFixedNodeSet) appState.feaFixedNodeSet = new Set();
+    // Seed from active auto anchors when transitioning from auto_ground -> custom so user edits incrementally
+    if (appState.feaState.supportRule !== 'custom' && appState.feaFixedNodeSet.size === 0) {
+        for (const ai of (src.anchors || [])) {
+            if (ai >= 0 && ai < src.vertices.length) appState.feaFixedNodeSet.add(ai);
+        }
+    }
+
+    if (isCtrlDeselect) {
+        appState.feaFixedNodeSet.delete(idx);
+    } else if (appState.feaFixedNodeSet.has(idx)) {
+        appState.feaFixedNodeSet.delete(idx);
+    } else {
+        appState.feaFixedNodeSet.add(idx);
+    }
+
+    appState.feaState.supportRule = appState.feaFixedNodeSet.size > 0 ? 'custom' : 'auto_ground';
+    updateFeaFixedNodesUI();
+    runSpaceFrameFEAFromUI({ expandHud: false });
+}
+
+export function selectFeaFixedByValency(valSpec, isCtrlDeselect = false) {
+    const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+    if (!src || !Array.isArray(src.vertices) || !Array.isArray(src.edges)) return [];
+    if (!appState.feaFixedNodeSet) appState.feaFixedNodeSet = new Set();
+    const deg = computeVertexDegrees(src);
+
+    if (isCtrlDeselect && appState.feaState.supportRule !== 'custom' && appState.feaFixedNodeSet.size === 0) {
+        for (const ai of (src.anchors || [])) appState.feaFixedNodeSet.add(ai);
+    }
+
+    const specStr = String(valSpec);
+    for (let i = 0; i < deg.length; i++) {
+        const kv = deg[i];
+        if (!(specStr === '5+' ? (kv >= 5) : (kv === parseInt(specStr, 10)))) continue;
+        if (isCtrlDeselect) appState.feaFixedNodeSet.delete(i);
+        else appState.feaFixedNodeSet.add(i);
+    }
+
+    appState.feaState.supportRule = appState.feaFixedNodeSet.size > 0 ? 'custom' : 'auto_ground';
+    updateFeaFixedNodesUI();
+    runSpaceFrameFEAFromUI({ expandHud: false });
+    return Array.from(appState.feaFixedNodeSet).sort((a, b) => a - b);
+}
+
+export function selectFeaFixedByRegion(region, isCtrlDeselect = false) {
+    const src = actions.getActiveGraphWithAnchors ? actions.getActiveGraphWithAnchors() : null;
+    if (!src || !Array.isArray(src.vertices) || src.vertices.length === 0) return [];
+    if (!appState.feaFixedNodeSet) appState.feaFixedNodeSet = new Set();
+
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    const zs = src.vertices.map(v => {
+        const z = CORE.toV3(v).z;
+        if (z < minZ) minZ = z;
+        if (z > maxZ) maxZ = z;
+        return z;
+    });
+
+    if (isCtrlDeselect && appState.feaState.supportRule !== 'custom' && appState.feaFixedNodeSet.size === 0) {
+        for (const ai of (src.anchors || [])) appState.feaFixedNodeSet.add(ai);
+    }
+
+    zs.forEach((z, i) => {
+        const match = region === 'top' ? (z >= maxZ - 0.08) : (z <= minZ + 0.08);
+        if (!match) return;
+        if (isCtrlDeselect) appState.feaFixedNodeSet.delete(i);
+        else appState.feaFixedNodeSet.add(i);
+    });
+
+    appState.feaState.supportRule = appState.feaFixedNodeSet.size > 0 ? 'custom' : 'auto_ground';
+    updateFeaFixedNodesUI();
+    runSpaceFrameFEAFromUI({ expandHud: false });
+    return Array.from(appState.feaFixedNodeSet).sort((a, b) => a - b);
+}
+
 function prepareFEASolveInputs() {
     if (!appState.feaState.excludeGraph && appState.fdmState.triggerOnHost && !appState.lastFDMResult && actions.runFDMOnActiveGraph) {
         actions.runFDMOnActiveGraph({ skipAutoSolidify: true, keepCamera: true });
@@ -632,7 +877,7 @@ function prepareFEASolveInputs() {
 
     let solveVerts = feaSrc.vertices;
     let solveEdges = feaSrc.edges;
-    let solveAnchors = feaSrc.anchors;
+    let solveAnchors = getEffectiveFeaHostAnchors(feaSrc);
     let edgeSpecs = null;
     let nodalSelfStressPairs = null;
     let hostNodeCount = feaSrc.vertices.length;
@@ -654,7 +899,7 @@ function prepareFEASolveInputs() {
             : (FEA_MATERIALS[feaState.elasticaMaterialKey] || FEA_MATERIALS.gfrp_rod);
         const hybrid = CORE.buildHybridGraphWithElastica(feaSrc.vertices, feaSrc.edges, curves, {
             includeHostGraph: !feaState.excludeGraph,
-            hostAnchors: feaSrc.anchors,
+            hostAnchors: solveAnchors,
             maxRods: Math.max(64, curves.length),
             segsPerRod: feaState.excludeGraph ? (curves.length > 300 ? 8 : 12) : (curves.length > 300 ? 6 : 8),
             rodRadiusM: elasticaState ? elasticaState.rodRadius : 0.015,
@@ -669,15 +914,22 @@ function prepareFEASolveInputs() {
         hostNodeCount = hybrid.hostNodeCount;
         coupledRods = hybrid.coupledRodCount;
         if (feaState.excludeGraph) {
-            if (Array.isArray(hybrid.recommendedAnchors) && hybrid.recommendedAnchors.length > 0) {
+            if (feaState.supportRule === 'custom' && hybrid.hostNodeMap) {
+                const mapped = solveAnchors
+                    .map(ai => hybrid.hostNodeMap.get(ai))
+                    .filter(ni => ni !== undefined && ni >= 0);
+                if (mapped.length > 0) solveAnchors = mapped;
+            } else if (Array.isArray(hybrid.recommendedAnchors) && hybrid.recommendedAnchors.length > 0) {
                 solveAnchors = hybrid.recommendedAnchors;
             } else if (hybrid.hostNodeMap) {
-                solveAnchors = (feaSrc.anchors || [])
+                solveAnchors = (solveAnchors || [])
                     .map(ai => hybrid.hostNodeMap.get(ai))
                     .filter(ni => ni !== undefined && ni >= 0);
             }
         }
     }
+
+    updateFeaFixedNodesUI();
 
     const graphBadge = $('fea-graph-badge');
     if (graphBadge) {
@@ -1092,10 +1344,43 @@ export function initTab5Fea() {
     actions.renderFEAResults3D = renderFEAResults3D;
     actions.setFEADeflectionScale = setFEADeflectionScale;
     actions.setFEALoadCase = setFEALoadCase;
+    actions.setFeaPickMode = setFeaPickMode;
+    actions.toggleFeaFixedNodeByClick = toggleFeaFixedNodeByClick;
+    actions.setFeaFixedNodes = setFeaFixedNodes;
+    actions.selectFeaFixedByValency = selectFeaFixedByValency;
+    actions.updateFeaFixedNodesUI = updateFeaFixedNodesUI;
+
+    // Isolated Fixed / Support Nodes UI controls (mirrors 4. Elastica UX)
+    $('btn-fea-pick-mode')?.addEventListener('click', () => {
+        if (!appState.lastFEAResult) runSpaceFrameFEAFromUI({ expandHud: false });
+        setFeaPickMode(!appState.feaState.pickMode);
+    });
+    $('btn-fea-auto-ground')?.addEventListener('click', () => {
+        setFeaFixedNodes(null);
+    });
+    $$('.fea-valency-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            selectFeaFixedByValency(btn.dataset.feaValency, !!(e.ctrlKey || e.metaKey));
+        });
+    });
+    $('btn-fea-sel-ground')?.addEventListener('click', (e) => {
+        selectFeaFixedByRegion('ground', !!(e.ctrlKey || e.metaKey));
+    });
+    $('btn-fea-sel-top')?.addEventListener('click', (e) => {
+        selectFeaFixedByRegion('top', !!(e.ctrlKey || e.metaKey));
+    });
+    $('btn-fea-clear-fixed')?.addEventListener('click', () => {
+        setFeaFixedNodes(null);
+    });
+    updateFeaFixedNodesUI();
+
     appState._feaApi = {
         setFEAAnimation,
         setFEADeflectionScale,
         setFEALoadCase,
+        setFeaPickMode,
+        setFeaFixedNodes,
+        selectFeaFixedByValency,
         runSpaceFrameFEAFromUI,
     };
 }
