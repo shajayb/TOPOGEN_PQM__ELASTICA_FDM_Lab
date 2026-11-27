@@ -15,6 +15,7 @@
     "test:verifier": "node ./TOPOGEN_FDM_Foundry/verifier/test_verifier.mjs",
     "test:guard": "node ./TOPOGEN_FDM_Foundry/scripts/foundry_mode_guard.mjs --self-test",
     "test:core": "node ./TOPOGEN_FDM_Foundry/core/test_core.mjs",
+    "test:chain": "node ./TOPOGEN_FDM_Foundry/core/test_procedural_chain.mjs",
     "test:mcp": "node ./TOPOGEN_FDM_Foundry/agent/test-mcp.mjs",
     "test:cli": "node ./TOPOGEN_FDM_Foundry/cli/test-cli.mjs",
     "test:live-desktop": "node ./TOPOGEN_FDM_Foundry/scripts/verify_live_desktop_mcp.mjs"

@@ -28,7 +28,7 @@ import {
     drawOverlay
 } from '../display/viewport_scene.js';
 import { applyOutlinerVisibility } from '../display/display_hud.js';
-import { expandTelemetryHudForFEA, emitFEATelemetry } from '../display/telemetry_hud.js';
+import { expandTelemetryHudForFEA, emitFEATelemetry, emitProcessTelemetry } from '../display/telemetry_hud.js';
 
 const _cCompHi = new THREE.Color(0x1d4ed8);
 const _cTensHi = new THREE.Color(0xef4444);
@@ -140,6 +140,40 @@ export function mountTab5Fea() {
             </div>
 
             <button id="btn-run-fea" class="cad-btn on w-full py-1.5 font-sans">⚡ Run 3D FEA</button>
+
+            <!-- FEA Process Telemetry & Progress Bar -->
+            <div id="fea-proc-card" class="proc-progress-card">
+                <div class="proc-progress-header">
+                    <span id="fea-proc-title" class="proc-progress-title">FEA Solver Telemetry</span>
+                    <span class="proc-progress-meta">
+                        <span id="fea-proc-elapsed">0 ms</span>
+                        <span id="fea-proc-pct" class="dp3-badge">Idle</span>
+                    </span>
+                </div>
+                <div class="proc-progress-track">
+                    <div id="fea-proc-fill" class="proc-progress-fill" style="width:0%"></div>
+                </div>
+                <div id="fea-proc-stage" class="proc-stage-line">Ready to run 3D Euler-Bernoulli space-frame FEA.</div>
+                <div class="proc-telemetry-grid">
+                    <div class="proc-telemetry-kv">
+                        <span class="proc-telemetry-k">Nodes / Elem</span>
+                        <span id="fea-pt-model" class="proc-telemetry-v">—</span>
+                    </div>
+                    <div class="proc-telemetry-kv">
+                        <span class="proc-telemetry-k">Active DOFs</span>
+                        <span id="fea-pt-dofs" class="proc-telemetry-v">—</span>
+                    </div>
+                    <div class="proc-telemetry-kv">
+                        <span class="proc-telemetry-k">Solve Time</span>
+                        <span id="fea-pt-solve" class="proc-telemetry-v">—</span>
+                    </div>
+                    <div class="proc-telemetry-kv">
+                        <span class="proc-telemetry-k">Disp / Min SF</span>
+                        <span id="fea-pt-peak" class="proc-telemetry-v">—</span>
+                    </div>
+                </div>
+                <pre id="fea-proc-log" class="proc-log">Idle — awaiting FEA solve or deflection playback.</pre>
+            </div>
         </div>
 
         <div class="bg-gray-900/90 border border-gray-700 rounded p-2.5 space-y-2 text-[10px]">
@@ -503,7 +537,85 @@ export function updateFEAScorecardUI(res) {
     setTxt('fea-readout', `Eq.Res: ${(res.equilibriumResidual || 0).toExponential(2)} · ΣRz: ${sumRz.toFixed(1)} N · ${(res.members || []).length} bars (${appState.feaState.restraintType})`);
 }
 
-export function runSpaceFrameFEAFromUI(opts = {}) {
+const _feaProcLog = [];
+let _feaAnimTelemetryAt = 0;
+
+function _fmtMs(ms) {
+    const n = Number(ms);
+    if (!Number.isFinite(n) || n < 0) return '—';
+    return n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`;
+}
+
+function _nextFrame() {
+    return new Promise((resolve) => {
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
+        else setTimeout(resolve, 0);
+    });
+}
+
+function updateFeaProgressUI({
+    title = 'FEA Solver Telemetry',
+    status = 'idle',
+    percent = 0,
+    stage = '',
+    elapsedMs = 0,
+    modelText = null,
+    dofsText = null,
+    solveText = null,
+    peakText = null,
+    logLine = null,
+    resetLog = false,
+    detail = null
+} = {}) {
+    const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    const card = $('fea-proc-card');
+    const fill = $('fea-proc-fill');
+    const pctEl = $('fea-proc-pct');
+
+    if (card) {
+        card.classList.remove('is-running', 'is-done', 'is-error');
+        if (status === 'running' || status === 'done' || status === 'error') card.classList.add(`is-${status}`);
+    }
+    if (fill) {
+        fill.style.width = `${pct}%`;
+        fill.classList.remove('is-running', 'is-done', 'is-error');
+        if (status === 'running' || status === 'done' || status === 'error') fill.classList.add(`is-${status}`);
+    }
+    setTxt('fea-proc-title', title);
+    setTxt('fea-proc-elapsed', _fmtMs(elapsedMs));
+    setTxt('fea-proc-stage', stage || '—');
+    if (modelText !== null) setTxt('fea-pt-model', modelText);
+    if (dofsText !== null) setTxt('fea-pt-dofs', dofsText);
+    if (solveText !== null) setTxt('fea-pt-solve', solveText);
+    if (peakText !== null) setTxt('fea-pt-peak', peakText);
+
+    if (pctEl) {
+        pctEl.classList.remove('is-pass', 'is-warn', 'is-fail', 'is-info');
+        if (status === 'running') { pctEl.textContent = `${pct}%`; pctEl.classList.add('is-info'); }
+        else if (status === 'done') { pctEl.textContent = '100% ✓'; pctEl.classList.add('is-pass'); }
+        else if (status === 'error') { pctEl.textContent = 'ERR'; pctEl.classList.add('is-fail'); }
+        else { pctEl.textContent = 'Idle'; }
+    }
+
+    if (resetLog) _feaProcLog.length = 0;
+    if (logLine) {
+        _feaProcLog.push(`[${_fmtMs(elapsedMs)}] ${logLine}`);
+        if (_feaProcLog.length > 6) _feaProcLog.shift();
+        setTxt('fea-proc-log', _feaProcLog.join('\n'));
+    }
+
+    emitProcessTelemetry({
+        domain: 'FEA',
+        title,
+        status,
+        percent: pct,
+        stage,
+        detail: detail || [modelText, dofsText, peakText].filter(Boolean).join(' · ') || stage,
+        elapsedMs
+    });
+}
+
+function prepareFEASolveInputs() {
     if (!appState.feaState.excludeGraph && appState.fdmState.triggerOnHost && !appState.lastFDMResult && actions.runFDMOnActiveGraph) {
         actions.runFDMOnActiveGraph({ skipAutoSolidify: true, keepCamera: true });
     }
@@ -601,21 +713,175 @@ export function runSpaceFrameFEAFromUI(opts = {}) {
         hostNodeCount
     };
 
-    appState.lastFEAResult = CORE.analyzeSpaceFrameFEA(solveVerts, solveEdges, solveAnchors, sectionParams, mat, loadConfig);
+    const nNodes = solveVerts.length;
+    const nBars = solveEdges.length;
+    const validAnchors = new Set((solveAnchors || []).filter(i => i >= 0 && i < nNodes));
+    const isFixed = String(loadConfig.restraintType || 'pinned').toLowerCase() === 'fixed';
+    const activeDofs = Math.max(0, 6 * nNodes - (isFixed ? 6 : 3) * validAnchors.size);
+
+    return {
+        mat,
+        sectionParams,
+        solveVerts,
+        solveEdges,
+        solveAnchors,
+        loadConfig,
+        solveGraph,
+        coupledRods,
+        nNodes,
+        nBars,
+        activeDofs
+    };
+}
+
+function finalizeFEASolve(prep, res, t0, solveMs, opts = {}) {
+    const { feaState } = appState;
+    appState.lastFEAResult = res;
     if (appState.lastFEAResult) {
-        appState.lastFEAResult._sourceGraph = solveGraph;
-        appState.lastFEAResult.coupledRodCount = coupledRods;
+        appState.lastFEAResult._sourceGraph = prep.solveGraph;
+        appState.lastFEAResult.coupledRodCount = prep.coupledRods;
     }
 
     feaState.runCount = (feaState.runCount || 0) + 1;
     updateFEAScorecardUI(appState.lastFEAResult);
     updateExaggerationBadgeUI();
-    emitFEATelemetry(appState.lastFEAResult, sectionParams, mat, loadConfig, opts);
+    emitFEATelemetry(appState.lastFEAResult, prep.sectionParams, prep.mat, prep.loadConfig, opts);
     renderFEAResults3D(computeEffectiveExaggeration(feaState.exaggeration));
     applyOutlinerVisibility();
     recomputeModelBox();
     drawOverlay();
+
+    const totalMs = performance.now() - t0;
+    const minSF = Math.min(res.minSF_t ?? 99, res.minSF_c ?? 99, res.minSF_b ?? 99);
+    const sfTxt = (!Number.isFinite(minSF) || minSF > 99) ? '>99×' : `${minSF.toFixed(2)}×`;
+    const dispTxt = Number(res.maxDispMm || 0).toFixed(2);
+    const title = prep.coupledRods > 0 ? `Coupled Elastica + Frame FEA (${prep.coupledRods} rods)` : '3D Space-Frame FEA';
+    const modelText = prep.coupledRods > 0
+        ? `${prep.nNodes}N · ${prep.nBars}E (${prep.coupledRods}R)`
+        : `${prep.nNodes}N · ${prep.nBars}E`;
+
+    updateFeaProgressUI({
+        title,
+        status: 'done',
+        percent: 100,
+        stage: `Complete — ${res.passed ? 'PASS ✓' : 'CHECK LIMITS'}`,
+        elapsedMs: totalMs,
+        modelText,
+        dofsText: `${prep.activeDofs} DOFs`,
+        solveText: _fmtMs(solveMs),
+        peakText: `${dispTxt}mm · SF ${sfTxt}`,
+        logLine: `Solved ${prep.activeDofs} DOFs in ${_fmtMs(solveMs)} | |u|=${dispTxt}mm | Min SF=${sfTxt} (${res.passed ? 'PASS' : 'CHECK'})`,
+        detail: `${modelText} · ${prep.activeDofs} DOFs · |u|=${dispTxt}mm · SF=${sfTxt}`
+    });
     return appState.lastFEAResult;
+}
+
+export function runSpaceFrameFEAFromUI(opts = {}) {
+    const t0 = performance.now();
+    const prep = prepareFEASolveInputs();
+    if (!prep) return null;
+
+    const title = prep.coupledRods > 0 ? `Coupled Elastica + Frame FEA (${prep.coupledRods} rods)` : '3D Space-Frame FEA';
+    const modelText = prep.coupledRods > 0
+        ? `${prep.nNodes}N · ${prep.nBars}E (${prep.coupledRods}R)`
+        : `${prep.nNodes}N · ${prep.nBars}E`;
+    updateFeaProgressUI({
+        title,
+        status: 'running',
+        percent: 55,
+        stage: `Solving 6-DOF stiffness system (${prep.activeDofs} DOFs)…`,
+        elapsedMs: performance.now() - t0,
+        modelText,
+        dofsText: `${prep.activeDofs} DOFs`,
+        resetLog: true,
+        logLine: `Extracted ${modelText} (${prep.activeDofs} active DOFs)`
+    });
+
+    const tSolve = performance.now();
+    const res = CORE.analyzeSpaceFrameFEA(
+        prep.solveVerts, prep.solveEdges, prep.solveAnchors,
+        prep.sectionParams, prep.mat, prep.loadConfig
+    );
+    const solveMs = performance.now() - tSolve;
+    return finalizeFEASolve(prep, res, t0, solveMs, opts);
+}
+
+export async function runSpaceFrameFEAAsyncFromUI(opts = {}) {
+    const t0 = performance.now();
+    updateFeaProgressUI({
+        title: '3D Space-Frame FEA',
+        status: 'running',
+        percent: 15,
+        stage: '1/4 Extracting Nodes, Members & Supports…',
+        elapsedMs: 0,
+        resetLog: true,
+        logLine: 'Stage 1/4: Extracting nodes, bars & boundary restraints'
+    });
+    await _nextFrame();
+
+    const prep = prepareFEASolveInputs();
+    if (!prep) {
+        updateFeaProgressUI({
+            title: '3D Space-Frame FEA',
+            status: 'error',
+            percent: 0,
+            stage: 'No active graph available for FEA.',
+            elapsedMs: performance.now() - t0,
+            logLine: 'Aborted: no active host graph'
+        });
+        return null;
+    }
+
+    const title = prep.coupledRods > 0 ? `Coupled Elastica + Frame FEA (${prep.coupledRods} rods)` : '3D Space-Frame FEA';
+    const modelText = prep.coupledRods > 0
+        ? `${prep.nNodes}N · ${prep.nBars}E (${prep.coupledRods}R)`
+        : `${prep.nNodes}N · ${prep.nBars}E`;
+
+    updateFeaProgressUI({
+        title,
+        status: 'running',
+        percent: 40,
+        stage: `2/4 Assembling 6-DOF Global Stiffness Matrix (${prep.activeDofs} DOFs)…`,
+        elapsedMs: performance.now() - t0,
+        modelText,
+        dofsText: `${prep.activeDofs} DOFs`,
+        logLine: `Stage 2/4: Assembling ${prep.nNodes}N / ${prep.nBars}E (${prep.activeDofs} DOFs)`
+    });
+    await _nextFrame();
+
+    updateFeaProgressUI({
+        title,
+        status: 'running',
+        percent: 70,
+        stage: '3/4 Solving Linear System K·u = F…',
+        elapsedMs: performance.now() - t0,
+        modelText,
+        dofsText: `${prep.activeDofs} DOFs`,
+        logLine: 'Stage 3/4: Solving K·u = F for self-weight & top loads'
+    });
+    await _nextFrame();
+
+    const tSolve = performance.now();
+    const res = CORE.analyzeSpaceFrameFEA(
+        prep.solveVerts, prep.solveEdges, prep.solveAnchors,
+        prep.sectionParams, prep.mat, prep.loadConfig
+    );
+    const solveMs = performance.now() - tSolve;
+
+    updateFeaProgressUI({
+        title,
+        status: 'running',
+        percent: 90,
+        stage: '4/4 Computing Safety Factors & 3D Stress Contours…',
+        elapsedMs: performance.now() - t0,
+        modelText,
+        dofsText: `${prep.activeDofs} DOFs`,
+        solveText: _fmtMs(solveMs),
+        logLine: `Stage 4/4: Axial/Bending/Buckling SF & 3D contours (${_fmtMs(solveMs)})`
+    });
+    await _nextFrame();
+
+    return finalizeFEASolve(prep, res, t0, solveMs, opts);
 }
 
 export function setFEAAnimation(on) {
@@ -684,6 +950,21 @@ export function tickFEAAnimation(dt) {
     const effMax = computeEffectiveExaggeration(appState.feaState.exaggeration);
     const oscFactor = 0.5 - 0.5 * Math.cos(appState.feaState.animPhase);
     renderFEAResults3D(effMax * oscFactor);
+
+    const now = performance.now();
+    if (now - _feaAnimTelemetryAt >= 120) {
+        _feaAnimTelemetryAt = now;
+        const pct = Math.round(oscFactor * 100);
+        const peakMm = Number(appState.lastFEAResult.maxDispMm || 0) * oscFactor;
+        updateFeaProgressUI({
+            title: 'FEA Deflection Playback',
+            status: 'running',
+            percent: pct,
+            stage: `Harmonic deflection cycle · |u(t)| = ${peakMm.toFixed(3)} mm (${pct}%)`,
+            elapsedMs: (appState.feaState.animPhase / (2 * Math.PI * 0.75)) * 1000,
+            peakText: `${peakMm.toFixed(2)} / ${Number(appState.lastFEAResult.maxDispMm || 0).toFixed(2)} mm`
+        });
+    }
 }
 
 export function initTab5Fea() {
@@ -774,7 +1055,7 @@ export function initTab5Fea() {
     }
 
     const btnRunFea = $('btn-run-fea');
-    if (btnRunFea) btnRunFea.addEventListener('click', () => runSpaceFrameFEAFromUI({ expandHud: false }));
+    if (btnRunFea) btnRunFea.addEventListener('click', () => { runSpaceFrameFEAAsyncFromUI({ expandHud: false }); });
     const btnHudToggle = $('btn-fea-hud-toggle');
     if (btnHudToggle) btnHudToggle.addEventListener('click', () => expandTelemetryHudForFEA());
 

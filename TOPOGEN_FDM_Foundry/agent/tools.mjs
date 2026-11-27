@@ -296,7 +296,7 @@ export const toolDefinitions = [
   },
   {
     name: 'topogen_ui_run_step',
-    description: 'Trigger a live computation step in the open TOPOGEN 3D Workbench browser tab (wfc, collapse_all, reset_topo, fdm, reset_fdm, solidify, pq, longitudinal_subdiv, ring_subdiv, swap_long_ring, select_pq_loop, pq_optimize, unroll, elastica, elastica_trace, elastica_reset, elastica_unroll, fea, fea_animate, zoom_fit, reload, or all).',
+    description: 'Trigger a live computation step in the open TOPOGEN 3D Workbench browser tab (wfc, collapse_all, reset_topo, fdm, reset_fdm, solidify, pq, longitudinal_subdiv, ring_subdiv, swap_long_ring, select_pq_loop, pq_optimize, unroll, elastica, elastica_trace, elastica_reset, elastica_unroll, fea, fea_animate, chain_load, chain_play, chain_jump, chain_clear, camera_bookmark, zoom_fit, reload, or all).',
     inputSchema: {
       ...schema({
         step: {

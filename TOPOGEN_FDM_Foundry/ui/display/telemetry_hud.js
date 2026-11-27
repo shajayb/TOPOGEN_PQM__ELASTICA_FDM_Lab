@@ -18,6 +18,22 @@ export function mountTelemetryHud() {
     const bodyEl = $('telemetry-collapsible');
     if (!bodyEl) return;
     bodyEl.innerHTML = `
+        <!-- Section 0: Live Process Telemetry & Progress (3DP / FEA) -->
+        <div id="telemetry-proc-card" class="proc-progress-card">
+            <div class="proc-progress-header">
+                <span id="hud-proc-title" class="proc-progress-title">Process Telemetry</span>
+                <span class="proc-progress-meta">
+                    <span id="hud-proc-elapsed">0 ms</span>
+                    <span id="hud-proc-pct" class="dp3-badge">Idle</span>
+                </span>
+            </div>
+            <div class="proc-progress-track">
+                <div id="hud-proc-bar-fill" class="proc-progress-fill" style="width:0%"></div>
+            </div>
+            <div id="hud-proc-stage" class="proc-stage-line">No active 3DP or FEA job.</div>
+            <div id="hud-proc-detail" class="text-[8.5px] font-mono text-gray-400 truncate">—</div>
+        </div>
+
         <!-- Section 1: Topo Gen / Growth Simulation Metrics -->
         <div class="bg-gray-900/90 border border-gray-700/80 rounded p-2.5 space-y-1">
             <div class="text-[9.5px] font-sans font-semibold uppercase tracking-wider text-cyan-400 mb-1">Topo Gen &amp; Voxel Metrics</div>
@@ -360,8 +376,77 @@ export function emitFEATelemetry(res, sectionParams, mat, loadConfig, opts = {})
     }
 }
 
+export function emitProcessTelemetry(info = {}) {
+    const domain = String(info.domain || 'JOB').toUpperCase();
+    const title = String(info.title || `${domain} Process`);
+    const status = String(info.status || 'idle').toLowerCase(); // 'idle' | 'running' | 'done' | 'error'
+    const pct = Math.max(0, Math.min(100, Math.round(Number(info.percent) || 0)));
+    const stage = String(info.stage || (status === 'idle' ? 'Idle' : ''));
+    const detail = String(info.detail || '—');
+    const elapsedMs = Number(info.elapsedMs);
+    const elapsedStr = Number.isFinite(elapsedMs) && elapsedMs >= 0
+        ? (elapsedMs >= 1000 ? `${(elapsedMs / 1000).toFixed(1)}s` : `${Math.round(elapsedMs)}ms`)
+        : '—';
+
+    const card = $('telemetry-proc-card');
+    const fill = $('hud-proc-bar-fill');
+    const pctEl = $('hud-proc-pct');
+    const hudPill = $('telemetry-hud-pill');
+
+    if (card) {
+        card.classList.remove('is-running', 'is-done', 'is-error');
+        if (status === 'running' || status === 'done' || status === 'error') {
+            card.classList.add(`is-${status}`);
+        }
+    }
+    if (fill) {
+        fill.style.width = `${pct}%`;
+        fill.classList.remove('is-running', 'is-done', 'is-error');
+        if (status === 'running' || status === 'done' || status === 'error') {
+            fill.classList.add(`is-${status}`);
+        }
+    }
+    setTxt('hud-proc-title', title);
+    setTxt('hud-proc-elapsed', elapsedStr);
+    setTxt('hud-proc-stage', stage || '—');
+    setTxt('hud-proc-detail', detail || '—');
+
+    if (pctEl) {
+        pctEl.classList.remove('is-pass', 'is-warn', 'is-fail', 'is-info');
+        if (status === 'running') {
+            pctEl.textContent = `${pct}%`;
+            pctEl.classList.add('is-info');
+        } else if (status === 'done') {
+            pctEl.textContent = '100% ✓';
+            pctEl.classList.add('is-pass');
+        } else if (status === 'error') {
+            pctEl.textContent = 'ERR';
+            pctEl.classList.add('is-fail');
+        } else {
+            pctEl.textContent = 'Idle';
+        }
+    }
+
+    if (hudPill) {
+        if (status === 'running') {
+            hudPill.textContent = `${domain} ${pct}%`;
+            hudPill.className = 'panel-pill bg-cyan-950/90 border-cyan-500/50 text-cyan-300 font-bold';
+        } else if (status === 'done') {
+            hudPill.textContent = `${domain} 100% ✓`;
+            hudPill.className = 'panel-pill bg-emerald-950/90 border-emerald-500/50 text-emerald-300 font-bold';
+        } else if (status === 'error') {
+            hudPill.textContent = `${domain} ERR`;
+            hudPill.className = 'panel-pill bg-rose-950/90 border-rose-500/50 text-rose-300 font-bold';
+        } else {
+            hudPill.textContent = 'Idle';
+            hudPill.className = 'panel-pill';
+        }
+    }
+}
+
 export function initTelemetryHud() {
     actions.updateSimUI = updateSimUI;
     actions.expandTelemetryHudForFEA = expandTelemetryHudForFEA;
     actions.emitFEATelemetry = emitFEATelemetry;
+    actions.emitProcessTelemetry = emitProcessTelemetry;
 }

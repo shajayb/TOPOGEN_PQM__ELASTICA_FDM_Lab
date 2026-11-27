@@ -1083,6 +1083,11 @@ export function updateBoundingBox3D() {
     if (!viewport.bboxGroup) return;
     clearGroup(viewport.bboxGroup);
 
+    if (appState.activeTabId === 'tab-3dp') {
+        viewport.bboxGroup.visible = false;
+        return;
+    }
+
     const visible = !!(appState.showBoundingBox && appState.groupVis.bbox !== false);
     viewport.bboxGroup.visible = visible;
     const box = computeActiveStructureBBox();
@@ -1460,6 +1465,111 @@ export function drawOverlay() {
 
     octx.font = '10px Consolas, monospace';
     octx.fillStyle = '#9ca3af';
+
+    // Tab 8 (3DP): Strictly millimeter (mm) status bar & 3D bounding-box pills on Bambu P1S bed
+    if (activeTabId === 'tab-3dp') {
+        const m3 = typeof actions.get3dpOverlayMetrics === 'function' ? actions.get3dpOverlayMetrics() : null;
+        let status3dp = 'units: mm · Bambu P1S (256×256×256 mm)';
+        if (m3 && m3.bboxMm) {
+            const sz = m3.bboxMm.size || [0, 0, 0];
+            status3dp += ` · src: ${m3.sourceLabel || 'Mesh'} · ${sz[0].toFixed(1)}×${sz[1].toFixed(1)}×${sz[2].toFixed(1)} mm · ${m3.fitsBed ? 'BED FIT ✓' : 'OUT OF BED'}`;
+            if (m3.layerCount > 0) {
+                status3dp += ` · ${m3.layerCount} layers (${m3.sliceSource === 'bambu_cli' ? 'Bambu CLI' : 'Local'})`;
+            }
+        }
+        octx.fillText(status3dp, 10, h - 8);
+
+        if (
+            appState.showBoundingBox &&
+            appState.groupVis.bbox !== false &&
+            m3 &&
+            m3.bboxMm &&
+            m3.sceneBBox &&
+            viewport.print3dpGroup &&
+            viewport.print3dpGroup.visible
+        ) {
+            const sb = m3.sceneBBox;
+            const bw = Math.max(0, sb.max[0] - sb.min[0]);
+            const bd = Math.max(0, sb.max[1] - sb.min[1]);
+            const bh = Math.max(0, sb.max[2] - sb.min[2]);
+            const diag = Math.hypot(bw, bd, bh);
+            if (diag > 1e-5) {
+                const off = Math.max(0.05, Math.min(0.22, diag * 0.055));
+                viewport.print3dpGroup.updateMatrixWorld(true);
+
+                const drawMmPill = (localPt, text, accentHex, bgAlpha = 0.88, isSummary = false) => {
+                    const wp = localPt.clone().applyMatrix4(viewport.print3dpGroup.matrixWorld);
+                    wp.project(viewport.camera);
+                    if (wp.z < -1 || wp.z > 1) return;
+                    const sx = (wp.x * 0.5 + 0.5) * w;
+                    const sy = (-wp.y * 0.5 + 0.5) * h;
+                    if (sx < -80 || sx > w + 80 || sy < -40 || sy > h + 40) return;
+
+                    octx.font = isSummary ? '600 10.5px Consolas, monospace' : '600 10px Consolas, monospace';
+                    const padX = isSummary ? 8 : 6;
+                    const pillH = isSummary ? 19 : 16;
+                    const tw = octx.measureText(text).width + padX * 2;
+                    const rx = Math.round(sx - tw * 0.5);
+                    const ry = Math.round(sy - pillH * 0.5);
+
+                    octx.save();
+                    octx.beginPath();
+                    if (typeof octx.roundRect === 'function') {
+                        octx.roundRect(rx, ry, tw, pillH, 4);
+                    } else {
+                        octx.rect(rx, ry, tw, pillH);
+                    }
+                    octx.fillStyle = `rgba(15, 23, 42, ${bgAlpha})`;
+                    octx.fill();
+                    octx.lineWidth = 1;
+                    octx.strokeStyle = accentHex;
+                    octx.stroke();
+
+                    octx.fillStyle = '#f8fafc';
+                    octx.textBaseline = 'middle';
+                    octx.fillText(text, rx + padX, ry + pillH * 0.5 + 0.5);
+                    octx.restore();
+                };
+
+                const szMm = m3.bboxMm.size || [0, 0, 0];
+                const wMm = Number(szMm[0] || 0).toFixed(1);
+                const dMm = Number(szMm[1] || 0).toFixed(1);
+                const hMm = Number(szMm[2] || 0).toFixed(1);
+                const summaryAccent = m3.fitsBed ? 'rgba(16, 185, 129, 0.85)' : 'rgba(244, 63, 94, 0.90)';
+
+                if (bw > 1e-4) {
+                    drawMmPill(
+                        new THREE.Vector3((sb.min[0] + sb.max[0]) * 0.5, sb.min[1] - off * 1.45, sb.min[2]),
+                        `W ${wMm} mm`,
+                        'rgba(248, 113, 113, 0.72)'
+                    );
+                }
+                if (bd > 1e-4) {
+                    drawMmPill(
+                        new THREE.Vector3(sb.max[0] + off * 1.45, (sb.min[1] + sb.max[1]) * 0.5, sb.min[2]),
+                        `D ${dMm} mm`,
+                        'rgba(52, 211, 153, 0.72)'
+                    );
+                }
+                if (bh > 1e-4) {
+                    drawMmPill(
+                        new THREE.Vector3(sb.max[0] + off * 1.55, sb.max[1], (sb.min[2] + sb.max[2]) * 0.5),
+                        `H ${hMm} mm`,
+                        'rgba(56, 189, 248, 0.78)'
+                    );
+                }
+                drawMmPill(
+                    new THREE.Vector3((sb.min[0] + sb.max[0]) * 0.5, (sb.min[1] + sb.max[1]) * 0.5, sb.max[2] + off * 1.35),
+                    `${wMm} × ${dMm} × ${hMm} mm${m3.fitsBed ? '' : ' · OVERFLOW'}`,
+                    summaryAccent,
+                    0.92,
+                    true
+                );
+            }
+        }
+        return;
+    }
+
     let statusLine = `units: m · grid: ${GRID_X}×${GRID_Y}×${GRID_Z} · topo: ${algoLabel} · collapsed: ${collapsedCount}/${totalVoxels}`;
     if (activeTabId === 'tab-fea' && lastFEAResult) {
         const dispVal = Number(lastFEAResult.maxDispMm || 0);

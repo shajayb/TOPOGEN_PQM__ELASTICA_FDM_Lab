@@ -146,6 +146,11 @@ import {
     generateElasticaFromUI,
     toggleElasticaUnroll3DFromUI
 } from './tabs/tab_elastica.js';
+import {
+    mountTab3dp,
+    initTab3dp,
+    print3dpApi
+} from './tabs/tab7_3dp.js';
 import { initMcpUiBridge } from './bridge/mcp_ui_bridge.js';
 
 // 1. Mount dynamic HTML templates into shell containers synchronously before event wiring
@@ -157,12 +162,13 @@ mountTab4PqMesh();
 mountTabElastica();
 mountTab5Fea();
 mountTab6Io();
+mountTab3dp();
 
 // 2. Initialize Rhino3dm WASM & Three.js Z-up Viewport
 appState.rhinoReady = initRhino();
 initViewportScene();
 
-// 3. Wire Display & Telemetry HUDs + Tabs 1..7 + Procedural Recorder
+// 3. Wire Display & Telemetry HUDs + Tabs 1..8 + Procedural Recorder
 initProceduralRecorder();
 initTelemetryHud();
 initDisplayHud();
@@ -173,6 +179,7 @@ initTab4PqMesh();
 initTabElastica();
 initTab5Fea();
 initTab6Io();
+initTab3dp();
 actions.applyTilePresetUI = applyTilePresetUI;
 actions.runFDMOnActiveGraph = runFDMOnActiveGraph;
 actions.generateElasticaFromUI = generateElasticaFromUI;
@@ -224,9 +231,7 @@ onChainChange((snap) => {
     const activeChain = snap.loadedChain;
     if (snap.event === 'clear' || !activeChain || !Array.isArray(activeChain.steps) || activeChain.steps.length === 0) {
         if (snap.event === 'clear') chainTimeline.hide();
-        return;
-    }
-    if (snap.event === 'load') {
+    } else if (snap.event === 'load') {
         chainTimeline.setChain(activeChain, -1);
         chainTimeline.show();
     } else if (snap.event === 'play_start') {
@@ -238,6 +243,16 @@ onChainChange((snap) => {
     } else if (snap.event === 'play_complete') {
         chainTimeline.setBusy(false);
         chainTimeline.setActiveStage(snap.activeStageIndex ?? (activeChain.steps.length - 1));
+    }
+
+    // Automatically push/sync latest generated geometry (PQ Mesh > Elastica > WFC) into isolated 8. 3DP tab
+    // whenever a procedural chain is stored, played, stepped, or loaded.
+    if (snap.event === 'play_complete' || snap.event === 'stage' || snap.event === 'save' || snap.event === 'load' || snap.event === 'record') {
+        try {
+            print3dpApi.syncIfChanged({ reason: `chain:${snap.event}` });
+        } catch (err) {
+            console.error('[print3dp syncIfChanged]', err);
+        }
     }
 });
 
@@ -269,6 +284,7 @@ const workbenchApi = {
     get tubeGroup() { return viewport.tubeGroup; },
     get unroll3DGroup() { return viewport.unroll3DGroup; },
     get feaGroup() { return viewport.feaGroup; },
+    get print3dpGroup() { return viewport.print3dpGroup; },
     get voxelGroup() { return viewport.voxelGroup; },
     get substepGroup() { return viewport.substepGroup; },
     core: CORE,
@@ -446,7 +462,8 @@ const workbenchApi = {
         captureStages: (chainObj = null, opts = {}) => playChain(chainObj, { ...opts, captureStages: true }),
         getLastCaptures,
         timeline: chainTimeline
-    }
+    },
+    print3dp: print3dpApi
 };
 
 window.WFC_WORKBENCH = workbenchApi;

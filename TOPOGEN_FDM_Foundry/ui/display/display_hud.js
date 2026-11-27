@@ -40,7 +40,8 @@ const TAB_SHORTCUT_ORDER = [
     'tab-elastica',
     'tab-fdm',
     'tab-fea',
-    'tab-io'
+    'tab-io',
+    'tab-3dp'
 ];
 
 export function showToast(msg, opts = {}) {
@@ -245,7 +246,15 @@ export function applyOutlinerVisibility() {
 
     viewport.gridHelper.visible = groupVis.grid;
     viewport.axesGroup.visible = groupVis.grid;
-    updateBoundingBox3D();
+    if (activeTabId === 'tab-3dp') {
+        if (typeof actions.apply3dpVisibility === 'function') actions.apply3dpVisibility();
+    } else {
+        if (viewport.print3dpGroup) {
+            viewport.print3dpGroup.visible = false;
+            if (viewport.mainGroup) viewport.mainGroup.visible = true;
+        }
+        updateBoundingBox3D();
+    }
     requestRender();
 }
 
@@ -311,6 +320,10 @@ export function switchTab(targetId) {
         pane.classList.toggle('hidden', pane.id !== targetId);
     });
 
+    if (prevTabId === 'tab-3dp' && targetId !== 'tab-3dp' && typeof actions.onLeave3dpTab === 'function') {
+        actions.onLeave3dpTab();
+    }
+
     if (targetId === 'tab-tiles' && actions.renderTileInspector3D) {
         actions.renderTileInspector3D();
     } else if (targetId === 'tab-fdm' && actions.ensureFdmTabReady) {
@@ -329,12 +342,16 @@ export function switchTab(targetId) {
         actions.ensureElasticaTabReady({ keepCamera: true });
     } else if (targetId === 'tab-fea' && !appState.lastFEAResult && actions.runSpaceFrameFEAFromUI) {
         actions.runSpaceFrameFEAFromUI({ trigger: 'tab-switch' });
+    } else if (targetId === 'tab-3dp' && typeof actions.onEnter3dpTab === 'function') {
+        actions.onEnter3dpTab();
     }
 
     applyOutlinerVisibility();
-    recomputeModelBox();
-    if (wasShowcase !== nowShowcase) {
-        zoomToBox(modelBoxToWorld(appState.modelBox));
+    if (targetId !== 'tab-3dp') {
+        recomputeModelBox();
+        if (wasShowcase !== nowShowcase) {
+            zoomToBox(modelBoxToWorld(appState.modelBox));
+        }
     }
 }
 
@@ -843,7 +860,7 @@ function initKeyboardShortcutsHud() {
             <div class="shortcuts-pop-list">
                 <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">F</kbd><span class="shortcuts-desc">Zoom Fit active model</span></div>
                 <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">Esc</kbd><span class="shortcuts-desc">Clear selection &amp; correspondence arc</span></div>
-                <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">1 – 7</kbd><span class="shortcuts-desc">Switch Workbench tabs</span></div>
+                <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">1 – 8</kbd><span class="shortcuts-desc">Switch Workbench tabs</span></div>
                 <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">Space</kbd><span class="shortcuts-desc">Toggle FEA deflection playback</span></div>
                 <div class="shortcuts-pop-row"><kbd class="shortcuts-kbd">?</kbd><span class="shortcuts-desc">Toggle this shortcuts guide</span></div>
             </div>
@@ -913,7 +930,7 @@ function initKeyboardShortcutsHud() {
             zoomToBox(modelBoxToWorld(appState.modelBox));
             return;
         }
-        if (e.key >= '1' && e.key <= '7') {
+        if (e.key >= '1' && e.key <= '8') {
             const tabId = TAB_SHORTCUT_ORDER[Number(e.key) - 1];
             if (tabId) {
                 e.preventDefault();

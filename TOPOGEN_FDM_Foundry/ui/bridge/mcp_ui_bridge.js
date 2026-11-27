@@ -375,6 +375,17 @@ function inspectWorkbench(wb, bridgeMeta = {}) {
             includeElastica: Boolean(st.feaState?.includeElastica),
             elasticaMaterialKey: st.feaState?.elasticaMaterialKey ?? null,
         },
+        chain: (() => {
+            const loaded = typeof wb.chain?.getLoaded === 'function' ? wb.chain.getLoaded() : null;
+            const tlEl = byId('viewport-chain-timeline');
+            return {
+                loadedId: loaded?.id || null,
+                loadedName: loaded?.name || null,
+                stepCount: Array.isArray(loaded?.steps) ? loaded.steps.length : 0,
+                activeStageIndex: typeof wb.chain?.getActiveStageIndex === 'function' ? wb.chain.getActiveStageIndex() : -1,
+                timelineVisible: Boolean(tlEl && !tlEl.classList.contains('hidden')),
+            };
+        })(),
     };
 }
 
@@ -1511,6 +1522,57 @@ async function runWorkbenchStep(wb, payload = {}, bridgeMeta = {}) {
             if (typeof wb.solidifyActiveGraph === 'function') wb.solidifyActiveGraph({ keepCamera: true });
             if (typeof wb.runFEA === 'function') wb.runFEA({ trigger: 'mcp' });
             break;
+        case 'chain_load': {
+            if (!wb.chain) throw new Error('Procedural chain API is not available on window.WFC_WORKBENCH');
+            const p = (payload.params && typeof payload.params === 'object') ? payload.params : {};
+            const repoPath = p.repoRelativePath || p.path || null;
+            if (repoPath) {
+                await wb.chain.loadFromRepo(String(repoPath));
+            } else if (p.chain && typeof p.chain === 'object') {
+                wb.chain.load(p.chain);
+            } else {
+                throw new Error('chain_load requires params.repoRelativePath (or params.chain)');
+            }
+            break;
+        }
+        case 'chain_play': {
+            if (!wb.chain) throw new Error('Procedural chain API is not available on window.WFC_WORKBENCH');
+            const p = (payload.params && typeof payload.params === 'object') ? payload.params : {};
+            const repoPath = p.repoRelativePath || p.path || null;
+            if (repoPath) {
+                await wb.chain.loadFromRepo(String(repoPath));
+            } else if (p.chain && typeof p.chain === 'object') {
+                wb.chain.load(p.chain);
+            }
+            await wb.chain.play(null, {
+                captureStages: Boolean(p.captureStages),
+                cameraMode: p.cameraMode || 'chain',
+            });
+            break;
+        }
+        case 'chain_jump': {
+            if (!wb.chain) throw new Error('Procedural chain API is not available on window.WFC_WORKBENCH');
+            const p = (payload.params && typeof payload.params === 'object') ? payload.params : {};
+            const stageIdx = Number(p.stageIndex ?? p.index ?? 0);
+            await wb.chain.jumpToStage(stageIdx, {
+                captureStages: Boolean(p.captureStages),
+                cameraMode: p.cameraMode || 'chain',
+            });
+            break;
+        }
+        case 'chain_clear': {
+            if (wb.chain && typeof wb.chain.clear === 'function') wb.chain.clear();
+            break;
+        }
+        case 'camera_bookmark': {
+            if (!wb.bookmarks) throw new Error('Camera bookmarks API is not available on window.WFC_WORKBENCH');
+            const p = (payload.params && typeof payload.params === 'object') ? payload.params : {};
+            const bmId = String(p.bookmarkId || p.id || '').trim();
+            const bm = bmId ? wb.bookmarks.getById(bmId) : null;
+            if (!bm) throw new Error(`Unknown camera bookmark: "${bmId}"`);
+            wb.bookmarks.apply(bm, { instant: Boolean(p.instant) });
+            break;
+        }
         case 'zoom_fit':
             if (typeof wb.zoomFit === 'function') wb.zoomFit();
             break;

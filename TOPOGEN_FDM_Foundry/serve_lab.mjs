@@ -426,6 +426,24 @@ const server = http.createServer(async (req, res) => {
             await handleSaveCapture(req, res);
             return;
         }
+        if (method === 'GET' && reqPath === '/api/3dp/status') {
+            try {
+                const { getBambuStatus } = await import('./agent/bambu_cli.mjs');
+                sendJson(res, 200, { ok: true, ...getBambuStatus() });
+            } catch {
+                sendJson(res, 200, {
+                    ok: true,
+                    available: false,
+                    exePath: null,
+                    profilesReady: false,
+                    printer: 'Bambu Lab P1S',
+                    bedMm: [256, 256, 256],
+                    nozzleMm: 0.4,
+                    note: 'Bambu Studio CLI bridge is available on the full Foundry server (:8787).'
+                });
+            }
+            return;
+        }
 
         // Default static file serving inside ROOT_DIR
         const relPath = reqPath === '/'
